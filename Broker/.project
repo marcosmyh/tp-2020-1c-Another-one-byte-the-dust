@@ -1,11 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>Team</name>
+	<name>Broker</name>
 	<comment></comment>
 	<projects>
-		<project>Broker</project>
-		<project>GameBoy</project>
-		<project>GameCard</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>
