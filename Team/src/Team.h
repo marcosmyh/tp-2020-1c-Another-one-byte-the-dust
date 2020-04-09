@@ -22,6 +22,7 @@
 
 //VARIABLES
 t_log* logger;
+t_log* loggerTeams;
 t_config* archivoConfig;
 t_list* posiciones_entrenadores;
 t_list* pokemon_entrenadores;
@@ -33,16 +34,20 @@ int quantum;
 int estimacion_inicial;
 char* ip_broker;
 char* puerto_broker;
+char* ip_team;
+char* puerto_team;
 char* team_log_file;
 int socket_servidor;
 int socket_cliente;
 
 //FUNCIONES
 void crearLogger();
+void crearLoggerTeams();
 void leerArchivoDeConfiguracion();
 void setearValores(t_config* archConfiguracion);
-int iniciar_servidor();
-int esperar_cliente(int socket_servidor);
+int iniciar_servidor(char* ip, char* puerto, t_log* log);
+int esperar_cliente(int socket_servidor, t_log* logger);
+int conectarse_a_un_servidor(char* ip, char* puerto, t_log* log);
 void atenderCliente(int socket_cliente); //ESTA ES LA FUNCION MAGICA
 
 #endif
