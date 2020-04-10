@@ -10,12 +10,12 @@ int main(){
 	conectarse_a_un_servidor(ip_broker, puerto_broker, logger);
 	//ESPERO CLIENTES
 	while(1){
-		log_info(logger,"Esperando por clientes");
+		log_info(logger,"Esperando por clientess");
 		socket_cliente = esperar_cliente(socket_servidor,logger);
 		pthread_t hiloRecibirPaquetes;
 		//SI SE CONECTA LO ATIENDO
 		if(pthread_create(&hiloRecibirPaquetes, NULL, (void*)atenderCliente, &socket_cliente) == 0){
-			pthread_detach(&hiloRecibirPaquetes);
+			pthread_detach(hiloRecibirPaquetes);
 			log_info(logger, "Se creo el hilo recibirPaquetes correctamente");
 		}
 		else{
@@ -26,10 +26,10 @@ int main(){
 }
 
 void crearLogger(){
-	char* logPath = "/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/Team/src/Team.log";
+	char* logPath = "/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust-master/Team/Team.log";
 	char* nombreArch = "Team";
 	logger = log_create(logPath, nombreArch, 1, LOG_LEVEL_INFO);
-	log_info(logger, "El logger general se creo con exito");
+	log_info(logger, "El logger general se creo con exito!");
 }
 
 void crearLoggerTeams(){
@@ -39,7 +39,7 @@ void crearLoggerTeams(){
 }
 
 void leerArchivoDeConfiguracion(){
-	char* configPath = "/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/Team/src/Team.cfg";
+	char* configPath = "/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust-master/Team/Team.config";
 	archivoConfig = config_create(configPath);
 	if (archivoConfig == NULL){
 		log_error(logger,"Archivo de configuracion no encontrado");
