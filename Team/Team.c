@@ -26,7 +26,7 @@ int main(){
 }
 
 void crearLogger(){
-	char* logPath = "/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust-master/Team/Team.log";
+	char* logPath = "/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/Team/Team.log";
 	char* nombreArch = "Team";
 	logger = log_create(logPath, nombreArch, 1, LOG_LEVEL_INFO);
 	log_info(logger, "El logger general se creo con exito!");
@@ -39,7 +39,7 @@ void crearLoggerTeams(){
 }
 
 void leerArchivoDeConfiguracion(){
-	char* configPath = "/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust-master/Team/Team.config";
+	char* configPath = "/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/Team/Team.config";
 	archivoConfig = config_create(configPath);
 	if (archivoConfig == NULL){
 		log_error(logger,"Archivo de configuracion no encontrado");
