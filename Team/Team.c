@@ -138,5 +138,42 @@ int conectarse_a_un_servidor(char* ip, char* puerto, t_log* log){
 }
 
 void atenderCliente(int socket_cliente){
+	/*
+	log_info(logger, "Atendiendo a cliente, socket:%d", socket_cliente);
+	while(1){
+		Header headerRecibido;
+		headerRecibido = recieveHeader(socket_cliente);
+		log_info(logger, "Codigo de operacion:%i", headerRecibido.operaciones);
+		log_info(logger, "Tamanio:%i", headerRecibido.tamanioMensaje);
+		if(headerRecibido.operaciones == -1){
+			log_error(logger, "Se desconecto el cliente");
+			break;
+		}
+		uint32_t tamanio = headerRecibido.tamanioMensaje;
+		switch(headerRecibido.operaciones){
 
+		case t_NEW:;
+			break;
+
+		case t_LOCALIZED:;
+			break;
+
+		case t_GET:;
+			break;
+
+		case t_APPEARED:;
+			break;
+
+		case t_CATCH:;
+			break;
+
+		case t_CAUGHT:;
+			break;
+
+		default:
+			log_error(logger, "No es un codigo de operacion conocido: %i", headerRecibido.operaciones);
+			break;
+		}
+	}
+	*/
 }
