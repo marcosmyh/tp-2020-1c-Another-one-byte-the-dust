@@ -28,9 +28,9 @@ Header recieveHeader(int socketCliente){
 	return headerQueRetorna;
 }
 
-void* recieveAndUnpack(int socketCliente, uint32_t tamanio){
-	void* retorno = malloc(tamanio);
-	recv(socketCliente, retorno, tamanio, MSG_WAITALL);
+void* recieveAndUnpack(int socketCliente, uint32_t tamanioMensaje){
+	void* retorno = malloc(tamanioMensaje);
+	recv(socketCliente, retorno, tamanioMensaje, MSG_WAITALL);
 	return retorno;
 }
 
@@ -61,30 +61,99 @@ bool packAndSend_New(int socketCliente, char* pokemon, uint32_t cantidad, uint32
 	desplazamiento += sizeof(uint32_t);
 	memcpy(buffer+desplazamiento, pokemon, tamPokemon);
 	desplazamiento += tamPokemon;
-	memcpy(buffer+desplazamiento, cantidad, sizeof(uint32_t));
+	memcpy(buffer+desplazamiento, &cantidad, sizeof(uint32_t));
 	desplazamiento += sizeof(uint32_t);
-	memcpy(buffer+desplazamiento, coordenadaX, sizeof(uint32_t));
+	memcpy(buffer+desplazamiento, &coordenadaX, sizeof(uint32_t));
 	desplazamiento +=sizeof(uint32_t);
-	memcpy(buffer+desplazamiento, coordenadaY, sizeof(uint32_t));
+	memcpy(buffer+desplazamiento, &coordenadaY, sizeof(uint32_t));
 	int resultado = packAndSend(socketCliente, buffer, tamMensaje, t_NEW);
 	free(buffer);
 	return resultado;
 }
-bool packAndSend_Localized(){
 
+bool packAndSend_Localized(int socketCliente, char* pokemon, uint32_t cantidadParesCoordenadas, uint32_t arrayCoordenadas[]){
+	//Revisar como obtener el tamaño del array
+	uint32_t tamMensaje = strlen(pokemon) + 1 + sizeof(cantidadParesCoordenadas) + sizeof(arrayCoordenadas) + (sizeof(uint32_t)*2*cantidadParesCoordenadas);
+	uint32_t tamPokemon = strlen(pokemon);
+	void* buffer = malloc(tamMensaje);
+	uint32_t desplazamiento = 0;
+	memcpy(buffer, &tamPokemon, sizeof(uint32_t));
+	desplazamiento += sizeof(uint32_t);
+	memcpy(buffer+desplazamiento, pokemon, tamPokemon);
+	desplazamiento += tamPokemon;
+	memcpy(buffer+desplazamiento, &cantidadParesCoordenadas, sizeof(uint32_t));
+	desplazamiento += sizeof(uint32_t);
+	for(int i=0; i<(cantidadParesCoordenadas*2); i++){
+		packCoordenada_Localized(buffer, desplazamiento, arrayCoordenadas[i]);
+	}
+	int resultado = packAndSend(socketCliente, buffer, tamMensaje, t_LOCALIZED);
+	free(buffer);
+	return resultado;
 }
-bool packAndSend_GET(){
 
+void packCoordenada_Localized(void* buffer, uint32_t desplazamiento, uint32_t coordenada){
+	memcpy(buffer+desplazamiento, &coordenada, sizeof(uint32_t));
+	desplazamiento += sizeof(uint32_t);
 }
-bool packAndSend_Appeared(){
 
+bool packAndSend_Get(int socketCliente, char* pokemon){
+	uint32_t tamMensaje = strlen(pokemon) + 1;
+	uint32_t tamPokemon = strlen(pokemon);
+	void* buffer = malloc(tamMensaje);
+	uint32_t desplazamiento = 0;
+	memcpy(buffer, &tamPokemon, sizeof(uint32_t));
+	desplazamiento += sizeof(uint32_t);
+	memcpy(buffer+desplazamiento, pokemon, tamPokemon);
+	int resultado = packAndSend(socketCliente, buffer, tamMensaje, t_GET);
+	free(buffer);
+	return resultado;
 }
-bool packAndSend_Catch(){
 
+bool packAndSend_Appeared(int socketCliente, char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY){
+	uint32_t tamMensaje = strlen(pokemon) + 1 + sizeof(uint32_t) + sizeof(uint32_t);
+	uint32_t tamPokemon = strlen(pokemon);
+	void* buffer = malloc(tamMensaje);
+	uint32_t desplazamiento = 0;
+	memcpy(buffer, &tamPokemon, sizeof(uint32_t));
+	desplazamiento += sizeof(uint32_t);
+	memcpy(buffer+desplazamiento, pokemon, tamPokemon);
+	desplazamiento += tamPokemon;
+	memcpy(buffer+desplazamiento, &coordenadaX, sizeof(uint32_t));
+	desplazamiento += sizeof(uint32_t);
+	memcpy(buffer+desplazamiento, &coordenadaY, sizeof(uint32_t));
+	int resultado = packAndSend(socketCliente, buffer, tamMensaje, t_APPEARED);
+	free(buffer);
+	return resultado;
 }
-bool packAndSend_Caught(){
 
+bool packAndSend_Catch(int socketCliente, char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY){
+	uint32_t tamMensaje = strlen(pokemon) + 1 + sizeof(uint32_t) + sizeof(uint32_t);
+	uint32_t tamPokemon = strlen(pokemon);
+	void* buffer = malloc(tamMensaje);
+	uint32_t desplazamiento = 0;
+	memcpy(buffer, &tamPokemon, sizeof(uint32_t));
+	desplazamiento += sizeof(uint32_t);
+	memcpy(buffer+desplazamiento, pokemon, tamPokemon);
+	desplazamiento += tamPokemon;
+	memcpy(buffer+desplazamiento, &coordenadaX, sizeof(uint32_t));
+	desplazamiento += sizeof(uint32_t);
+	memcpy(buffer+desplazamiento, &coordenadaY, sizeof(uint32_t));
+	int resultado = packAndSend(socketCliente, buffer, tamMensaje, t_APPEARED);
+	free(buffer);
+	return resultado;
 }
+
+bool packAndSend_Caught(int socketCliente, uint32_t atrapado){
+	uint32_t tamMensaje = sizeof(uint32_t);
+	void* buffer= malloc(tamMensaje);
+	memcpy(buffer, &atrapado, sizeof(uint32_t));
+	int resultado = packAndSend(socketCliente, buffer, tamMensaje, t_CAUGHT);
+	free(buffer);
+	return resultado;
+}
+
+//UNPACK NOMBRE POKEMON (IGUAL PARA TODOS)
+
 char* unpackPokemon(void* pack){
 	uint32_t tamanioPokemon = 0;
 	uint32_t desplazamiento = 0;
@@ -94,6 +163,9 @@ char* unpackPokemon(void* pack){
 	memcpy(pokemon, pack+desplazamiento,tamanioPokemon);
 	return pokemon;
 }
+
+//UNPACK NEW
+
 uint32_t unpackCantidadPokemons_New(void* pack, uint32_t tamanioPokemon){
 	uint32_t cantPokemones = 0;
 	uint32_t desplazamiento = tamanioPokemon;
@@ -113,8 +185,60 @@ uint32_t unpackCoordenadaY_New(void* pack, uint32_t tamanioPokemon){
 	return coordenadaY;
 }
 
+// UNPACK LOCALIZED
 
+uint32_t unpackCantidadParesCoordenadas_Localized(void* pack, uint32_t tamanioPokemon){
+	uint32_t cantParesCoordenadas = 0;
+	uint32_t desplazamiento = tamanioPokemon;
+	memcpy(&cantParesCoordenadas, pack+desplazamiento, sizeof(uint32_t));
+	return cantParesCoordenadas;
+}
+uint32_t unpackCoordenadaX_Localized(void* pack, uint32_t desplazamiento){
+	uint32_t coordenadaX = 0;
+	memcpy(&coordenadaX, pack+desplazamiento, sizeof(uint32_t));
+	return coordenadaX;
+}
+uint32_t unpackCoordenadaY_Localized(void* pack, uint32_t desplazamiento){
+	uint32_t coordenadaY = 0;
+	memcpy(&coordenadaY, pack+desplazamiento, sizeof(uint32_t));
+	return coordenadaY;
+}
 
+// UNPACK APPEARED
 
+uint32_t unpackCoordenadaX_Appeared(void* pack, uint32_t tamanioPokemon){
+	uint32_t coordenadaX = 0;
+	uint32_t desplazamiento = (tamanioPokemon);
+	memcpy(&coordenadaX, pack+desplazamiento, sizeof(uint32_t));
+	return coordenadaX;
+}
+uint32_t unpackCoordenadaY_Appeared(void* pack, uint32_t tamanioPokemon){
+	uint32_t coordenadaY = 0;
+	uint32_t desplazamiento = (tamanioPokemon + sizeof(uint32_t));
+	memcpy(&coordenadaY, pack+desplazamiento, sizeof(uint32_t));
+	return coordenadaY;
+}
 
+// UNPACK CATCH
+
+uint32_t unpackCoordenadaX_Catch(void* pack, uint32_t tamanioPokemon){
+	uint32_t coordenadaX = 0;
+	uint32_t desplazamiento = (tamanioPokemon);
+	memcpy(&coordenadaX, pack+desplazamiento, sizeof(uint32_t));
+	return coordenadaX;
+}
+uint32_t unpackCoordenadaY_Catch(void* pack, uint32_t tamanioPokemon){
+	uint32_t coordenadaY = 0;
+	uint32_t desplazamiento = (tamanioPokemon + sizeof(uint32_t));
+	memcpy(&coordenadaY, pack+desplazamiento, sizeof(uint32_t));
+	return coordenadaY;
+}
+
+// UNPACK CAUGHT
+
+bool unpackResultado_Caught(void* pack){
+	bool atrapado;
+	memcpy(&atrapado, pack, sizeof(uint32_t));
+	return atrapado;
+}
 
