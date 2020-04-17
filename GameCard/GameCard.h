@@ -19,6 +19,7 @@
 #include<commons/config.h>
 #include<string.h>
 #include<pthread.h>
+#include "../Serializacion/Serializacion.h"
 
 typedef enum
 {

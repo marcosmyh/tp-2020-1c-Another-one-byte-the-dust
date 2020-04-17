@@ -8,6 +8,7 @@ int main(){
 	socket_servidor = iniciar_servidor(ip_team, puerto_team, logger);
 	//ME CONECTO AL BROKER, HAY QUE AGREGARLE LA FUNCIONALIDAD PARA QUE RECONECTE SOLO
 	conectarse_a_un_servidor(ip_broker, puerto_broker, logger);
+
 	//ESPERO CLIENTES
 	while(1){
 		log_info(logger,"Esperando por clientess");

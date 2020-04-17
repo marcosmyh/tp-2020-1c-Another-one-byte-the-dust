@@ -1,9 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>tp-2020-1c-Another-one-byte-the-dust-master</name>
+	<name>tp-2020-1c-Another-one-byte-the-dust</name>
 	<comment></comment>
 	<projects>
-		<project>Serializacion</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>

@@ -1,16 +1,3 @@
-/*
- ============================================================================
- Name        : GameCard.c
- Author      : Another One Byte The Dust
- Version     :
- Copyright   : Your copyright notice
- Description : Hello World in C, Ansi-style
- ============================================================================
- */
-
-#include "GameCard.h"
-
-
 #include "GameCard.h"
 
 int main(void){

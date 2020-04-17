@@ -1,3 +1,4 @@
+export Serializacion_PATH = $(CURDIR)/Serializacion
 export Team_PATH = $(CURDIR)/Team
 export Broker_PATH = $(CURDIR)/Broker
 export GameBoy_PATH = $(CURDIR)/GameBoy

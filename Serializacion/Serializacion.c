@@ -7,7 +7,7 @@
 
 #include "Serializacion.h"
 
-Header recieveHeader(int socketCliente){
+Header receiveHeader(int socketCliente){
 	void* buffer = malloc(sizeof(t_operacion) + sizeof(uint32_t));
 	int result = recv(socketCliente, buffer, (sizeof(t_operacion) + sizeof(uint32_t)), MSG_WAITALL);
 	if(result == 0 || result == -1){
@@ -28,7 +28,7 @@ Header recieveHeader(int socketCliente){
 	return headerQueRetorna;
 }
 
-void* recieveAndUnpack(int socketCliente, uint32_t tamanioMensaje){
+void* receiveAndUnpack(int socketCliente, uint32_t tamanioMensaje){
 	void* retorno = malloc(tamanioMensaje);
 	recv(socketCliente, retorno, tamanioMensaje, MSG_WAITALL);
 	return retorno;

@@ -4,6 +4,16 @@ include Paths.Makefile
 
 default: main
 
+Serializacion:
+	@echo 
+	@echo "##################################################"
+	@echo "#                                                #"
+	@echo "#               Building Serializacion           #"
+	@echo "#                                                #"
+	@echo "##################################################"
+	@echo 
+	@cd $(Serializacion_PATH) && $(MAKE)
+	
 Team:
 	@echo 
 	@echo "##################################################"
@@ -44,11 +54,12 @@ GameCard:
 	@echo 
 	@cd $(GameCard_PATH) && $(MAKE)
 
-main: Team Broker GameBoy GameCard
+main: Serializacion Team Broker GameBoy GameCard
 
 all: main
 
 clean: 
+	@cd $(Serializacion_PATH) && $(MAKE) clean
 	@cd $(Team_PATH) && $(MAKE) clean
 	@cd $(Broker_PATH) && $(MAKE) clean
 	@cd $(GameBoy_PATH) && $(MAKE) clean

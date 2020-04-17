@@ -1,7 +1,7 @@
 TARGET = Team
-LIBS = -lcommons -lpthread
+LIBS = -lcommons -lpthread -lSerializacion
 CC = gcc
-CFLAGS = -g -Wall
+CFLAGS = -g -Wall -L$(Serializacion_PATH) -Wl,-rpath=$(Serializacion_PATH)
 
 .PHONY: default all clean
 

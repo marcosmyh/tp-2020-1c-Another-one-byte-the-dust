@@ -1,7 +1,7 @@
-TARGET = GameCard
-LIBS = -lcommons -lpthread -lSerializacion
+TARGET = libSerializacion
+LIBS = -lcommons
 CC = gcc
-CFLAGS = -g -Wall -L$(Serializacion_PATH) -Wl,-rpath=$(Serializacion_PATH)
+CFLAGS = -g -Wall -shared
 
 .PHONY: default all clean
 
@@ -17,8 +17,8 @@ HEADERS = $(wildcard *.h)
 .PRECIOUS: $(TARGET) $(OBJECTS)
 
 $(TARGET): $(OBJECTS)
-	$(CC) $(OBJECTS) $(CFLAGS) $(LIBS) -o $@
+	$(CC) $(OBJECTS) $(CFLAGS) $(LIBS) -o $@.so
 	
 clean:
 	-rm -f *.o
-	-rm -f $(TARGET)
+	-rm -f $(TARGET).so

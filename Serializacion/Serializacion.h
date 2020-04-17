@@ -30,9 +30,9 @@ typedef struct {
 
 //FUNCIONES
 
-Header recieveHeader(int socketCliente); //DESEMPAQUETA EL HEADER DE CUALQUIER PAQUETE PARA OBTENER EL CODIGO DE OPERACION
+Header receiveHeader(int socketCliente); //DESEMPAQUETA EL HEADER DE CUALQUIER PAQUETE PARA OBTENER EL CODIGO DE OPERACION
 
-void* recieveAndUnpack(int socketCliente, uint32_t tamanioMensaje);//DEVUELVE EL PAQUETE ENTERO,DESPUES HAY QUE DESEMPAQUETAR CADA UNA DE LAS COSAS QUE LO COMPONEN
+void* receiveAndUnpack(int socketCliente, uint32_t tamanioMensaje);//DEVUELVE EL PAQUETE ENTERO,DESPUES HAY QUE DESEMPAQUETAR CADA UNA DE LAS COSAS QUE LO COMPONEN
 
 bool packAndSend(int socketCliente, const void* paquete, uint32_t tamPaquete, t_operacion operacion); //EMPAQUETA UN PAQUETE CUALQUIERA Y LO ENVIA
 
