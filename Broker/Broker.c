@@ -10,5 +10,7 @@ int main(void) {
 	// OMG ya se pushear desde la interfaz de Eclipse XD
 	// MENSAJE AGREGADO DESDE GIT WEB - Prueba de Pull
 
+	// Commit desde Consola
+
 	return EXIT_SUCCESS;
 }
