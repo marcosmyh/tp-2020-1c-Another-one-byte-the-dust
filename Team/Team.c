@@ -6,12 +6,23 @@ int main(){
 	crearLoggerTeams();
 	leerArchivoDeConfiguracion();
 	socket_servidor = iniciar_servidor(ip_team, puerto_team, logger);
-	//ME CONECTO AL BROKER, HAY QUE AGREGARLE LA FUNCIONALIDAD PARA QUE RECONECTE SOLO
-	conectarse_a_un_servidor(ip_broker, puerto_broker, logger);
-
+	//ME CONECTO A LAS COLAS
+	int conexionColas = conectarseAColasMensajes(ip_broker, puerto_broker, logger);
+	//SI FALLA CREO UN HILO PARA HACER LA RECONEXION CADA X SEGUNDOS
+	if (conexionColas == -1){
+		log_info(logger, "La conexion a las colas falló, se volverá a intentar cada %d segundos", tiempo_reconexion);
+		pthread_t hiloReconexion;
+		if(pthread_create(&hiloReconexion, NULL, (void*)reconectarseAColasMensajes, NULL) == 0){
+			pthread_detach(hiloReconexion);
+			log_info(logger, "Se creo el hilo de reconexion correctamente");
+		}
+		else{
+			log_error(logger, "No se ha podido crear el hilo de reconexion");
+		}
+	}
 	//ESPERO CLIENTES
 	while(1){
-		log_info(logger,"Esperando por clientess");
+		log_info(logger,"Esperando por clientes");
 		socket_cliente = esperar_cliente(socket_servidor,logger);
 		pthread_t hiloRecibirPaquetes;
 		//SI SE CONECTA LO ATIENDO
@@ -108,6 +119,32 @@ int esperar_cliente(int socket_servidor, t_log* logger){
 
 	log_info(logger, "Se conecto un cliente!");
 	return socket_cliente;
+}
+
+void reconectarseAColasMensajes(){
+	while (1){
+		sleep(tiempo_reconexion);
+		int reconexion = conectarseAColasMensajes(ip_broker,puerto_broker,logger);
+		if(reconexion == 0){
+			break;
+		}
+	}
+}
+
+int conectarseAColasMensajes(char* ip, char* puerto, t_log* log){
+	socket_appeared = conectarse_a_un_servidor(ip,puerto,log);
+	socket_caught = conectarse_a_un_servidor(ip,puerto,log);
+	socket_localized = conectarse_a_un_servidor(ip,puerto,log);
+	if(socket_appeared == -1 || socket_caught == -1 || socket_localized == -1){  //Si me falla alguno reconecto todos
+		return -1;
+	}
+	else {
+		//Si todos conectan entonces mando handshakes a cada una de las colas
+		packAndSend_Handshake(socket_appeared, "Team", t_APPEARED);
+		packAndSend_Handshake(socket_caught, "Team", t_CAUGHT);
+		packAndSend_Handshake(socket_localized, "Team", t_LOCALIZED);
+		return 0;
+	}
 }
 
 int conectarse_a_un_servidor(char* ip, char* puerto, t_log* log){

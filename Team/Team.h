@@ -22,7 +22,6 @@
 
 //ESTRUCTURAS
 
-
 //VARIABLES
 t_log* logger;
 t_log* loggerTeams;
@@ -42,6 +41,9 @@ char* puerto_team;
 char* team_log_file;
 int socket_servidor;
 int socket_cliente;
+int socket_appeared;
+int socket_caught;
+int socket_localized;
 
 //FUNCIONES
 void crearLogger();
@@ -51,6 +53,8 @@ void setearValores(t_config* archConfiguracion);
 int iniciar_servidor(char* ip, char* puerto, t_log* log);
 int esperar_cliente(int socket_servidor, t_log* logger);
 int conectarse_a_un_servidor(char* ip, char* puerto, t_log* log);
+int conectarseAColasMensajes(char* ip, char* puerto, t_log* log);
+void reconectarseAColasMensajes();
 void atenderCliente(int socket_cliente); //ESTA ES LA FUNCION MAGICA
 
 #endif
