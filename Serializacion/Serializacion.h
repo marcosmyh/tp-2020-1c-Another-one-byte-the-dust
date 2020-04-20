@@ -14,6 +14,7 @@
 //ESTRUCTURAS
 
 typedef enum t_operaciones{
+	t_HANDSHAKE,
 	t_NEW,
 	t_LOCALIZED,
 	t_GET,
@@ -37,6 +38,12 @@ void* receiveAndUnpack(int socketCliente, uint32_t tamanioMensaje);//DEVUELVE EL
 bool packAndSend(int socketCliente, const void* paquete, uint32_t tamPaquete, t_operacion operacion); //EMPAQUETA UN PAQUETE CUALQUIERA Y LO ENVIA
 
 char* unpackPokemon(void* pack); //DESEMPAQUETA EL NOMBRE DEL POKEMON, ES IGUAL PARA TODOS
+
+//FUNCIONES PARA HANDSHAKE
+bool packAndSend_Handshake(int socketCliente, char* proceso, t_operacion operacion);
+
+char* unpackProceso(void* pack);
+t_operacion unpackOperacion(void* pack, uint32_t tamanioProceso);
 
 
 //FUNCIONES PARA NEW
