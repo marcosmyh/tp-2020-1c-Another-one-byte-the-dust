@@ -175,6 +175,46 @@ int conectarse_a_un_servidor(char* ip, char* puerto, t_log* log){
 	return socket_cliente;
 }
 
+int obtenerCantidadEntrenadores(){
+	/*
+	int i = 0;
+	int cantidadEntrenadores = 0;
+	while(posiciones_entrenadores[i] != NULL){
+		cantidadEntrenadores++;
+		i++;
+	}
+	return cantidadEntrenadores;
+	*/
+}
+
+void inicializarEntrenadores(){
+	/*
+	int IDMAX = 0;
+	int cantidadEntrenadores = obtenerCantidadEntrenadores();
+	for (int i=0; i<cantidadEntrenadores; i++){
+		t_entrenador* entrenadorNuevo = malloc(sizeof(t_entrenador));
+		entrenadorNuevo->idEntrenador = IDMAX;
+		IDMAX++;
+		entrenadorNuevo->coordenadaX = posiciones_entrenadores[i][0];
+		entrenadorNuevo->coordenadaY = posiciones_entrenadores[i][1];
+		entrenadorNuevo->pokemones = list_create();
+		entrenadorNuevo->objetivo = list_create();
+		int j = 0;
+		while(pokemon_entrenadores[i][j]!= NULL){
+			list_add(entrenadorNuevo->pokemones, pokemon_entrenadores[i][j]);
+			j++;
+		}
+		int k = 0;
+		while(objetivos_entrenadores[i][k]!=NULL){
+			list_add(entrenadorNuevo->objetivo, objetivos_entrenadores[i][k]);
+			k++;
+		}
+	}
+	*/
+}
+
+
+
 void atenderCliente(int socket_cliente){
 	/*
 	log_info(logger, "Atendiendo a cliente, socket:%d", socket_cliente);

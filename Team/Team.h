@@ -21,6 +21,13 @@
 
 
 //ESTRUCTURAS
+typedef struct {
+	int idEntrenador;
+	int coordenadaX;
+	int coordenadaY;
+	t_list* pokemones;
+	t_list* objetivo;
+}t_entrenador;
 
 //VARIABLES
 t_log* logger;
@@ -55,6 +62,8 @@ int esperar_cliente(int socket_servidor, t_log* logger);
 int conectarse_a_un_servidor(char* ip, char* puerto, t_log* log);
 int conectarseAColasMensajes(char* ip, char* puerto, t_log* log);
 void reconectarseAColasMensajes();
+int obtenerCantidadEntrenadores();
+void inicializarEntrenadores();
 void atenderCliente(int socket_cliente); //ESTA ES LA FUNCION MAGICA
 
 #endif
