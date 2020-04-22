@@ -34,6 +34,7 @@ typedef struct {
 t_log* logger;
 t_log* loggerTeams;
 t_config* archivoConfig;
+t_list* pokemonesACapturar;
 char** posiciones_entrenadores;
 char** pokemon_entrenadores;
 char** objetivos_entrenadores;

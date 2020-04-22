@@ -187,6 +187,7 @@ int obtenerCantidadEntrenadores(){
 }
 
 void inicializarEntrenadores(){
+	pokemonesACapturar = list_create();
 	int IDMAX = 0;
 	int cantidadEntrenadores = obtenerCantidadEntrenadores();
 	for (int i=0; i<cantidadEntrenadores; i++){
@@ -210,11 +211,14 @@ void inicializarEntrenadores(){
 		int k = 0;
 		char** objetivos = string_split(objetivos_entrenadores[i], "|");
 		while(objetivos[k]!=NULL){
+			//VOY A ASUMIR QUE SI YO MANDO GETS REPETIDOS EL BROKER LOS VA A IGNORAR
+			list_add(pokemonesACapturar, objetivos[k]);
 			list_add(entrenadorNuevo->objetivo, objetivos[k]);
 			k++;
 		}
 	}
 }
+
 
 
 
