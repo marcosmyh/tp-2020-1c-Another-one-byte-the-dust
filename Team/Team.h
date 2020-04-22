@@ -27,15 +27,16 @@ typedef struct {
 	int coordenadaY;
 	t_list* pokemones;
 	t_list* objetivo;
+	bool completoObjetivo;
 }t_entrenador;
 
 //VARIABLES
 t_log* logger;
 t_log* loggerTeams;
 t_config* archivoConfig;
-t_list* posiciones_entrenadores;
-t_list* pokemon_entrenadores;
-t_list* objetivos_entrenadores;
+char** posiciones_entrenadores;
+char** pokemon_entrenadores;
+char** objetivos_entrenadores;
 int tiempo_reconexion;
 int retardo_ciclo_cpu;
 char* algoritmo_planificacion;
