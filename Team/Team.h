@@ -34,7 +34,7 @@ typedef struct {
 t_log* logger;
 t_log* loggerTeams;
 t_config* archivoConfig;
-t_list* pokemonesACapturar;
+t_list* objetivoTeam;
 char** posiciones_entrenadores;
 char** pokemon_entrenadores;
 char** objetivos_entrenadores;
@@ -66,6 +66,7 @@ int conectarseAColasMensajes(char* ip, char* puerto, t_log* log);
 void reconectarseAColasMensajes();
 int obtenerCantidadEntrenadores();
 void inicializarEntrenadores();
+void enviarPokemonesAlBroker();
 void atenderCliente(int socket_cliente); //ESTA ES LA FUNCION MAGICA
 
 #endif

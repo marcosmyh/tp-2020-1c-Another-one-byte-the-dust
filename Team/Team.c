@@ -34,6 +34,11 @@ int main(){
 			log_error(logger, "No se ha podido crear el hilo recibirPaquetes");
 		}
 	};
+	//INICIALIZO LOS ENTRENADORES
+	inicializarEntrenadores();
+	//MANDO UN GET AL BROKER PARA CADA ESPECIE POKEMON QUE ESTA EN EL OBJETIVO
+	enviarPokemonesAlBroker();
+
 	return EXIT_SUCCESS;
 }
 
@@ -187,7 +192,7 @@ int obtenerCantidadEntrenadores(){
 }
 
 void inicializarEntrenadores(){
-	pokemonesACapturar = list_create();
+	objetivoTeam = list_create();
 	int IDMAX = 0;
 	int cantidadEntrenadores = obtenerCantidadEntrenadores();
 	for (int i=0; i<cantidadEntrenadores; i++){
@@ -212,14 +217,33 @@ void inicializarEntrenadores(){
 		char** objetivos = string_split(objetivos_entrenadores[i], "|");
 		while(objetivos[k]!=NULL){
 			//VOY A ASUMIR QUE SI YO MANDO GETS REPETIDOS EL BROKER LOS VA A IGNORAR
-			list_add(pokemonesACapturar, objetivos[k]);
+			list_add(objetivoTeam, objetivos[k]);
 			list_add(entrenadorNuevo->objetivo, objetivos[k]);
 			k++;
 		}
 	}
+	log_info(logger, "Se han cargado todos los entrenadores");
+	log_info(logger, "Se ha definido el objetivo global del team");
 }
 
-
+void enviarPokemonesAlBroker(){
+	//ESTO HACE UN CONNECT AL BROKER Y POR CADA TIPO DE POKEMON QUE ESTE EN EL OBJETIVO GLOBAL SE ENVIA UN GET Y SE CIERRA LA CONEXION
+	t_list* pokemonsAPedir = list_create();
+	pokemonsAPedir = objetivoTeam;
+	int cantPokemones = list_size(pokemonsAPedir);
+	for(int i=0; i<cantPokemones; i++){
+		char* pokemonAPedir = list_get(pokemonsAPedir, i);
+		int socket = conectarse_a_un_servidor(ip_broker, puerto_broker, logger);
+		int resultadoGet = packAndSend_Get(socket, pokemonAPedir);
+		if (resultadoGet == -1){
+			log_info(logger, "El envio del GET ha fallado");
+			close(socket);
+		}
+		log_info(logger, "El envio del GET se realizó con exito");
+		close(socket);
+	}
+	log_info(logger, "Se han enviado los GETs necesarios al broker");
+}
 
 
 void atenderCliente(int socket_cliente){
