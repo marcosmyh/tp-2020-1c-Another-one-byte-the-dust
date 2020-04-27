@@ -252,14 +252,14 @@ void atenderCliente(int socket_cliente){
 	while(1){
 		Header headerRecibido;
 		headerRecibido = receiveHeader(socket_cliente);
-		log_info(logger, "Codigo de operacion:%i", headerRecibido.operaciones);
+		log_info(logger, "Codigo de operacion:%i", headerRecibido.operacion);
 		log_info(logger, "Tamanio:%i", headerRecibido.tamanioMensaje);
-		if(headerRecibido.operaciones == -1){
+		if(headerRecibido.operacion == -1){
 			log_error(logger, "Se desconecto el cliente");
 			break;
 		}
 		uint32_t tamanio = headerRecibido.tamanioMensaje;
-		switch(headerRecibido.operaciones){
+		switch(headerRecibido.operacion){
 
 		case t_NEW:;
 			//ESTE SE USA
@@ -271,7 +271,7 @@ void atenderCliente(int socket_cliente){
 
 		case t_GET:;
 			//ESTE NO SE USA
-			log_error(logger, "No es un codigo de operacion conocido: %i", headerRecibido.operaciones);
+			log_error(logger, "No es un codigo de operacion conocido: %i", headerRecibido.operacion);
 			break;
 
 		case t_APPEARED:;
@@ -280,7 +280,7 @@ void atenderCliente(int socket_cliente){
 
 		case t_CATCH:;
 			//ESTE NO SE USA
-			log_error(logger, "No es un codigo de operacion conocido: %i", headerRecibido.operaciones);
+			log_error(logger, "No es un codigo de operacion conocido: %i", headerRecibido.operacion);
 			break;
 
 		case t_CAUGHT:;
@@ -288,7 +288,7 @@ void atenderCliente(int socket_cliente){
 			break;
 
 		default:
-			log_error(logger, "No es un codigo de operacion conocido: %i", headerRecibido.operaciones);
+			log_error(logger, "No es un codigo de operacion conocido: %i", headerRecibido.operacion);
 			break;
 		}
 	}

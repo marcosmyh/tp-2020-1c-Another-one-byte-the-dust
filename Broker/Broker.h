@@ -63,5 +63,6 @@ void setearValores(t_config *);
 void agregarMensajeACola(t_mensaje *,t_list *,char *);
 void inicializarColas();
 void destruirColas();
+void suscribirProceso(t_operacion);
 
 #endif

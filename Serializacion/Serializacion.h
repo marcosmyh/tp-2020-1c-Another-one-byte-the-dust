@@ -13,7 +13,7 @@
 
 //ESTRUCTURAS
 
-typedef enum t_operaciones{
+typedef enum{
 	t_HANDSHAKE,
 	t_NEW,
 	t_LOCALIZED,
@@ -25,7 +25,7 @@ typedef enum t_operaciones{
 
 typedef struct {
 	uint32_t tamanioMensaje;
-	t_operacion operaciones;
+	t_operacion operacion;
 }__attribute__((packed)) Header;
 
 

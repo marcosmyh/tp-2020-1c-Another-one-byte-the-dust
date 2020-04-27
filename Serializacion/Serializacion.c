@@ -12,7 +12,7 @@ Header receiveHeader(int socketCliente){
 	int result = recv(socketCliente, buffer, (sizeof(t_operacion) + sizeof(uint32_t)), MSG_WAITALL);
 	if(result == 0 || result == -1){
 		Header headerQueRetorna;
-		headerQueRetorna.operaciones = (-1);
+		headerQueRetorna.operacion = (-1);
 		headerQueRetorna.tamanioMensaje = 0;
 		free(buffer);
 		return headerQueRetorna;
@@ -23,7 +23,7 @@ Header receiveHeader(int socketCliente){
 	memcpy(&tamanioMensaje,buffer+(sizeof(t_operacion)), (sizeof(uint32_t)));
 	free(buffer);
 	Header headerQueRetorna;
-	headerQueRetorna.operaciones = operacion;
+	headerQueRetorna.operacion = operacion;
 	headerQueRetorna.tamanioMensaje = tamanioMensaje;
 	return headerQueRetorna;
 }

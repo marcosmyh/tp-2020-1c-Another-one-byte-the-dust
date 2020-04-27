@@ -83,19 +83,22 @@ void atender_cliente(int *socket){
 }
 
 void procesar_solicitud(Header header,int cliente_fd){
-     uint32_t size = header.tamanioMensaje;
-     int cod_op = header.operaciones;
+     uint32_t sizePaquete = header.tamanioMensaje;
+     int codigo_operacion = header.operacion;
+     t_operacion operacionDeSuscripcion;
      void *paquete;
      char *proceso;
 
-     switch (cod_op) {
+     switch (codigo_operacion) {
      		case t_HANDSHAKE:
      			//TODO
-     			proceso = malloc(size);
-     			paquete = receiveAndUnpack(cliente_fd,size);
+     			paquete = receiveAndUnpack(cliente_fd,sizePaquete);
      			proceso = unpackProceso(paquete);
+     			uint32_t sizeProceso = sizeof(proceso);
+     			operacionDeSuscripcion = unpackOperacion(paquete,sizeProceso);
 
-     			//Una vez identificado el proceso hay que suscribirlo a las colas correspondientes.
+     			//Suscribo proceso a la cola correspondiente.
+     			suscribirProceso(operacionDeSuscripcion);
 
      			free(proceso);
      			//log_info(logger,"Se suscribio el proceso %s a la cola %s",nombreProceso,nombreCola);
@@ -181,3 +184,41 @@ void destruirColas(){
 	//list_destroy_and_destroy_elements
 	//Desarrollar función destructora de mensajes.
 }
+
+void suscribirProceso(t_operacion operacionSuscripcion){
+	switch (operacionSuscripcion) {
+	         	case t_NEW:
+	     			//TODO
+	         		//Suscribir proceso a la cola NEW.
+	     			break;
+
+	     		case t_LOCALIZED:
+	     			//TODO
+
+	     			break;
+
+	     		case t_GET:
+	     			//TODO
+
+	     			break;
+
+	     		case t_APPEARED:
+	     			//TODO
+
+	     			break;
+
+	     		case t_CATCH:
+	     			//TODO
+
+	     			break;
+
+	     		case t_CAUGHT:
+	     			//TODO
+
+	     			break;
+
+	     		default:
+	     			break;
+	     		}
+}
+
