@@ -262,21 +262,29 @@ void atenderCliente(int socket_cliente){
 		switch(headerRecibido.operaciones){
 
 		case t_NEW:;
+			//ESTE SE USA
 			break;
 
 		case t_LOCALIZED:;
+			//ESTE SE USA
 			break;
 
 		case t_GET:;
+			//ESTE NO SE USA
+			log_error(logger, "No es un codigo de operacion conocido: %i", headerRecibido.operaciones);
 			break;
 
 		case t_APPEARED:;
+			//ESTE SE USA
 			break;
 
 		case t_CATCH:;
+			//ESTE NO SE USA
+			log_error(logger, "No es un codigo de operacion conocido: %i", headerRecibido.operaciones);
 			break;
 
 		case t_CAUGHT:;
+			//ESTE SE USA
 			break;
 
 		default:
