@@ -221,6 +221,7 @@ void inicializarEntrenadores(){
 			list_add(entrenadorNuevo->objetivo, objetivos[k]);
 			k++;
 		}
+
 	}
 	log_info(logger, "Se han cargado todos los entrenadores");
 	log_info(logger, "Se ha definido el objetivo global del team");
@@ -247,11 +248,10 @@ void enviarPokemonesAlBroker(){
 
 
 void atenderCliente(int socket_cliente){
-	/*
 	log_info(logger, "Atendiendo a cliente, socket:%d", socket_cliente);
 	while(1){
 		Header headerRecibido;
-		headerRecibido = recieveHeader(socket_cliente);
+		headerRecibido = receiveHeader(socket_cliente);
 		log_info(logger, "Codigo de operacion:%i", headerRecibido.operaciones);
 		log_info(logger, "Tamanio:%i", headerRecibido.tamanioMensaje);
 		if(headerRecibido.operaciones == -1){
@@ -292,5 +292,4 @@ void atenderCliente(int socket_cliente){
 			break;
 		}
 	}
-	*/
 }
