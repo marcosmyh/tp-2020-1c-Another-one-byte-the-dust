@@ -1,5 +1,5 @@
 TARGET = Broker
-LIBS = -lcommons -lSerializacion
+LIBS = -lcommons -lSerializacion -lpthread
 CC = gcc
 CFLAGS = -g -Wall -L$(Serializacion_PATH) -Wl,-rpath=$(Serializacion_PATH)
 
