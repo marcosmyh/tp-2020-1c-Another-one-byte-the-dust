@@ -3,14 +3,14 @@
 int main(){
 	//LEVANTO EL SERVER
 	crearLogger();
-	crearLoggerTeams();
+	crearLoggerObligatorio();
 	leerArchivoDeConfiguracion();
 	socket_servidor = iniciar_servidor(ip_team, puerto_team, logger);
 	//ME CONECTO A LAS COLAS
 	int conexionColas = conectarseAColasMensajes(ip_broker, puerto_broker, logger);
 	//SI FALLA CREO UN HILO PARA HACER LA RECONEXION CADA X SEGUNDOS
 	if (conexionColas == -1){
-		log_info(logger, "La conexion a las colas falló, se volverá a intentar cada %d segundos", tiempo_reconexion);
+		log_info(loggerObligatorio, "Se procederá a realizar la reconexion con el broker cada %d segundos", tiempo_reconexion);
 		pthread_t hiloReconexion;
 		if(pthread_create(&hiloReconexion, NULL, (void*)reconectarseAColasMensajes, NULL) == 0){
 			pthread_detach(hiloReconexion);
@@ -34,6 +34,8 @@ int main(){
 			log_error(logger, "No se ha podido crear el hilo recibirPaquetes");
 		}
 	};
+	//INICIALIZO LAS COLAS
+	inicializarColas();
 	//INICIALIZO LOS ENTRENADORES
 	inicializarEntrenadores();
 	//MANDO UN GET AL BROKER PARA CADA ESPECIE POKEMON QUE ESTA EN EL OBJETIVO
@@ -49,10 +51,26 @@ void crearLogger(){
 	log_info(logger, "El logger general se creo con exito!");
 }
 
-void crearLoggerTeams(){
+void crearLoggerObligatorio(){
 	char* nombreArch = "Log_teams";
-	loggerTeams = log_create(team_log_file, nombreArch, 1, LOG_LEVEL_INFO);
-	log_info(logger, "El logger de los teams se creo con exito");
+	loggerObligatorio = log_create(team_log_file, nombreArch, 1, LOG_LEVEL_INFO);
+	log_info(logger, "El logger obligatorio se creo con exito");
+	/*
+	ATENCION, LAS ACCIONES A LOGUEAR EN ESTE ARCHIVO SON:
+
+	1-Cambio de un entrenador de cola de planificación (indicando la razón del porqué).
+	2-Movimiento de un entrenador (indicando la ubicación a la que se movió).
+	3-Operación de atrapar (indicando la ubicación y el pokemon a atrapar).
+	4-Operación de intercambio (indicando entrenadores involucrados).
+	5-Inicio de algoritmo de detección de deadlock.
+	6-Resultado de algoritmo de detección de deadlock.
+	7-Llegada de un mensaje (indicando el tipo del mismo y sus datos).
+	8-Resultado del Team (especificado anteriormente).
+	9-Errores de comunicación con el Broker (indicando que se realizará la operación por default).
+	10-Inicio de proceso de reintento de comunicación con el Broker.
+	11-Resultado de proceso de reintento de comunicación con el Broker.
+	*/
+
 }
 
 void leerArchivoDeConfiguracion(){
@@ -131,8 +149,10 @@ void reconectarseAColasMensajes(){
 		sleep(tiempo_reconexion);
 		int reconexion = conectarseAColasMensajes(ip_broker,puerto_broker,logger);
 		if(reconexion == 0){
+			log_info(loggerObligatorio, "La reconexion fue realizada con exito, el proceso team se conecto a todas las colas de mensajes");
 			break;
 		}
+		log_info(loggerObligatorio, "Fallo la reconexion, se volvera a intentar en %d segundos",tiempo_reconexion);
 	}
 }
 
@@ -141,6 +161,7 @@ int conectarseAColasMensajes(char* ip, char* puerto, t_log* log){
 	socket_caught = conectarse_a_un_servidor(ip,puerto,log);
 	socket_localized = conectarse_a_un_servidor(ip,puerto,log);
 	if(socket_appeared == -1 || socket_caught == -1 || socket_localized == -1){  //Si me falla alguno reconecto todos
+		log_info(loggerObligatorio, "Fallo la conexion al broker, se procederá a realizar la accion por default");
 		return -1;
 	}
 	else {
@@ -221,6 +242,9 @@ void inicializarEntrenadores(){
 			list_add(entrenadorNuevo->objetivo, objetivos[k]);
 			k++;
 		}
+		//AGREGO EL HILO DE CADA ENTRENADOR A LA COLA DE NEW
+		list_add(colaNew, entrenadorNuevo->hiloEntrenador);
+		log_info(loggerObligatorio, "Se ha pasado al entrenador %d a la cola de NEW. RAZON: Creacion de entrenador",entrenadorNuevo->idEntrenador);
 
 	}
 	log_info(logger, "Se han cargado todos los entrenadores");
@@ -246,6 +270,19 @@ void enviarPokemonesAlBroker(){
 	log_info(logger, "Se han enviado los GETs necesarios al broker");
 }
 
+void planificarEntrenadores(){
+	log_info(logger, "Se comenzara la planificacion de los entrenadores");
+
+}
+
+void inicializarColas(){
+	colaNew = list_create();
+	colaReady = list_create();
+	colaExec = list_create();
+	colaBlocked = list_create();
+	colaExit = list_create();
+	log_info(logger, "Se han inicializado todas las colas para la planificacion");
+}
 
 void atenderCliente(int socket_cliente){
 	log_info(logger, "Atendiendo a cliente, socket:%d", socket_cliente);

@@ -28,11 +28,19 @@ typedef struct {
 	t_list* pokemones;
 	t_list* objetivo;
 	bool completoObjetivo;
+	pthread_t* hiloEntrenador;
 }t_entrenador;
+
+//COLAS
+t_list* colaNew;
+t_list* colaReady;
+t_list* colaExec;
+t_list* colaBlocked;
+t_list* colaExit;
 
 //VARIABLES
 t_log* logger;
-t_log* loggerTeams;
+t_log* loggerObligatorio;
 t_config* archivoConfig;
 t_list* objetivoTeam;
 char** posiciones_entrenadores;
@@ -56,7 +64,7 @@ int socket_localized;
 
 //FUNCIONES
 void crearLogger();
-void crearLoggerTeams();
+void crearLoggerObligatorio();
 void leerArchivoDeConfiguracion();
 void setearValores(t_config* archConfiguracion);
 int iniciar_servidor(char* ip, char* puerto, t_log* log);
@@ -66,6 +74,7 @@ int conectarseAColasMensajes(char* ip, char* puerto, t_log* log);
 void reconectarseAColasMensajes();
 int obtenerCantidadEntrenadores();
 void inicializarEntrenadores();
+void inicializarColas();
 void enviarPokemonesAlBroker();
 void atenderCliente(int socket_cliente); //ESTA ES LA FUNCION MAGICA
 
