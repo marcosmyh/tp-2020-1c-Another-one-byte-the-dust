@@ -213,7 +213,6 @@ int obtenerCantidadEntrenadores(){
 }
 
 void inicializarEntrenadores(){
-	objetivoTeam = list_create();
 	int IDMAX = 0;
 	int cantidadEntrenadores = obtenerCantidadEntrenadores();
 	for (int i=0; i<cantidadEntrenadores; i++){
@@ -281,7 +280,34 @@ void inicializarColas(){
 	colaExec = list_create();
 	colaBlocked = list_create();
 	colaExit = list_create();
+	pokemonesAtrapados = list_create();
+	pokemonesEnMapa = list_create();
+	objetivoTeam = list_create();
 	log_info(logger, "Se han inicializado todas las colas para la planificacion");
+}
+
+bool necesitaAtraparse(char* pokemon){
+	//Controlar globales y ya atrapados
+	int pokemonesObjetivoGlobal = list_size(objetivoTeam);
+	for(int i=0; i<pokemonesObjetivoGlobal; i++ ){
+		char* unPokemon = list_get(objetivoTeam,i);
+		if(strcmp(unPokemon, pokemon) == 0){
+			return true;
+		}
+	}
+	t_list* pokemonesAtrapados = list_map(pokemonesAtrapados,(void*)obtenerPokemon); //esto esta bien
+	int cantPokemonesAtrapados = list_size(pokemonesAtrapados);
+	for(int j=0; j<cantPokemonesAtrapados; j++){
+		char* unPokemon = list_get(pokemonesAtrapados, j);
+		if(strcmp(unPokemon, pokemon) == 0){
+			return true;
+		}
+	}
+	return false;
+}
+
+char* obtenerPokemon(t_pokemon* unPokemon){
+	return unPokemon->nombrePokemon;
 }
 
 void atenderCliente(int socket_cliente){
@@ -313,6 +339,24 @@ void atenderCliente(int socket_cliente){
 
 		case t_APPEARED:;
 			//ESTE SE USA
+			void* paqueteAppeared = receiveAndUnpack(socket_cliente, tamanio);
+			char* pokemonAppeared = unpackPokemon(paqueteAppeared);
+			uint32_t tamanioPokemon = sizeof(pokemonAppeared);
+			uint32_t coordenadaX = unpackCoordenadaX_Appeared(paqueteAppeared, tamanioPokemon);
+			uint32_t coordenadaY = unpackCoordenadaY_Appeared(paqueteAppeared, tamanioPokemon);
+			log_info(loggerObligatorio, "Llego un mensaje de APPEARED");
+			log_info(loggerObligatorio, "Pokemon: %s, ubicado en X:%d  Y:%d", pokemonAppeared, coordenadaX, coordenadaY);
+			if(necesitaAtraparse(pokemonAppeared)){
+				t_pokemon* pokemonAAtrapar = malloc(sizeof(t_pokemon));
+				pokemonAAtrapar->nombrePokemon = pokemonAppeared;
+				pokemonAAtrapar->coordenadaX = coordenadaX;
+				pokemonAAtrapar->coordenadaY = coordenadaY;
+				list_add(pokemonesEnMapa,pokemonAAtrapar);
+
+				//ACA TALVES TENDRIA QUE ACTIVAR LA PLANIFICACION DE NEW A READY
+
+			}
+			log_info(logger, "El mensaje de appeared recibido refiere a un pokemon que no necesita atraparse, queda descartado");
 			break;
 
 		case t_CATCH:;

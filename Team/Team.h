@@ -23,13 +23,19 @@
 //ESTRUCTURAS
 typedef struct {
 	int idEntrenador;
-	int coordenadaX;
-	int coordenadaY;
+	uint32_t coordenadaX;
+	uint32_t coordenadaY;
 	t_list* pokemones;
 	t_list* objetivo;
 	bool completoObjetivo;
 	pthread_t* hiloEntrenador;
 }t_entrenador;
+
+typedef struct{
+	char* nombrePokemon;
+	uint32_t coordenadaX;
+	uint32_t coordenadaY;
+}t_pokemon;
 
 //COLAS
 t_list* colaNew;
@@ -43,6 +49,8 @@ t_log* logger;
 t_log* loggerObligatorio;
 t_config* archivoConfig;
 t_list* objetivoTeam;
+t_list* pokemonesAtrapados;
+t_list* pokemonesEnMapa;
 char** posiciones_entrenadores;
 char** pokemon_entrenadores;
 char** objetivos_entrenadores;
@@ -76,6 +84,8 @@ int obtenerCantidadEntrenadores();
 void inicializarEntrenadores();
 void inicializarColas();
 void enviarPokemonesAlBroker();
+bool necesitaAtraparse(char* pokemon);
+char* obtenerPokemon(t_pokemon* unPokemon);
 void atenderCliente(int socket_cliente); //ESTA ES LA FUNCION MAGICA
 
 #endif
