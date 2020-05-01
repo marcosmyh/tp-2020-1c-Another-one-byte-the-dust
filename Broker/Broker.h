@@ -75,14 +75,11 @@ void setearValores(t_config *);
 void agregarMensajeACola(t_mensaje *,t_list *,char *);
 void inicializarColas();
 void destruirColas();
-void enviarMensajeASuscriptor(void *);
 void suscribirProceso(char *,int *,t_operacion);
 t_mensaje *crearMensaje(void *,int);
 uint32_t asignarID();
-void enviarMensaje(int cliente_fd, const void* paquete, uint32_t tamPaquete, t_operacion operacion,t_mensaje *mensaje);
 void inicializarListasSuscriptores();
 void destruirListasSuscriptores();
-void enviarMensajeASuscriptor(void *);
 void enviarMensajeRecibidoASuscriptores(t_list *,void(*)(void*));
 void validarRecepcionMensaje(int, t_mensaje *);
 
