@@ -212,6 +212,18 @@ int obtenerCantidadEntrenadores(){
 	return cantidadEntrenadores;
 }
 
+void inicializarColas(){
+	colaNew = list_create();
+	colaReady = list_create();
+	colaExec = list_create();
+	colaBlocked = list_create();
+	colaExit = list_create();
+	pokemonesAtrapados = list_create();
+	pokemonesEnMapa = list_create();
+	objetivoTeam = list_create();
+	log_info(logger, "Se han inicializado todas las colas para la planificacion");
+}
+
 void inicializarEntrenadores(){
 	int IDMAX = 0;
 	int cantidadEntrenadores = obtenerCantidadEntrenadores();
@@ -257,33 +269,33 @@ void enviarPokemonesAlBroker(){
 	int cantPokemones = list_size(pokemonsAPedir);
 	for(int i=0; i<cantPokemones; i++){
 		char* pokemonAPedir = list_get(pokemonsAPedir, i);
-		int socket = conectarse_a_un_servidor(ip_broker, puerto_broker, logger);
-		int resultadoGet = packAndSend_Get(socket, pokemonAPedir);
-		if (resultadoGet == -1){
-			log_info(logger, "El envio del GET ha fallado");
-			close(socket);
-		}
-		log_info(logger, "El envio del GET se realizó con exito");
-		close(socket);
+		enviarGET(ip_broker, puerto_broker, logger, pokemonAPedir);
 	}
 	log_info(logger, "Se han enviado los GETs necesarios al broker");
 }
 
-void planificarEntrenadores(){
-	log_info(logger, "Se comenzara la planificacion de los entrenadores");
-
+void enviarGET(char* ip, char* puerto, t_log* logger, char* pokemon){
+	int socket = conectarse_a_un_servidor(ip, puerto, logger);
+	int resultadoGet = packAndSend_Get(socket, pokemon);
+	if (resultadoGet == -1){
+		log_info(logger, "El envio del GET ha fallado");
+		log_info(loggerObligatorio, "El envio fallo por un error de conexion, se procedera a realizar la operacion por default");
+		close(socket);
+	}
+	log_info(logger, "El envio del GET se realizo con exito");
+	close(socket);
 }
 
-void inicializarColas(){
-	colaNew = list_create();
-	colaReady = list_create();
-	colaExec = list_create();
-	colaBlocked = list_create();
-	colaExit = list_create();
-	pokemonesAtrapados = list_create();
-	pokemonesEnMapa = list_create();
-	objetivoTeam = list_create();
-	log_info(logger, "Se han inicializado todas las colas para la planificacion");
+void enviarCATCH(char* ip, char* puerto, t_log* logger, char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY){
+	int socket = conectarse_a_un_servidor(ip, puerto, logger);
+	int resultadoCatch = packAndSend_Catch(socket, pokemon, coordenadaX, coordenadaY);
+	if (resultadoCatch == -1){
+		log_info(logger, "El envio del CATCH ha fallado");
+		log_info(loggerObligatorio, "El envio fallo por un error de conexion, se procedera a realizar la operacion por default");
+		close(socket);
+	}
+	log_info(logger, "El envio del CATCH se realizo con exito");
+	close(socket);
 }
 
 bool necesitaAtraparse(char* pokemon){
@@ -310,6 +322,14 @@ char* obtenerPokemon(t_pokemon* unPokemon){
 	return unPokemon->nombrePokemon;
 }
 
+
+
+
+void planificarEntrenadores(){
+	log_info(logger, "Se comenzara la planificacion de los entrenadores");
+
+}
+
 void atenderCliente(int socket_cliente){
 	log_info(logger, "Atendiendo a cliente, socket:%d", socket_cliente);
 	while(1){
@@ -325,52 +345,82 @@ void atenderCliente(int socket_cliente){
 		switch(headerRecibido.operacion){
 
 		case t_NEW:;
-			//ESTE SE USA
+			//ESTE NO SE USA
+			log_error(loggerObligatorio, "No es un codigo de operacion conocido: %i", headerRecibido.operacion);
 			break;
 
 		case t_LOCALIZED:;
 			//ESTE SE USA
+			log_info(loggerObligatorio, "Llego un mensaje de LOCALIZED");
+			void* paqueteLocalized = receiveAndUnpack(socket_cliente, tamanio);
+			char* pokemonLocalized = unpackPokemon(paqueteLocalized);
+
+			//VERIFICAR SI YA RECIBI UN MENSAJE IGUAL (YA SE APPEARED O LOCALIZED), SI YA LO RECIBI ENTONCES LO DESCARTO
+
+			if(necesitaAtraparse(pokemonLocalized)){
+				uint32_t tamanioPokemon = sizeof(pokemonLocalized);
+				uint32_t cantidadPokemones = unpackCantidadParesCoordenadas_Localized(paqueteLocalized, tamanioPokemon);
+				uint32_t desplazamiento = tamanioPokemon + sizeof(uint32_t);
+				for (int i=0; i<cantidadPokemones; i++){
+					t_pokemon* pokemonAAtrapar = malloc(sizeof(t_pokemon));
+					pokemonAAtrapar->nombrePokemon = pokemonLocalized;
+					uint32_t coordenadaX = unpackCoordenadaX_Localized(paqueteLocalized, desplazamiento);
+					pokemonAAtrapar->coordenadaX = coordenadaX;
+					desplazamiento += sizeof(uint32_t);
+					uint32_t coordenadaY = unpackCoordenadaY_Localized(paqueteLocalized, desplazamiento);
+					pokemonAAtrapar->coordenadaY = coordenadaY;
+					desplazamiento += sizeof(uint32_t);
+					log_info(loggerObligatorio, "Pokemon agregado: %s, ubicado en X:%d  Y:%d", pokemonLocalized, coordenadaX, coordenadaY);
+					list_add(pokemonesEnMapa,pokemonAAtrapar);
+				}
+
+				//ACA TALVES TENDRIA QUE ACTIVAR LA PLANIFICACION DE NEW A READY
+			}
+			log_info(logger, "El mensaje de localized de este pokemon ya fue recibido o no necesita atraparse, queda descartado");
 			break;
 
 		case t_GET:;
 			//ESTE NO SE USA
-			log_error(logger, "No es un codigo de operacion conocido: %i", headerRecibido.operacion);
+			log_error(loggerObligatorio, "No es un codigo de operacion conocido: %i", headerRecibido.operacion);
 			break;
 
 		case t_APPEARED:;
 			//ESTE SE USA
+			log_info(loggerObligatorio, "Llego un mensaje de APPEARED");
 			void* paqueteAppeared = receiveAndUnpack(socket_cliente, tamanio);
 			char* pokemonAppeared = unpackPokemon(paqueteAppeared);
-			uint32_t tamanioPokemon = sizeof(pokemonAppeared);
-			uint32_t coordenadaX = unpackCoordenadaX_Appeared(paqueteAppeared, tamanioPokemon);
-			uint32_t coordenadaY = unpackCoordenadaY_Appeared(paqueteAppeared, tamanioPokemon);
-			free(paqueteAppeared);
-			log_info(loggerObligatorio, "Llego un mensaje de APPEARED");
-			log_info(loggerObligatorio, "Pokemon: %s, ubicado en X:%d  Y:%d", pokemonAppeared, coordenadaX, coordenadaY);
 			if(necesitaAtraparse(pokemonAppeared)){
 				t_pokemon* pokemonAAtrapar = malloc(sizeof(t_pokemon));
+				uint32_t tamanioPokemon = sizeof(pokemonAppeared);
+				uint32_t coordenadaX = unpackCoordenadaX_Appeared(paqueteAppeared, tamanioPokemon);
+				uint32_t coordenadaY = unpackCoordenadaY_Appeared(paqueteAppeared, tamanioPokemon);
 				pokemonAAtrapar->nombrePokemon = pokemonAppeared;
 				pokemonAAtrapar->coordenadaX = coordenadaX;
 				pokemonAAtrapar->coordenadaY = coordenadaY;
+				log_info(loggerObligatorio, "Pokemon agregado: %s, ubicado en X:%d  Y:%d", pokemonAppeared, coordenadaX, coordenadaY);
 				list_add(pokemonesEnMapa,pokemonAAtrapar);
+				free(paqueteAppeared);
 
 				//ACA TALVES TENDRIA QUE ACTIVAR LA PLANIFICACION DE NEW A READY
 
 			}
-			log_info(logger, "El mensaje de appeared recibido refiere a un pokemon que no necesita atraparse, queda descartado");
+			log_info(logger, "El mensaje de appeared de este pokemon ya fue recibido o no necesita atraparse, queda descartado");
 			break;
 
 		case t_CATCH:;
 			//ESTE NO SE USA
-			log_error(logger, "No es un codigo de operacion conocido: %i", headerRecibido.operacion);
+			log_error(loggerObligatorio, "No es un codigo de operacion conocido: %i", headerRecibido.operacion);
 			break;
 
 		case t_CAUGHT:;
 			//ESTE SE USA
+			log_info(loggerObligatorio, "Llego un mensaje de CAUGHT");
+			//VERIFICAR QUE EL ID DEL MENSAJE CORRESPONDA A UNO PENDIENTE DE RESPUESTA GENERADO POR CATCH, SINO LO DESCARTO
+			//SI CORRESPONDE LE ASIGNO EL POKEMON AL ENTRENADOR Y LO DESBLOQUEO (PASA A READY)
 			break;
 
 		default:
-			log_error(logger, "No es un codigo de operacion conocido: %i", headerRecibido.operacion);
+			log_error(loggerObligatorio, "No es un codigo de operacion conocido: %i", headerRecibido.operacion);
 			break;
 		}
 	}

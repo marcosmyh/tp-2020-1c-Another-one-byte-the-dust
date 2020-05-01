@@ -84,8 +84,11 @@ int obtenerCantidadEntrenadores();
 void inicializarEntrenadores();
 void inicializarColas();
 void enviarPokemonesAlBroker();
+void enviarGET(char* ip, char* puerto, t_log* logger, char* pokemon);
+void enviarCATCH(char* ip, char* puerto, t_log* logger, char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY);
 bool necesitaAtraparse(char* pokemon);
 char* obtenerPokemon(t_pokemon* unPokemon);
+void planificarEntrenadores();
 void atenderCliente(int socket_cliente); //ESTA ES LA FUNCION MAGICA
 
 #endif
