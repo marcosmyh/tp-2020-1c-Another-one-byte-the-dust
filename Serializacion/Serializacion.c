@@ -193,7 +193,7 @@ char* unpackProceso(void* pack){
 
 t_operacion unpackOperacion(void* pack, uint32_t tamanioProceso){
 	t_operacion operacion;
-	uint32_t desplazamiento = tamanioProceso;
+	uint32_t desplazamiento = tamanioProceso + sizeof(uint32_t);
 	memcpy(&operacion, pack+desplazamiento, sizeof(t_operacion));
 	return operacion;
 }
@@ -202,19 +202,19 @@ t_operacion unpackOperacion(void* pack, uint32_t tamanioProceso){
 
 uint32_t unpackCantidadPokemons_New(void* pack, uint32_t tamanioPokemon){
 	uint32_t cantPokemones = 0;
-	uint32_t desplazamiento = tamanioPokemon;
+	uint32_t desplazamiento = tamanioPokemon + sizeof(uint32_t);
 	memcpy(&cantPokemones, pack+desplazamiento, sizeof(uint32_t));
 	return cantPokemones;
 }
 uint32_t unpackCoordenadaX_New(void* pack, uint32_t tamanioPokemon){
 	uint32_t coordenadaX = 0;
-	uint32_t desplazamiento = (tamanioPokemon + sizeof(uint32_t));
+	uint32_t desplazamiento = (tamanioPokemon + sizeof(uint32_t) + sizeof(uint32_t));
 	memcpy(&coordenadaX, pack+desplazamiento, sizeof(uint32_t));
 	return coordenadaX;
 }
 uint32_t unpackCoordenadaY_New(void* pack, uint32_t tamanioPokemon){
 	uint32_t coordenadaY = 0;
-	uint32_t desplazamiento = (tamanioPokemon + sizeof(uint32_t) + sizeof(uint32_t));
+	uint32_t desplazamiento = (tamanioPokemon + sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint32_t));
 	memcpy(&coordenadaY, pack+desplazamiento, sizeof(uint32_t));
 	return coordenadaY;
 }
@@ -223,7 +223,7 @@ uint32_t unpackCoordenadaY_New(void* pack, uint32_t tamanioPokemon){
 
 uint32_t unpackCantidadParesCoordenadas_Localized(void* pack, uint32_t tamanioPokemon){
 	uint32_t cantParesCoordenadas = 0;
-	uint32_t desplazamiento = tamanioPokemon;
+	uint32_t desplazamiento = tamanioPokemon + sizeof(uint32_t);
 	memcpy(&cantParesCoordenadas, pack+desplazamiento, sizeof(uint32_t));
 	return cantParesCoordenadas;
 }
@@ -242,13 +242,13 @@ uint32_t unpackCoordenadaY_Localized(void* pack, uint32_t desplazamiento){
 
 uint32_t unpackCoordenadaX_Appeared(void* pack, uint32_t tamanioPokemon){
 	uint32_t coordenadaX = 0;
-	uint32_t desplazamiento = (tamanioPokemon);
+	uint32_t desplazamiento = (tamanioPokemon + sizeof(uint32_t));
 	memcpy(&coordenadaX, pack+desplazamiento, sizeof(uint32_t));
 	return coordenadaX;
 }
 uint32_t unpackCoordenadaY_Appeared(void* pack, uint32_t tamanioPokemon){
 	uint32_t coordenadaY = 0;
-	uint32_t desplazamiento = (tamanioPokemon + sizeof(uint32_t));
+	uint32_t desplazamiento = (tamanioPokemon + sizeof(uint32_t) + sizeof(uint32_t));
 	memcpy(&coordenadaY, pack+desplazamiento, sizeof(uint32_t));
 	return coordenadaY;
 }
@@ -257,13 +257,13 @@ uint32_t unpackCoordenadaY_Appeared(void* pack, uint32_t tamanioPokemon){
 
 uint32_t unpackCoordenadaX_Catch(void* pack, uint32_t tamanioPokemon){
 	uint32_t coordenadaX = 0;
-	uint32_t desplazamiento = (tamanioPokemon);
+	uint32_t desplazamiento = (tamanioPokemon + sizeof(uint32_t));
 	memcpy(&coordenadaX, pack+desplazamiento, sizeof(uint32_t));
 	return coordenadaX;
 }
 uint32_t unpackCoordenadaY_Catch(void* pack, uint32_t tamanioPokemon){
 	uint32_t coordenadaY = 0;
-	uint32_t desplazamiento = (tamanioPokemon + sizeof(uint32_t));
+	uint32_t desplazamiento = (tamanioPokemon + sizeof(uint32_t) + sizeof(uint32_t));
 	memcpy(&coordenadaY, pack+desplazamiento, sizeof(uint32_t));
 	return coordenadaY;
 }

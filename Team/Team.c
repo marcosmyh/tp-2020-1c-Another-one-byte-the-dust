@@ -344,6 +344,7 @@ void atenderCliente(int socket_cliente){
 			uint32_t tamanioPokemon = sizeof(pokemonAppeared);
 			uint32_t coordenadaX = unpackCoordenadaX_Appeared(paqueteAppeared, tamanioPokemon);
 			uint32_t coordenadaY = unpackCoordenadaY_Appeared(paqueteAppeared, tamanioPokemon);
+			free(paqueteAppeared);
 			log_info(loggerObligatorio, "Llego un mensaje de APPEARED");
 			log_info(loggerObligatorio, "Pokemon: %s, ubicado en X:%d  Y:%d", pokemonAppeared, coordenadaX, coordenadaY);
 			if(necesitaAtraparse(pokemonAppeared)){
