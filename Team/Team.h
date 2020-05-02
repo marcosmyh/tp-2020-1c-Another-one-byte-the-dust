@@ -27,8 +27,9 @@ typedef struct {
 	uint32_t coordenadaY;
 	t_list* pokemones;
 	t_list* objetivo;
+	int rafagasEstimadas;
+	int rafagasEjecutadas;
 	bool completoObjetivo;
-	pthread_t* hiloEntrenador;
 }t_entrenador;
 
 typedef struct{
@@ -93,6 +94,10 @@ void aplicarFIFO();
 void aplicarRR();
 void aplicarSJFConDesalojo();
 void aplicarSJF();
+t_entrenador* calcularEstimacion(t_entrenador unEntrenador);
+bool comparadorDeEntrenadores(t_entrenador* unEntrenador, t_entrenador* otroEntrenador);
+bool comparadorDeRafagas(t_entrenador* unEntrenador, t_entrenador* otroEntrenador);
+int list_get_index(t_list* self, void* elemento, bool (*comparator) (void*,void*));
 void planificarEntradaAReady();
 void atenderCliente(int socket_cliente); //ESTA ES LA FUNCION MAGICA
 

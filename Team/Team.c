@@ -40,6 +40,7 @@ int main(){
 	inicializarEntrenadores();
 	//MANDO UN GET AL BROKER PARA CADA ESPECIE POKEMON QUE ESTA EN EL OBJETIVO
 	enviarPokemonesAlBroker();
+	planificarEntrenadores();
 
 	return EXIT_SUCCESS;
 }
@@ -232,6 +233,8 @@ void inicializarEntrenadores(){
 		entrenadorNuevo->idEntrenador = IDMAX;
 		IDMAX++;
 		entrenadorNuevo->completoObjetivo = false;
+		entrenadorNuevo->rafagasEstimadas = 0;
+		entrenadorNuevo->rafagasEjecutadas = 0;
 		char** coordenadas = string_split(posiciones_entrenadores[i], "|");
 		int coordenadaX = atoi(coordenadas[0]);
 		int coordenadaY = atoi(coordenadas[1]);
@@ -254,7 +257,7 @@ void inicializarEntrenadores(){
 			k++;
 		}
 		//AGREGO EL HILO DE CADA ENTRENADOR A LA COLA DE NEW
-		list_add(colaNew, entrenadorNuevo->hiloEntrenador);
+		list_add(colaNew, entrenadorNuevo);
 		log_info(loggerObligatorio, "Se ha pasado al entrenador %d a la cola de NEW. RAZON: Creacion de entrenador",entrenadorNuevo->idEntrenador);
 
 	}
@@ -345,7 +348,12 @@ void planificarEntrenadores(){
 }
 
 void aplicarFIFO(){
-
+	log_info(logger,"Se aplicara el algoritmo de planificacion FIFO");
+	if(list_is_empty(colaExec) && (!list_is_empty(colaReady))){
+		t_entrenador* entrenadorAEjecutar = (t_entrenador*) list_remove(colaReady, 0);
+		list_add(colaExec, entrenadorAEjecutar);
+		log_info(loggerObligatorio, "Se cambió un entrenador de READY a EXEC, Razon: Elegido del algoritmo de planificacion");
+	}
 }
 
 void aplicarRR(){
@@ -353,11 +361,63 @@ void aplicarRR(){
 }
 
 void aplicarSJFConDesalojo(){
-
+	log_info(logger,"Se aplicara el algoritmo de planificacion SJF con desalojo");
+	if(!list_is_empty(colaExec)){
+		t_entrenador* entrenadorEnEjecucion = list_remove(colaExec,0);
+		list_add(colaReady, entrenadorEnEjecucion);
+		log_info(loggerObligatorio,"Se cambio un entrenador de EXEC a READY, Razon: Desalojado por el algoritmo de planificacion");
+	}
+	aplicarSJF();
 }
 
 void aplicarSJF(){
+/*
+	log_info(logger,"Se aplicara el algoritmo de planificacion SJF sin desalojo");
+	if(list_is_empty(colaExec) && (!list_is_empty(colaReady))){
+		t_list* aux = list_map(colaReady, (void*)calcularEstimacion);
+		list_sort(aux, (void*)comparadorDeRafagas);
+		t_entrenador* entrenadorAux = (t_entrenador*) list_remove(aux,0);
+		int index = list_get_index(colaReady,entrenadorAux,(void*)comparadorDeEntrenadores);
+		t_entrenador* entrenadorAEjecutar = list_remove(colaReady,index);
+		list_add(colaExec, entrenadorAEjecutar);
+		log_info(loggerObligatorio, "Se cambió un entrenador de READY a EXEC, Razon: Elegido del algoritmo de planificacion");
+	}
+*/
+}
 
+t_entrenador* calcularEstimacion(t_entrenador unEntrenador){
+/*
+	unEntrenador->rafagasEstimadas = (alfa_planificacion * estimacion_inicial)
+			+ ((1- alfa_planificacion) * (unEntrenador->rafagasEjecutadas));
+
+	//SI ME CONFIRMAN TENGO QUE AGREGAR EL ALFA DE PLANIFICACION
+
+	return unEntrenador;
+*/
+}
+
+
+bool comparadorDeEntrenadores(t_entrenador* unEntrenador, t_entrenador* otroEntrenador){
+	return unEntrenador->idEntrenador == otroEntrenador->idEntrenador;
+}
+
+bool comparadorDeRafagas(t_entrenador* unEntrenador, t_entrenador* otroEntrenador){
+	return unEntrenador->rafagasEstimadas <= otroEntrenador->rafagasEstimadas;
+}
+
+int list_get_index(t_list* self, void* elemento, bool (*comparator) (void*,void*)){
+	int longitudLista = list_size(self);
+	int i;
+	int cont = 0;
+	for(i=0; i<longitudLista; i++){
+		if(!comparator(list_get(self,i),elemento)){
+			cont++;
+		}
+		else{
+			break;
+		}
+	}
+	return cont;
 }
 
 void planificarEntradaAReady(){
