@@ -89,6 +89,11 @@ void enviarCATCH(char* ip, char* puerto, t_log* logger, char* pokemon, uint32_t 
 bool necesitaAtraparse(char* pokemon);
 char* obtenerPokemon(t_pokemon* unPokemon);
 void planificarEntrenadores();
+void aplicarFIFO();
+void aplicarRR();
+void aplicarSJFConDesalojo();
+void aplicarSJF();
+void planificarEntradaAReady();
 void atenderCliente(int socket_cliente); //ESTA ES LA FUNCION MAGICA
 
 #endif

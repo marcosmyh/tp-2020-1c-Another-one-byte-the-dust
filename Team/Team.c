@@ -322,11 +322,45 @@ char* obtenerPokemon(t_pokemon* unPokemon){
 	return unPokemon->nombrePokemon;
 }
 
-
-
-
 void planificarEntrenadores(){
 	log_info(logger, "Se comenzara la planificacion de los entrenadores");
+
+	while(1){
+		if(!list_is_empty(colaReady) && list_is_empty(colaExec)){
+			if(strcmp(algoritmo_planificacion,"FIFO")==0){
+				aplicarFIFO();
+			}
+			else if(strcmp(algoritmo_planificacion,"RR")==0){
+				aplicarRR();
+			}
+			else if(strcmp(algoritmo_planificacion,"SJF-CD")==0){
+				aplicarSJFConDesalojo();
+			}
+			else if(strcmp(algoritmo_planificacion,"SJF-SD")==0){
+				aplicarSJF();
+			}
+		}
+	}
+
+}
+
+void aplicarFIFO(){
+
+}
+
+void aplicarRR(){
+
+}
+
+void aplicarSJFConDesalojo(){
+
+}
+
+void aplicarSJF(){
+
+}
+
+void planificarEntradaAReady(){
 
 }
 
