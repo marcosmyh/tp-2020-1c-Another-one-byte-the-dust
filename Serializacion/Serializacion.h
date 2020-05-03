@@ -48,6 +48,15 @@ char* unpackProceso(void* pack);
 t_operacion unpackOperacion(void* pack, uint32_t tamanioProceso);
 
 
+//FUNCIONES PARA ENVIO IDs
+uint32_t unpackID(void* pack);
+bool packAndSend_ID(int socketCliente, uint32_t ID);
+
+
+//FUNCIONES PARA ACK
+bool packAndSend_Ack(int socketCliente, bool acknowledgement);
+bool unpackACK(void* pack);
+
 //FUNCIONES PARA NEW
 
 bool packAndSend_New(int socketCliente, char* pokemon, uint32_t cantidad, uint32_t coordenadaX, uint32_t coordenadaY);
