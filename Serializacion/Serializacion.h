@@ -20,7 +20,9 @@ typedef enum{
 	t_GET,
 	t_APPEARED,
 	t_CATCH,
-	t_CAUGHT
+	t_CAUGHT,
+	t_ACK,
+	t_ID
 } t_operacion;
 
 typedef struct {

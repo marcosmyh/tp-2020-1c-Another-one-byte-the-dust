@@ -389,9 +389,6 @@ t_entrenador* calcularEstimacion(t_entrenador unEntrenador){
 /*
 	unEntrenador->rafagasEstimadas = (alfa_planificacion * estimacion_inicial)
 			+ ((1- alfa_planificacion) * (unEntrenador->rafagasEjecutadas));
-
-	//SI ME CONFIRMAN TENGO QUE AGREGAR EL ALFA DE PLANIFICACION
-
 	return unEntrenador;
 */
 }
