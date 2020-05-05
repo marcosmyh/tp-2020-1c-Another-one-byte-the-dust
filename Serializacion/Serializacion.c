@@ -167,21 +167,25 @@ bool packAndSend_Caught(int socketCliente, uint32_t atrapado){
 	return resultado;
 }
 
-bool packAndSend_Ack(int socketCliente, bool acknowledgement){
-	uint32_t tamMensaje = sizeof(acknowledgement);
-	uint32_t tamAck = sizeof(acknowledgement);
+bool packAndSend_Ack(int socketCliente, uint32_t ID, t_operacion operacion){
+	uint32_t tamMensaje = sizeof(uint32_t) + sizeof(t_operacion);
 	void* buffer = malloc(tamMensaje);
-	memcpy(buffer, &acknowledgement, tamAck);
+	uint32_t desplazamiento = 0;
+	memcpy(buffer, &ID, sizeof(uint32_t));
+	desplazamiento += sizeof(uint32_t);
+	memcpy(buffer+desplazamiento, &operacion, sizeof(t_operacion));
 	int resultado = packAndSend(socketCliente, buffer, tamMensaje, t_ACK);
 	free(buffer);
 	return resultado;
 }
 
-bool packAndSend_ID(int socketCliente, uint32_t ID){
-	uint32_t tamMensaje = sizeof(uint32_t);
-	uint32_t tamID = sizeof(uint32_t);
+bool packAndSend_ID(int socketCliente, uint32_t ID, t_operacion operacion){
+	uint32_t tamMensaje = sizeof(uint32_t) + sizeof(t_operacion);
 	void* buffer = malloc(tamMensaje);
-	memcpy(buffer, &ID, tamID);
+	uint32_t desplazamiento = 0;
+	memcpy(buffer, &ID, sizeof(uint32_t));
+	desplazamiento += sizeof(uint32_t);
+	memcpy(buffer+desplazamiento, &operacion, sizeof(t_operacion));
 	int resultado = packAndSend(socketCliente, buffer, tamMensaje, t_ID);
 	free(buffer);
 	return resultado;
@@ -296,19 +300,17 @@ bool unpackResultado_Caught(void* pack){
 	return atrapado;
 }
 
-// UNPACK ACK
-
-bool unpackACK(void* pack){
-	bool acknowledgement;
-	memcpy(&acknowledgement, pack, sizeof(bool));
-	return acknowledgement;
-}
-
-// UNPACK ID
+// UNPACK ID Y ACK
 
 uint32_t unpackID(void* pack){
 	uint32_t ID;
 	memcpy(&ID, pack, sizeof(uint32_t));
 	return ID;
+}
+t_operacion unpackOperacionIDACK(void* pack){
+	t_operacion operacion;
+	uint32_t desplazamiento = sizeof(uint32_t);
+	memcpy(&operacion, pack+desplazamiento, sizeof(t_operacion));
+	return operacion;
 }
 

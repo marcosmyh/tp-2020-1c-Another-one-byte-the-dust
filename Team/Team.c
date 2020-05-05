@@ -510,6 +510,10 @@ void atenderCliente(int socket_cliente){
 			//SI CORRESPONDE LE ASIGNO EL POKEMON AL ENTRENADOR Y LO DESBLOQUEO (PASA A READY)
 			break;
 
+
+		//AGREGAR CASES PARA T_ID Y T_ACK
+
+
 		default:
 			log_error(loggerObligatorio, "No es un codigo de operacion conocido: %i", headerRecibido.operacion);
 			break;
