@@ -279,7 +279,8 @@ void enviarPokemonesAlBroker(){
 
 void enviarGET(char* ip, char* puerto, t_log* logger, char* pokemon){
 	int socket = conectarse_a_un_servidor(ip, puerto, logger);
-	int resultadoGet = packAndSend_Get(socket, pokemon);
+	uint32_t id = -1;
+	int resultadoGet = packAndSend_Get(socket, id, pokemon);
 	if (resultadoGet == -1){
 		log_info(logger, "El envio del GET ha fallado");
 		log_info(loggerObligatorio, "El envio fallo por un error de conexion, se procedera a realizar la operacion por default");
@@ -291,7 +292,8 @@ void enviarGET(char* ip, char* puerto, t_log* logger, char* pokemon){
 
 void enviarCATCH(char* ip, char* puerto, t_log* logger, char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY){
 	int socket = conectarse_a_un_servidor(ip, puerto, logger);
-	int resultadoCatch = packAndSend_Catch(socket, pokemon, coordenadaX, coordenadaY);
+	uint32_t id = -1;
+	int resultadoCatch = packAndSend_Catch(socket, id, pokemon, coordenadaX, coordenadaY);
 	if (resultadoCatch == -1){
 		log_info(logger, "El envio del CATCH ha fallado");
 		log_info(loggerObligatorio, "El envio fallo por un error de conexion, se procedera a realizar la operacion por default");
@@ -435,11 +437,6 @@ void atenderCliente(int socket_cliente){
 		uint32_t tamanio = headerRecibido.tamanioMensaje;
 		switch(headerRecibido.operacion){
 
-		case t_NEW:;
-			//ESTE NO SE USA
-			log_error(loggerObligatorio, "No es un codigo de operacion conocido: %i", headerRecibido.operacion);
-			break;
-
 		case t_LOCALIZED:;
 			//ESTE SE USA
 			log_info(loggerObligatorio, "Llego un mensaje de LOCALIZED");
@@ -470,11 +467,6 @@ void atenderCliente(int socket_cliente){
 			log_info(logger, "El mensaje de localized de este pokemon ya fue recibido o no necesita atraparse, queda descartado");
 			break;
 
-		case t_GET:;
-			//ESTE NO SE USA
-			log_error(loggerObligatorio, "No es un codigo de operacion conocido: %i", headerRecibido.operacion);
-			break;
-
 		case t_APPEARED:;
 			//ESTE SE USA
 			log_info(loggerObligatorio, "Llego un mensaje de APPEARED");
@@ -498,11 +490,6 @@ void atenderCliente(int socket_cliente){
 			log_info(logger, "El mensaje de appeared de este pokemon ya fue recibido o no necesita atraparse, queda descartado");
 			break;
 
-		case t_CATCH:;
-			//ESTE NO SE USA
-			log_error(loggerObligatorio, "No es un codigo de operacion conocido: %i", headerRecibido.operacion);
-			break;
-
 		case t_CAUGHT:;
 			//ESTE SE USA
 			log_info(loggerObligatorio, "Llego un mensaje de CAUGHT");
@@ -510,9 +497,18 @@ void atenderCliente(int socket_cliente){
 			//SI CORRESPONDE LE ASIGNO EL POKEMON AL ENTRENADOR Y LO DESBLOQUEO (PASA A READY)
 			break;
 
+		case t_ID:;
+			//ESTE SE USA
+			log_info(loggerObligatorio, "Llego un mensaje de ID");
+			void* paqueteID = receiveAndUnpack(socket_cliente, tamanio);
+			uint32_t ID = unpackID(paqueteID);
+			t_operacion operacionAsociada = unpackOperacionIDACK(paqueteID);
+			switch(operacionAsociada){
 
-		//AGREGAR CASES PARA T_ID Y T_ACK
+			//AGREGAR LOS CASES Y DENTRO DE LOS CASES MANDAS UN ACK
 
+			}
+			break;
 
 		default:
 			log_error(loggerObligatorio, "No es un codigo de operacion conocido: %i", headerRecibido.operacion);
