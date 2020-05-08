@@ -222,6 +222,8 @@ void inicializarColas(){
 	pokemonesAtrapados = list_create();
 	pokemonesEnMapa = list_create();
 	objetivoTeam = list_create();
+	mensajesGET = list_create();
+	mensajesCATCH = list_create();
 	log_info(logger, "Se han inicializado todas las colas para la planificacion");
 }
 
@@ -277,7 +279,7 @@ void enviarPokemonesAlBroker(){
 	log_info(logger, "Se han enviado los GETs necesarios al broker");
 }
 
-void enviarGET(char* ip, char* puerto, t_log* logger, char* pokemon){
+void enviarGET(char* ip, char* puerto, char* pokemon){
 	int socket = conectarse_a_un_servidor(ip, puerto, logger);
 	uint32_t id = -1;
 	int resultadoGet = packAndSend_Get(socket, id, pokemon);
@@ -290,7 +292,7 @@ void enviarGET(char* ip, char* puerto, t_log* logger, char* pokemon){
 	close(socket);
 }
 
-void enviarCATCH(char* ip, char* puerto, t_log* logger, char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY){
+void enviarCATCH(char* ip, char* puerto, char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY){
 	int socket = conectarse_a_un_servidor(ip, puerto, logger);
 	uint32_t id = -1;
 	int resultadoCatch = packAndSend_Catch(socket, id, pokemon, coordenadaX, coordenadaY);
@@ -300,6 +302,18 @@ void enviarCATCH(char* ip, char* puerto, t_log* logger, char* pokemon, uint32_t 
 		close(socket);
 	}
 	log_info(logger, "El envio del CATCH se realizo con exito");
+	close(socket);
+}
+
+void enviarACK(char* ip, char* puerto, uint32_t ID, t_operacion operacion){
+	int socket = conectarse_a_un_servidor(ip, puerto, logger);
+	int resultadoACK = packAndSend_Ack(socket, ID, operacion);
+	if(resultadoACK == -1){
+		log_info(logger, "El envio del ACK ha fallado");
+		log_info(loggerObligatorio, "El envio fallo por un error de conexion"); //QUE HACER ENE ESTE CASO? HAY ACCION POR DEFAULT?
+		close(socket);
+	}
+	log_info(logger, "El envio del ACK se realizo con exito");
 	close(socket);
 }
 
@@ -334,15 +348,19 @@ void planificarEntrenadores(){
 		if(!list_is_empty(colaReady) && list_is_empty(colaExec)){
 			if(strcmp(algoritmo_planificacion,"FIFO")==0){
 				aplicarFIFO();
+				//Aca deberia ir algo como ejecutar
 			}
 			else if(strcmp(algoritmo_planificacion,"RR")==0){
 				aplicarRR();
+				//Aca deberia ir algo como ejecutar
 			}
 			else if(strcmp(algoritmo_planificacion,"SJF-CD")==0){
 				aplicarSJFConDesalojo();
+				//Aca deberia ir algo como ejecutar
 			}
 			else if(strcmp(algoritmo_planificacion,"SJF-SD")==0){
 				aplicarSJF();
+				//Aca deberia ir algo como ejecutar
 			}
 		}
 	}
@@ -419,7 +437,33 @@ int list_get_index(t_list* self, void* elemento, bool (*comparator) (void*,void*
 	return cont;
 }
 
+bool estaEnElMapa(char* unPokemon){
+	int cantPokemons = list_size(pokemonesEnMapa);
+	int i = 0;
+	for(i = 0; i<cantPokemons; i++){
+		t_pokemon pokemon = list_get(pokemonesEnMapa,i);
+		char* nombrePokemon = obtenerPokemon(pokemon);
+		if (strcmp(unPokemon,nombrePokemon) == 0){
+			return true;
+		}
+	}
+	return false;
+}
+
+bool correspondeAUnCatch(uint32_t id){
+	int cantIds = list_size(mensajesCATCH);
+	int i = 0;
+	for(i=0; i<cantIds; i++){
+		uint32_t otroId = list_get(mensajesCATCH, i);
+		if (id == otroId){
+			return true;
+		}
+	}
+	return false;
+}
+
 void planificarEntradaAReady(){
+	//ESTO PLANIFICA DE NEW A READY Y DE BLOCKED A READY
 
 }
 
@@ -442,10 +486,7 @@ void atenderCliente(int socket_cliente){
 			log_info(loggerObligatorio, "Llego un mensaje de LOCALIZED");
 			void* paqueteLocalized = receiveAndUnpack(socket_cliente, tamanio);
 			char* pokemonLocalized = unpackPokemon(paqueteLocalized);
-
-			//VERIFICAR SI YA RECIBI UN MENSAJE IGUAL (YA SE APPEARED O LOCALIZED), SI YA LO RECIBI ENTONCES LO DESCARTO
-
-			if(necesitaAtraparse(pokemonLocalized)){
+			if(!estaEnElMapa(pokemonLocalized) && necesitaAtraparse(pokemonLocalized)){
 				uint32_t tamanioPokemon = sizeof(pokemonLocalized);
 				uint32_t cantidadPokemones = unpackCantidadParesCoordenadas_Localized(paqueteLocalized, tamanioPokemon);
 				uint32_t desplazamiento = tamanioPokemon + sizeof(uint32_t);
@@ -464,7 +505,7 @@ void atenderCliente(int socket_cliente){
 
 				//ACA TALVES TENDRIA QUE ACTIVAR LA PLANIFICACION DE NEW A READY
 			}
-			log_info(logger, "El mensaje de localized de este pokemon ya fue recibido o no necesita atraparse, queda descartado");
+			log_info(logger, "El mensaje de localized/appeared de este pokemon ya fue recibido o no necesita atraparse, queda descartado");
 			break;
 
 		case t_APPEARED:;
@@ -493,8 +534,16 @@ void atenderCliente(int socket_cliente){
 		case t_CAUGHT:;
 			//ESTE SE USA
 			log_info(loggerObligatorio, "Llego un mensaje de CAUGHT");
-			//VERIFICAR QUE EL ID DEL MENSAJE CORRESPONDA A UNO PENDIENTE DE RESPUESTA GENERADO POR CATCH, SINO LO DESCARTO
+			void* paqueteCaught = receiveAndUnpack(socket_cliente, tamanio);
+			uint32_t id = unpackID(paqueteCaught);
+			bool resultadoCaught = unpackResultado_Caught(paqueteCaught);
+			if(correspondeAUnCatch(id)){
+
 			//SI CORRESPONDE LE ASIGNO EL POKEMON AL ENTRENADOR Y LO DESBLOQUEO (PASA A READY)
+
+			}
+
+			log_info(logger, "El mensaje enviado no se corresponde con un mensaje CATCH, queda descartado");
 			break;
 
 		case t_ID:;
@@ -505,8 +554,19 @@ void atenderCliente(int socket_cliente){
 			t_operacion operacionAsociada = unpackOperacionIDACK(paqueteID);
 			switch(operacionAsociada){
 
-			//AGREGAR LOS CASES Y DENTRO DE LOS CASES MANDAS UN ACK
+			case t_GET:;
+			list_add(mensajesGET,ID);
+			enviarACK(ip_broker,puerto_broker,ID,operacionAsociada);
+			break;
 
+			case t_CATCH:;
+			list_add(mensajesCATCH,ID);
+			enviarACK(ip_broker,puerto_broker,ID,operacionAsociada);
+			break;
+
+			default:
+				log_error(loggerObligatorio, "No se reciben IDs del codigo de operacion: %i", headerRecibido.operacion);
+				break;
 			}
 			break;
 
