@@ -29,7 +29,10 @@ typedef struct {
 	t_list* objetivo;
 	int rafagasEstimadas;
 	int rafagasEjecutadas;
+	int distancia;
+	bool ocupado;
 	bool completoObjetivo;
+	bool blockeado;
 }t_entrenador;
 
 typedef struct{
@@ -61,6 +64,7 @@ int tiempo_reconexion;
 int retardo_ciclo_cpu;
 char* algoritmo_planificacion;
 int quantum;
+double alpha;
 int estimacion_inicial;
 char* ip_broker;
 char* puerto_broker;
@@ -97,13 +101,16 @@ void aplicarFIFO();
 void aplicarRR();
 void aplicarSJFConDesalojo();
 void aplicarSJF();
-t_entrenador* calcularEstimacion(t_entrenador unEntrenador);
+t_entrenador* calcularEstimacion(t_entrenador* unEntrenador);
 bool comparadorDeEntrenadores(t_entrenador* unEntrenador, t_entrenador* otroEntrenador);
 bool comparadorDeRafagas(t_entrenador* unEntrenador, t_entrenador* otroEntrenador);
 int list_get_index(t_list* self, void* elemento, bool (*comparator) (void*,void*));
 bool estaEnElMapa(char* unPokemon);
 bool correspondeAUnCatch(uint32_t id);
 void planificarEntradaAReady();
+void calcularDistanciaA(t_list* listaEntrenadores, t_pokemon* unPokemon);
+bool comparadorDeDistancia(t_entrenador* unEntrenador, t_entrenador* otroEntrenador);
+bool estaOcupado(t_entrenador* unEntrenador);
 void atenderCliente(int socket_cliente); //ESTA ES LA FUNCION MAGICA
 
 #endif

@@ -40,7 +40,24 @@ int main(){
 	inicializarEntrenadores();
 	//MANDO UN GET AL BROKER PARA CADA ESPECIE POKEMON QUE ESTA EN EL OBJETIVO
 	enviarPokemonesAlBroker();
-	planificarEntrenadores();
+	//CREO COLA DE PLANIFICACION A READY
+	pthread_t hiloPlanificacionReady;
+	if(pthread_create(&hiloPlanificacionReady, NULL, (void*)planificarEntradaAReady, NULL) == 0){
+		pthread_detach(hiloPlanificacionReady);
+		log_info(logger, "Se creo el hilo planificacionReady correctamente");
+	}
+	else{
+		log_error(logger, "No se ha podido crear el hilo planificacionReady");
+	}
+	//CREO COLA DE PLANIFICACION DE LOS ENTRENADORES EN READY
+	pthread_t hiloPlanificacionEntrenadores;
+	if(pthread_create(&hiloPlanificacionEntrenadores, NULL, (void*)planificarEntrenadores, NULL) == 0){
+		pthread_detach(hiloPlanificacionEntrenadores);
+		log_info(logger, "Se creo el hilo planificacionEntrenadores correctamente");
+	}
+	else{
+		log_error(logger, "No se ha podido crear el hilo planificacionEntrenadores");
+	}
 
 	return EXIT_SUCCESS;
 }
@@ -92,6 +109,7 @@ void setearValores(t_config* archConfiguracion){
 	retardo_ciclo_cpu = config_get_int_value(archivoConfig, "RETARDO_CICLO_CPU");
 	algoritmo_planificacion = config_get_string_value(archivoConfig, "ALGORITMO_PLANIFICACION");
 	quantum = config_get_int_value(archivoConfig, "QUANTUM");
+	alpha = config_get_double_value(archivoConfig, "ALPHA");
 	estimacion_inicial = config_get_int_value(archivoConfig, "ESTIMACION_INICIAL");
 	ip_broker = config_get_string_value(archivoConfig, "IP_BROKER");
 	puerto_broker = config_get_string_value(archivoConfig, "PUERTO_BROKER");
@@ -235,8 +253,10 @@ void inicializarEntrenadores(){
 		entrenadorNuevo->idEntrenador = IDMAX;
 		IDMAX++;
 		entrenadorNuevo->completoObjetivo = false;
+		entrenadorNuevo->ocupado = false;
 		entrenadorNuevo->rafagasEstimadas = 0;
 		entrenadorNuevo->rafagasEjecutadas = 0;
+		entrenadorNuevo->distancia = 0;
 		char** coordenadas = string_split(posiciones_entrenadores[i], "|");
 		int coordenadaX = atoi(coordenadas[0]);
 		int coordenadaY = atoi(coordenadas[1]);
@@ -274,7 +294,7 @@ void enviarPokemonesAlBroker(){
 	int cantPokemones = list_size(pokemonsAPedir);
 	for(int i=0; i<cantPokemones; i++){
 		char* pokemonAPedir = list_get(pokemonsAPedir, i);
-		enviarGET(ip_broker, puerto_broker, logger, pokemonAPedir);
+		enviarGET(ip_broker, puerto_broker, pokemonAPedir);
 	}
 	log_info(logger, "Se han enviado los GETs necesarios al broker");
 }
@@ -377,7 +397,12 @@ void aplicarFIFO(){
 }
 
 void aplicarRR(){
-
+	log_info(logger,"Se aplicara el algoritmo de planificacion RR, con quantum de %d", quantum);
+	if(list_is_empty(colaExec) && (!list_is_empty(colaReady))){
+		t_entrenador* entrenadorAEjecutar = (t_entrenador*) list_remove(colaReady, 0);
+		list_add(colaExec, entrenadorAEjecutar);
+		log_info(loggerObligatorio, "Se cambió un entrenador de READY a EXEC, Razon: Elegido del algoritmo de planificacion");
+	}
 }
 
 void aplicarSJFConDesalojo(){
@@ -391,7 +416,6 @@ void aplicarSJFConDesalojo(){
 }
 
 void aplicarSJF(){
-/*
 	log_info(logger,"Se aplicara el algoritmo de planificacion SJF sin desalojo");
 	if(list_is_empty(colaExec) && (!list_is_empty(colaReady))){
 		t_list* aux = list_map(colaReady, (void*)calcularEstimacion);
@@ -402,15 +426,12 @@ void aplicarSJF(){
 		list_add(colaExec, entrenadorAEjecutar);
 		log_info(loggerObligatorio, "Se cambió un entrenador de READY a EXEC, Razon: Elegido del algoritmo de planificacion");
 	}
-*/
 }
 
-t_entrenador* calcularEstimacion(t_entrenador unEntrenador){
-/*
-	unEntrenador->rafagasEstimadas = (alfa_planificacion * estimacion_inicial)
-			+ ((1- alfa_planificacion) * (unEntrenador->rafagasEjecutadas));
+t_entrenador* calcularEstimacion(t_entrenador* unEntrenador){
+	unEntrenador->rafagasEstimadas = (alpha * estimacion_inicial)
+			+ ((1- alpha) * (unEntrenador->rafagasEjecutadas));
 	return unEntrenador;
-*/
 }
 
 
@@ -441,7 +462,7 @@ bool estaEnElMapa(char* unPokemon){
 	int cantPokemons = list_size(pokemonesEnMapa);
 	int i = 0;
 	for(i = 0; i<cantPokemons; i++){
-		t_pokemon pokemon = list_get(pokemonesEnMapa,i);
+		t_pokemon* pokemon = list_get(pokemonesEnMapa,i);
 		char* nombrePokemon = obtenerPokemon(pokemon);
 		if (strcmp(unPokemon,nombrePokemon) == 0){
 			return true;
@@ -464,7 +485,68 @@ bool correspondeAUnCatch(uint32_t id){
 
 void planificarEntradaAReady(){
 	//ESTO PLANIFICA DE NEW A READY Y DE BLOCKED A READY
+	while(1){
+		t_list* pokemones = pokemonesEnMapa;
+		t_list* entrenadoresLibres = list_filter(colaBlocked, (void*)estaOcupado);
+		if(!list_is_empty(colaNew) || !list_is_empty(entrenadoresLibres)){
+			int entrenadoresNew = list_size(colaNew);
+			//JUNTO LAS LISTAS DE BLOCKED(POR INACTIVIDAD) Y DE NEW
+			for (int i=0; i<entrenadoresNew; i++){
+			t_entrenador* unEntrenador = (t_entrenador*) list_get(colaNew, i);
+			list_add(unEntrenador,entrenadoresLibres); //esto esta igual que en SJF, deberia estar bien
+			}
 
+		//SACO EL PRIMER POKEMON DE LA LISTA
+		t_pokemon* unPokemon = list_remove(pokemones, 0);
+
+		//CALCULO LA DISTANCIA DE TODOS A ESE POKEMON
+		calcularDistanciaA(entrenadoresLibres,unPokemon);
+
+		//ORDENO LA LISTA EN BASE A ESA DISTANCIA DE MENOR A MAYOR
+		list_sort(entrenadoresLibres, (void*)comparadorDeDistancia);
+
+		//SACO EL PRIMERO DE ESA LISTA ORDENADA
+		t_entrenador* entrenadorAux = list_remove(entrenadoresLibres, 0);
+
+		//SI ESTA BLOCKEADO LO VOY A BUSCAR A BLOCKEADO, LO SACO Y LO MANDO A READY
+		if(entrenadorAux->blockeado){
+			int index = list_get_index(colaBlocked,entrenadorAux,(void*)comparadorDeEntrenadores);
+			t_entrenador* entrenadorElegido = (t_entrenador*) list_remove(colaBlocked, index);
+			list_add(entrenadorElegido, colaReady); //esto esta igual que en SJF, deberia estar bien
+			log_info(loggerObligatorio, "Se pasó un entrenador de BLOCKED a READY, Razon: Elegido por el planificador de entrada a ready");
+		}
+
+		//SI NO ESTA BLOCKEADO, ESTA EN NEW Y PROCEDO IGUAL
+		int index = list_get_index(colaNew,entrenadorAux,(void*)comparadorDeEntrenadores);
+		t_entrenador* entrenadorElegido = (t_entrenador*) list_remove(colaNew, index);
+		list_add(entrenadorElegido, colaReady); //esto esta igual que en SJF, deberia estar bien
+		log_info(loggerObligatorio, "Se pasó un entrenador de NEW a READY, Razon: Elegido por el planificador de entrada a ready");
+		}
+
+	}
+}
+
+void calcularDistanciaA(t_list* listaEntrenadores, t_pokemon* unPokemon){
+	//CREE UNA VARIABLE DISTANCIA PARA PODER HACER ESTO, ESTA ES LA UNICA FUNCION QUE LA TOCA
+	int cantEntrenadores = list_size(listaEntrenadores);
+	int i;
+	for(i=0; i<cantEntrenadores; i++){
+		t_entrenador* unEntrenador = list_get(listaEntrenadores,i);
+		uint32_t coordenadaXEntrenador = unEntrenador->coordenadaX;
+		uint32_t coordenadaYEntrenador = unEntrenador->coordenadaY;
+		uint32_t coordenadaXPokemon = unPokemon->coordenadaX;
+		uint32_t coordenadaYPokemon = unPokemon->coordenadaY;
+		int distanciaAPokemon = (abs(coordenadaXEntrenador - coordenadaXPokemon) + abs(coordenadaYEntrenador - coordenadaYPokemon));
+		unEntrenador->distancia = distanciaAPokemon;
+	}
+}
+
+bool comparadorDeDistancia(t_entrenador* unEntrenador, t_entrenador* otroEntrenador){
+	return unEntrenador->distancia <= otroEntrenador->distancia;
+}
+
+bool estaOcupado(t_entrenador* unEntrenador){
+	return unEntrenador->ocupado;
 }
 
 void atenderCliente(int socket_cliente){
@@ -501,9 +583,12 @@ void atenderCliente(int socket_cliente){
 					desplazamiento += sizeof(uint32_t);
 					log_info(loggerObligatorio, "Pokemon agregado: %s, ubicado en X:%d  Y:%d", pokemonLocalized, coordenadaX, coordenadaY);
 					list_add(pokemonesEnMapa,pokemonAAtrapar);
+
 				}
 
 				//ACA TALVES TENDRIA QUE ACTIVAR LA PLANIFICACION DE NEW A READY
+
+				free(paqueteLocalized);
 			}
 			log_info(logger, "El mensaje de localized/appeared de este pokemon ya fue recibido o no necesita atraparse, queda descartado");
 			break;
@@ -523,10 +608,11 @@ void atenderCliente(int socket_cliente){
 				pokemonAAtrapar->coordenadaY = coordenadaY;
 				log_info(loggerObligatorio, "Pokemon agregado: %s, ubicado en X:%d  Y:%d", pokemonAppeared, coordenadaX, coordenadaY);
 				list_add(pokemonesEnMapa,pokemonAAtrapar);
-				free(paqueteAppeared);
+
 
 				//ACA TALVES TENDRIA QUE ACTIVAR LA PLANIFICACION DE NEW A READY
 
+				free(paqueteAppeared);
 			}
 			log_info(logger, "El mensaje de appeared de este pokemon ya fue recibido o no necesita atraparse, queda descartado");
 			break;
@@ -555,12 +641,12 @@ void atenderCliente(int socket_cliente){
 			switch(operacionAsociada){
 
 			case t_GET:;
-			list_add(mensajesGET,ID);
+			list_add(mensajesGET,&ID);
 			enviarACK(ip_broker,puerto_broker,ID,operacionAsociada);
 			break;
 
 			case t_CATCH:;
-			list_add(mensajesCATCH,ID);
+			list_add(mensajesCATCH,&ID);
 			enviarACK(ip_broker,puerto_broker,ID,operacionAsociada);
 			break;
 
