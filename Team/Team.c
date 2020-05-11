@@ -585,9 +585,6 @@ void atenderCliente(int socket_cliente){
 					list_add(pokemonesEnMapa,pokemonAAtrapar);
 
 				}
-
-				//ACA TALVES TENDRIA QUE ACTIVAR LA PLANIFICACION DE NEW A READY
-
 				free(paqueteLocalized);
 			}
 			log_info(logger, "El mensaje de localized/appeared de este pokemon ya fue recibido o no necesita atraparse, queda descartado");
@@ -608,10 +605,6 @@ void atenderCliente(int socket_cliente){
 				pokemonAAtrapar->coordenadaY = coordenadaY;
 				log_info(loggerObligatorio, "Pokemon agregado: %s, ubicado en X:%d  Y:%d", pokemonAppeared, coordenadaX, coordenadaY);
 				list_add(pokemonesEnMapa,pokemonAAtrapar);
-
-
-				//ACA TALVES TENDRIA QUE ACTIVAR LA PLANIFICACION DE NEW A READY
-
 				free(paqueteAppeared);
 			}
 			log_info(logger, "El mensaje de appeared de este pokemon ya fue recibido o no necesita atraparse, queda descartado");
