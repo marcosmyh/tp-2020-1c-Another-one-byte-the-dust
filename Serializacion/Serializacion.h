@@ -45,15 +45,15 @@ uint32_t unpackID(void* pack); //DESEMPAQUETA EL ID DEL MENSAJE, ES IGUAL PARA T
 
 
 //FUNCIONES PARA HANDSHAKE
-bool packAndSend_Handshake(int socketCliente, char* proceso, t_operacion operacion);
+void* pack_Handshake(int socketCliente, char* proceso, t_operacion operacion);
 
-char* unpackProceso(void* pack);
+char* unpackProceso(void* pack); //ESTE SIRVE PARA DESEMPAQUETAR EL IDENTIFICADOR DEL PROCESO, EJ: "TEAM-1" o "GAMECARD-4"
 t_operacion unpackOperacion(void* pack, uint32_t tamanioProceso);
 
 
 //FUNCIONES PARA NEW
 
-bool packAndSend_New(int socketCliente, uint32_t id, char* pokemon, uint32_t cantidad, uint32_t coordenadaX, uint32_t coordenadaY);
+void* pack_New(int socketCliente, uint32_t id, char* pokemon, uint32_t cantidad, uint32_t coordenadaX, uint32_t coordenadaY);
 
 uint32_t unpackCantidadPokemons_New(void* pack, uint32_t tamanioPokemon);
 uint32_t unpackCoordenadaX_New(void* pack, uint32_t tamanioPokemon);
@@ -62,7 +62,7 @@ uint32_t unpackCoordenadaY_New(void* pack, uint32_t tamanioPokemon);
 
 //FUNCIONES PARA LOCALIZED
 
-bool packAndSend_Localized(int socketCliente, uint32_t id, char* pokemon, uint32_t cantidadParesCoordenadas, uint32_t arrayCoordenadas[]);
+void* pack_Localized(int socketCliente, uint32_t id, char* pokemon, uint32_t cantidadParesCoordenadas, uint32_t arrayCoordenadas[]);
 void packCoordenada_Localized(void* buffer, uint32_t desplazamiento, uint32_t coordenada);
 
 uint32_t unpackCantidadParesCoordenadas_Localized(void* pack, uint32_t tamanioPokemon);
@@ -72,12 +72,12 @@ uint32_t unpackCoordenadaY_Localized(void* pack, uint32_t desplazamiento);
 
 //FUNCIONES PARA GET
 
-bool packAndSend_Get(int socketCliente, uint32_t id, char* pokemon);
+void* pack_Get(int socketCliente, uint32_t id, char* pokemon);
 
 
 //FUNCIONES PARA APPEARED
 
-bool packAndSend_Appeared(int socketCliente, uint32_t id, char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY);
+void* pack_Appeared(int socketCliente, uint32_t id, char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY);
 
 uint32_t unpackCoordenadaX_Appeared(void* pack, uint32_t tamanioPokemon);
 uint32_t unpackCoordenadaY_Appeared(void* pack, uint32_t tamanioPokemon);
@@ -85,7 +85,7 @@ uint32_t unpackCoordenadaY_Appeared(void* pack, uint32_t tamanioPokemon);
 
 //FUNCIONES PARA CATCH
 
-bool packAndSend_Catch(int socketCliente, uint32_t id, char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY);
+void* pack_Catch(int socketCliente, uint32_t id, char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY);
 
 uint32_t unpackCoordenadaX_Catch(void* pack, uint32_t tamanioPokemon);
 uint32_t unpackCoordenadaY_Catch(void* pack, uint32_t tamanioPokemon);
@@ -93,20 +93,22 @@ uint32_t unpackCoordenadaY_Catch(void* pack, uint32_t tamanioPokemon);
 
 //FUNCIONES PARA CAUGHT
 
-bool packAndSend_Caught(int socketCliente, uint32_t id, uint32_t atrapado);
+void* pack_Caught(int socketCliente, uint32_t id, uint32_t atrapado);
 
 bool unpackResultado_Caught(void* pack);
 
 
 //FUNCIONES PARA ID
 
-bool packAndSend_ID(int socketCliente, uint32_t ID, t_operacion operacion);
+void* pack_ID(int socketCliente, uint32_t ID, t_operacion operacion, char* identificadorProceso);
 
 t_operacion unpackOperacionIDACK(void* pack);
 
 
 //FUNCIONES PARA ACK
 
-bool packAndSend_Ack(int socketCliente, uint32_t ID, t_operacion operacion);
+void* pack_Ack(int socketCliente, uint32_t ID, t_operacion operacion, char* identificadorProceso);
 
 t_operacion unpackOperacionIDACK(void* pack);
+
+char* unpackIdentificadorProcesoIDACK(void* pack);

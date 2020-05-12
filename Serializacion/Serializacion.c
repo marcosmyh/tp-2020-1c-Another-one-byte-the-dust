@@ -52,9 +52,9 @@ bool packAndSend(int socketCliente, const void* paquete, uint32_t tamPaquete, t_
 	return resultado;
 }
 
-bool packAndSend_Handshake(int socketCliente, char* proceso, t_operacion operacion){
-	uint32_t tamMensaje = strlen(proceso) + 1 + sizeof(t_operacion);
-	uint32_t tamProceso = strlen(proceso);
+void* pack_Handshake(int socketCliente, char* proceso, t_operacion operacion){
+	uint32_t tamMensaje = strlen(proceso) + 1 + sizeof(uint32_t)+ sizeof(t_operacion);
+	uint32_t tamProceso = strlen(proceso) + 1;
 	void* buffer = malloc(tamMensaje);
 	uint32_t desplazamiento = 0;
 	memcpy(buffer, &tamProceso, sizeof(uint32_t));
@@ -62,14 +62,12 @@ bool packAndSend_Handshake(int socketCliente, char* proceso, t_operacion operaci
 	memcpy(buffer+desplazamiento, proceso, tamProceso);
 	desplazamiento += tamProceso;
 	memcpy(buffer+desplazamiento, &operacion, sizeof(t_operacion));
-	int resultado = packAndSend(socketCliente, buffer, tamMensaje, t_HANDSHAKE);
-	free(buffer);
-	return resultado;
+	return buffer;
 }
 
-bool packAndSend_New(int socketCliente, uint32_t id, char* pokemon, uint32_t cantidad, uint32_t coordenadaX, uint32_t coordenadaY){
-	uint32_t tamMensaje = sizeof(uint32_t) + strlen(pokemon) + 1 + sizeof(cantidad) + sizeof(coordenadaX) + sizeof(coordenadaY);
-	uint32_t tamPokemon = strlen(pokemon);
+void* pack_New(int socketCliente, uint32_t id, char* pokemon, uint32_t cantidad, uint32_t coordenadaX, uint32_t coordenadaY){
+	uint32_t tamMensaje = sizeof(id) + strlen(pokemon) + 1 + sizeof(uint32_t) + sizeof(cantidad) + sizeof(coordenadaX) + sizeof(coordenadaY);
+	uint32_t tamPokemon = strlen(pokemon) + 1;
 	void* buffer = malloc(tamMensaje);
 	uint32_t desplazamiento = 0;
 	memcpy(buffer, &id, sizeof(uint32_t));
@@ -83,15 +81,13 @@ bool packAndSend_New(int socketCliente, uint32_t id, char* pokemon, uint32_t can
 	memcpy(buffer+desplazamiento, &coordenadaX, sizeof(uint32_t));
 	desplazamiento +=sizeof(uint32_t);
 	memcpy(buffer+desplazamiento, &coordenadaY, sizeof(uint32_t));
-	int resultado = packAndSend(socketCliente, buffer, tamMensaje, t_NEW);
-	free(buffer);
-	return resultado;
+	return buffer;
 }
 
-bool packAndSend_Localized(int socketCliente, uint32_t id, char* pokemon, uint32_t cantidadParesCoordenadas, uint32_t arrayCoordenadas[]){
-	//Revisar como obtener el tamaño del array
-	uint32_t tamMensaje = sizeof(uint32_t) + strlen(pokemon) + 1 + sizeof(cantidadParesCoordenadas) + sizeof(arrayCoordenadas) + (sizeof(uint32_t)*2*cantidadParesCoordenadas);
-	uint32_t tamPokemon = strlen(pokemon);
+void* pack_Localized(int socketCliente, uint32_t id, char* pokemon, uint32_t cantidadParesCoordenadas, uint32_t arrayCoordenadas[]){
+	//REVISAR EL FUNCIONAMIENTO DEL LOCALIZED
+	uint32_t tamMensaje = sizeof(id) + strlen(pokemon) + 1 + sizeof(uint32_t) + sizeof(cantidadParesCoordenadas) + sizeof(arrayCoordenadas) + (sizeof(uint32_t)*2*cantidadParesCoordenadas);
+	uint32_t tamPokemon = strlen(pokemon) + 1;
 	void* buffer = malloc(tamMensaje);
 	uint32_t desplazamiento = 0;
 	memcpy(buffer, &id, sizeof(uint32_t));
@@ -105,9 +101,7 @@ bool packAndSend_Localized(int socketCliente, uint32_t id, char* pokemon, uint32
 	for(int i=0; i<(cantidadParesCoordenadas*2); i++){
 		packCoordenada_Localized(buffer, desplazamiento, arrayCoordenadas[i]);
 	}
-	int resultado = packAndSend(socketCliente, buffer, tamMensaje, t_LOCALIZED);
-	free(buffer);
-	return resultado;
+	return buffer;
 }
 
 void packCoordenada_Localized(void* buffer, uint32_t desplazamiento, uint32_t coordenada){
@@ -115,9 +109,9 @@ void packCoordenada_Localized(void* buffer, uint32_t desplazamiento, uint32_t co
 	desplazamiento += sizeof(uint32_t);
 }
 
-bool packAndSend_Get(int socketCliente, uint32_t id, char* pokemon){
-	uint32_t tamMensaje = sizeof(uint32_t) + strlen(pokemon) + 1;
-	uint32_t tamPokemon = strlen(pokemon);
+void* pack_Get(int socketCliente, uint32_t id, char* pokemon){
+	uint32_t tamMensaje = sizeof(id) + strlen(pokemon) + 1 + sizeof(uint32_t);
+	uint32_t tamPokemon = strlen(pokemon) + 1;
 	void* buffer = malloc(tamMensaje);
 	uint32_t desplazamiento = 0;
 	memcpy(buffer, &id, sizeof(uint32_t));
@@ -125,33 +119,12 @@ bool packAndSend_Get(int socketCliente, uint32_t id, char* pokemon){
 	memcpy(buffer+desplazamiento, &tamPokemon, sizeof(uint32_t));
 	desplazamiento += sizeof(uint32_t);
 	memcpy(buffer+desplazamiento, pokemon, tamPokemon);
-	int resultado = packAndSend(socketCliente, buffer, tamMensaje, t_GET);
-	free(buffer);
-	return resultado;
+	return buffer;
 }
 
-bool packAndSend_Appeared(int socketCliente, uint32_t id, char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY){
-	uint32_t tamMensaje = sizeof(uint32_t) + strlen(pokemon) + 1 + sizeof(uint32_t) + sizeof(uint32_t);
-	uint32_t tamPokemon = strlen(pokemon);
-	void* buffer = malloc(tamMensaje);
-	uint32_t desplazamiento = 0;
-	memcpy(buffer, &id, sizeof(uint32_t));
-	desplazamiento += sizeof(uint32_t);
-	memcpy(buffer+desplazamiento, &tamPokemon, sizeof(uint32_t));
-	desplazamiento += sizeof(uint32_t);
-	memcpy(buffer+desplazamiento, pokemon, tamPokemon);
-	desplazamiento += tamPokemon;
-	memcpy(buffer+desplazamiento, &coordenadaX, sizeof(uint32_t));
-	desplazamiento += sizeof(uint32_t);
-	memcpy(buffer+desplazamiento, &coordenadaY, sizeof(uint32_t));
-	int resultado = packAndSend(socketCliente, buffer, tamMensaje, t_APPEARED);
-	free(buffer);
-	return resultado;
-}
-
-bool packAndSend_Catch(int socketCliente, uint32_t id, char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY){
-	uint32_t tamMensaje = sizeof(uint32_t) + strlen(pokemon) + 1 + sizeof(uint32_t) + sizeof(uint32_t);
-	uint32_t tamPokemon = strlen(pokemon);
+void* pack_Appeared(int socketCliente, uint32_t id, char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY){
+	uint32_t tamMensaje = sizeof(id) + strlen(pokemon) + 1 + sizeof(uint32_t) + sizeof(coordenadaX) + sizeof(coordenadaY);
+	uint32_t tamPokemon = strlen(pokemon) + 1;
 	void* buffer = malloc(tamMensaje);
 	uint32_t desplazamiento = 0;
 	memcpy(buffer, &id, sizeof(uint32_t));
@@ -163,45 +136,64 @@ bool packAndSend_Catch(int socketCliente, uint32_t id, char* pokemon, uint32_t c
 	memcpy(buffer+desplazamiento, &coordenadaX, sizeof(uint32_t));
 	desplazamiento += sizeof(uint32_t);
 	memcpy(buffer+desplazamiento, &coordenadaY, sizeof(uint32_t));
-	int resultado = packAndSend(socketCliente, buffer, tamMensaje, t_APPEARED);
-	free(buffer);
-	return resultado;
+	return buffer;
 }
 
-bool packAndSend_Caught(int socketCliente, uint32_t id, uint32_t atrapado){
-	uint32_t tamMensaje = sizeof(uint32_t) + sizeof(uint32_t);
+void* pack_Catch(int socketCliente, uint32_t id, char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY){
+	uint32_t tamMensaje = sizeof(id) + strlen(pokemon) + 1 + sizeof(uint32_t) + sizeof(coordenadaX) + sizeof(coordenadaY);
+	uint32_t tamPokemon = strlen(pokemon) + 1;
+	void* buffer = malloc(tamMensaje);
+	uint32_t desplazamiento = 0;
+	memcpy(buffer, &id, sizeof(uint32_t));
+	desplazamiento += sizeof(uint32_t);
+	memcpy(buffer+desplazamiento, &tamPokemon, sizeof(uint32_t));
+	desplazamiento += sizeof(uint32_t);
+	memcpy(buffer+desplazamiento, pokemon, tamPokemon);
+	desplazamiento += tamPokemon;
+	memcpy(buffer+desplazamiento, &coordenadaX, sizeof(uint32_t));
+	desplazamiento += sizeof(uint32_t);
+	memcpy(buffer+desplazamiento, &coordenadaY, sizeof(uint32_t));
+	return buffer;
+}
+
+void* pack_Caught(int socketCliente, uint32_t id, uint32_t atrapado){
+	uint32_t tamMensaje = sizeof(id) + sizeof(atrapado);
 	void* buffer= malloc(tamMensaje);
 	uint32_t desplazamiento = 0;
 	memcpy(buffer, &id, sizeof(uint32_t));
 	desplazamiento += sizeof(uint32_t);
 	memcpy(buffer+desplazamiento, &atrapado, sizeof(uint32_t));
-	int resultado = packAndSend(socketCliente, buffer, tamMensaje, t_CAUGHT);
-	free(buffer);
-	return resultado;
+	return buffer;
 }
 
-bool packAndSend_Ack(int socketCliente, uint32_t ID, t_operacion operacion){
-	uint32_t tamMensaje = sizeof(uint32_t) + sizeof(t_operacion);
+void* pack_Ack(int socketCliente, uint32_t ID, t_operacion operacion, char* identificadorProceso){
+	uint32_t tamMensaje = sizeof(ID) + sizeof(t_operacion) + strlen(identificadorProceso) + 1 + sizeof(uint32_t);
+	uint32_t tamidentificadorProceso = strlen(identificadorProceso) + 1;
 	void* buffer = malloc(tamMensaje);
 	uint32_t desplazamiento = 0;
 	memcpy(buffer, &ID, sizeof(uint32_t));
 	desplazamiento += sizeof(uint32_t);
 	memcpy(buffer+desplazamiento, &operacion, sizeof(t_operacion));
-	int resultado = packAndSend(socketCliente, buffer, tamMensaje, t_ACK);
-	free(buffer);
-	return resultado;
+	desplazamiento += sizeof(t_operacion);
+	memcpy(buffer+desplazamiento, &tamidentificadorProceso, sizeof(uint32_t));
+	desplazamiento += sizeof(uint32_t);
+	memcpy(buffer+desplazamiento, &identificadorProceso, tamidentificadorProceso);
+	return buffer;
 }
 
-bool packAndSend_ID(int socketCliente, uint32_t ID, t_operacion operacion){
-	uint32_t tamMensaje = sizeof(uint32_t) + sizeof(t_operacion);
+void* pack_ID(int socketCliente, uint32_t ID, t_operacion operacion, char* identificadorProceso){
+	uint32_t tamMensaje = sizeof(ID) + sizeof(t_operacion) + strlen(identificadorProceso) + 1 + sizeof(uint32_t);
+	uint32_t tamidentificadorProceso = strlen(identificadorProceso) + 1;
 	void* buffer = malloc(tamMensaje);
 	uint32_t desplazamiento = 0;
 	memcpy(buffer, &ID, sizeof(uint32_t));
 	desplazamiento += sizeof(uint32_t);
 	memcpy(buffer+desplazamiento, &operacion, sizeof(t_operacion));
-	int resultado = packAndSend(socketCliente, buffer, tamMensaje, t_ID);
-	free(buffer);
-	return resultado;
+	desplazamiento += sizeof(t_operacion);
+	memcpy(buffer+desplazamiento, &tamidentificadorProceso, sizeof(uint32_t));
+	desplazamiento += sizeof(uint32_t);
+	memcpy(buffer+desplazamiento, &identificadorProceso, tamidentificadorProceso);
+	return buffer;
 }
 
 //UNPACK NOMBRE POKEMON (IGUAL PARA TODOS)
@@ -329,5 +321,14 @@ t_operacion unpackOperacionIDACK(void* pack){
 	uint32_t desplazamiento = sizeof(uint32_t);
 	memcpy(&operacion, pack+desplazamiento, sizeof(t_operacion));
 	return operacion;
+}
+char* unpackIdentificadorProcesoIDACK(void* pack){
+	uint32_t tamanioIdentificadorProceso = 0;
+	uint32_t desplazamiento = sizeof(uint32_t) + sizeof(t_operacion);
+	memcpy(&tamanioIdentificadorProceso, pack+desplazamiento, sizeof(uint32_t));
+	char* identificadorProceso = malloc(tamanioIdentificadorProceso);
+	desplazamiento += sizeof(uint32_t);
+	memcpy(identificadorProceso, pack+desplazamiento,tamanioIdentificadorProceso);
+	return identificadorProceso;
 }
 
