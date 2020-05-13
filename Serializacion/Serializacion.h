@@ -48,6 +48,9 @@ uint32_t unpackID(void* pack); //DESEMPAQUETA EL ID DEL MENSAJE, ES IGUAL PARA T
 void* pack_Handshake(char* proceso, t_operacion operacion);
 
 char* unpackProceso(void* pack); //ESTE SIRVE PARA DESEMPAQUETAR EL IDENTIFICADOR DEL PROCESO, EJ: "TEAM-1" o "GAMECARD-4"
+
+//unpackOperacion es utilizado únicamente por el broker para saber a que cola deberá suscribir al
+//proceso que se conecta por primera vez.
 t_operacion unpackOperacion(void* pack, uint32_t tamanioProceso);
 
 
@@ -74,7 +77,6 @@ uint32_t unpackCoordenadaY_Localized(void* pack, uint32_t desplazamiento);
 
 void* pack_Get(uint32_t id, char* pokemon);
 
-
 //FUNCIONES PARA APPEARED
 
 void* pack_Appeared(uint32_t id, char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY);
@@ -100,15 +102,19 @@ bool unpackResultado_Caught(void* pack);
 
 //FUNCIONES PARA ID
 
-void* pack_ID(uint32_t ID, t_operacion operacion, char* identificadorProceso);
+void* pack_ID(uint32_t ID, t_operacion operacion);
 
 t_operacion unpackOperacionIDACK(void* pack);
-
 
 //FUNCIONES PARA ACK
 
 void* pack_Ack(uint32_t ID, t_operacion operacion, char* identificadorProceso);
 
-t_operacion unpackOperacionIDACK(void* pack);
 
-char* unpackIdentificadorProcesoIDACK(void* pack);
+//unpackOperacionID obtiene la operación de un paquete con código de operación t_ID
+t_operacion unpackOperacionID(void* pack);
+
+//unpackOperacionACK obtiene la operación de un paquete con código de operación t_ACK
+t_operacion unpackOperacionACK(void *pack);
+
+char* unpackIdentificadorProcesoACK(void* pack);

@@ -181,18 +181,13 @@ void* pack_Ack(uint32_t ID, t_operacion operacion, char* identificadorProceso){
 	return buffer;
 }
 
-void* pack_ID(uint32_t ID, t_operacion operacion, char* identificadorProceso){
-	uint32_t tamMensaje = sizeof(ID) + sizeof(t_operacion) + strlen(identificadorProceso) + 1 + sizeof(uint32_t);
-	uint32_t tamidentificadorProceso = strlen(identificadorProceso) + 1;
+void* pack_ID(uint32_t ID, t_operacion operacion){
+	uint32_t tamMensaje = sizeof(ID) + sizeof(t_operacion);
 	void* buffer = malloc(tamMensaje);
 	uint32_t desplazamiento = 0;
 	memcpy(buffer, &ID, sizeof(uint32_t));
 	desplazamiento += sizeof(uint32_t);
 	memcpy(buffer+desplazamiento, &operacion, sizeof(t_operacion));
-	desplazamiento += sizeof(t_operacion);
-	memcpy(buffer+desplazamiento, &tamidentificadorProceso, sizeof(uint32_t));
-	desplazamiento += sizeof(uint32_t);
-	memcpy(buffer+desplazamiento, &identificadorProceso, tamidentificadorProceso);
 	return buffer;
 }
 
@@ -316,13 +311,18 @@ bool unpackResultado_Caught(void* pack){
 
 // UNPACK ID Y ACK
 
-t_operacion unpackOperacionIDACK(void* pack){
+t_operacion unpackOperacionID(void* pack){
 	t_operacion operacion;
 	uint32_t desplazamiento = sizeof(uint32_t);
 	memcpy(&operacion, pack+desplazamiento, sizeof(t_operacion));
 	return operacion;
 }
-char* unpackIdentificadorProcesoIDACK(void* pack){
+
+t_operacion unpackOperacionACK(void *pack){
+	return unpackOperacionID(pack);
+}
+
+char* unpackIdentificadorProcesoACK(void* pack){
 	uint32_t tamanioIdentificadorProceso = 0;
 	uint32_t desplazamiento = sizeof(uint32_t) + sizeof(t_operacion);
 	memcpy(&tamanioIdentificadorProceso, pack+desplazamiento, sizeof(uint32_t));
