@@ -52,7 +52,7 @@ bool packAndSend(int socketCliente, const void* paquete, uint32_t tamPaquete, t_
 	return resultado;
 }
 
-void* pack_Handshake(int socketCliente, char* proceso, t_operacion operacion){
+void* pack_Handshake(char* proceso, t_operacion operacion){
 	uint32_t tamMensaje = strlen(proceso) + 1 + sizeof(uint32_t)+ sizeof(t_operacion);
 	uint32_t tamProceso = strlen(proceso) + 1;
 	void* buffer = malloc(tamMensaje);
@@ -65,7 +65,7 @@ void* pack_Handshake(int socketCliente, char* proceso, t_operacion operacion){
 	return buffer;
 }
 
-void* pack_New(int socketCliente, uint32_t id, char* pokemon, uint32_t cantidad, uint32_t coordenadaX, uint32_t coordenadaY){
+void* pack_New(uint32_t id, char* pokemon, uint32_t cantidad, uint32_t coordenadaX, uint32_t coordenadaY){
 	uint32_t tamMensaje = sizeof(id) + strlen(pokemon) + 1 + sizeof(uint32_t) + sizeof(cantidad) + sizeof(coordenadaX) + sizeof(coordenadaY);
 	uint32_t tamPokemon = strlen(pokemon) + 1;
 	void* buffer = malloc(tamMensaje);
@@ -84,7 +84,7 @@ void* pack_New(int socketCliente, uint32_t id, char* pokemon, uint32_t cantidad,
 	return buffer;
 }
 
-void* pack_Localized(int socketCliente, uint32_t id, char* pokemon, uint32_t cantidadParesCoordenadas, uint32_t arrayCoordenadas[]){
+void* pack_Localized(uint32_t id, char* pokemon, uint32_t cantidadParesCoordenadas, uint32_t arrayCoordenadas[]){
 	//REVISAR EL FUNCIONAMIENTO DEL LOCALIZED
 	uint32_t tamMensaje = sizeof(id) + strlen(pokemon) + 1 + sizeof(uint32_t) + sizeof(cantidadParesCoordenadas) + sizeof(arrayCoordenadas) + (sizeof(uint32_t)*2*cantidadParesCoordenadas);
 	uint32_t tamPokemon = strlen(pokemon) + 1;
@@ -109,7 +109,7 @@ void packCoordenada_Localized(void* buffer, uint32_t desplazamiento, uint32_t co
 	desplazamiento += sizeof(uint32_t);
 }
 
-void* pack_Get(int socketCliente, uint32_t id, char* pokemon){
+void* pack_Get(uint32_t id, char* pokemon){
 	uint32_t tamMensaje = sizeof(id) + strlen(pokemon) + 1 + sizeof(uint32_t);
 	uint32_t tamPokemon = strlen(pokemon) + 1;
 	void* buffer = malloc(tamMensaje);
@@ -122,7 +122,7 @@ void* pack_Get(int socketCliente, uint32_t id, char* pokemon){
 	return buffer;
 }
 
-void* pack_Appeared(int socketCliente, uint32_t id, char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY){
+void* pack_Appeared(uint32_t id, char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY){
 	uint32_t tamMensaje = sizeof(id) + strlen(pokemon) + 1 + sizeof(uint32_t) + sizeof(coordenadaX) + sizeof(coordenadaY);
 	uint32_t tamPokemon = strlen(pokemon) + 1;
 	void* buffer = malloc(tamMensaje);
@@ -139,7 +139,7 @@ void* pack_Appeared(int socketCliente, uint32_t id, char* pokemon, uint32_t coor
 	return buffer;
 }
 
-void* pack_Catch(int socketCliente, uint32_t id, char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY){
+void* pack_Catch(uint32_t id, char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY){
 	uint32_t tamMensaje = sizeof(id) + strlen(pokemon) + 1 + sizeof(uint32_t) + sizeof(coordenadaX) + sizeof(coordenadaY);
 	uint32_t tamPokemon = strlen(pokemon) + 1;
 	void* buffer = malloc(tamMensaje);
@@ -156,7 +156,7 @@ void* pack_Catch(int socketCliente, uint32_t id, char* pokemon, uint32_t coorden
 	return buffer;
 }
 
-void* pack_Caught(int socketCliente, uint32_t id, uint32_t atrapado){
+void* pack_Caught(uint32_t id, uint32_t atrapado){
 	uint32_t tamMensaje = sizeof(id) + sizeof(atrapado);
 	void* buffer= malloc(tamMensaje);
 	uint32_t desplazamiento = 0;
@@ -166,7 +166,7 @@ void* pack_Caught(int socketCliente, uint32_t id, uint32_t atrapado){
 	return buffer;
 }
 
-void* pack_Ack(int socketCliente, uint32_t ID, t_operacion operacion, char* identificadorProceso){
+void* pack_Ack(uint32_t ID, t_operacion operacion, char* identificadorProceso){
 	uint32_t tamMensaje = sizeof(ID) + sizeof(t_operacion) + strlen(identificadorProceso) + 1 + sizeof(uint32_t);
 	uint32_t tamidentificadorProceso = strlen(identificadorProceso) + 1;
 	void* buffer = malloc(tamMensaje);
@@ -181,7 +181,7 @@ void* pack_Ack(int socketCliente, uint32_t ID, t_operacion operacion, char* iden
 	return buffer;
 }
 
-void* pack_ID(int socketCliente, uint32_t ID, t_operacion operacion, char* identificadorProceso){
+void* pack_ID(uint32_t ID, t_operacion operacion, char* identificadorProceso){
 	uint32_t tamMensaje = sizeof(ID) + sizeof(t_operacion) + strlen(identificadorProceso) + 1 + sizeof(uint32_t);
 	uint32_t tamidentificadorProceso = strlen(identificadorProceso) + 1;
 	void* buffer = malloc(tamMensaje);
