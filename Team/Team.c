@@ -175,6 +175,18 @@ void reconectarseAColasMensajes(){
 	}
 }
 
+void enviarHandshake (int socket, char* identificador, t_operacion operacion){
+	void* paquete = pack_Handshake(identificador, operacion);
+	uint32_t tamPaquete = sizeof(paquete);
+	int resultadoEnvio = packAndSend(socket_appeared,paquete, tamPaquete, t_HANDSHAKE);
+	if (resultadoEnvio != -1){
+		log_info(logger, "El handshake para subscribirse a una cola se ha realizado con exito");
+	}
+	else{
+		log_error(logger, "El handshake ha fallado");
+	}
+}
+
 int conectarseAColasMensajes(char* ip, char* puerto, t_log* log){
 	socket_appeared = conectarse_a_un_servidor(ip,puerto,log);
 	socket_caught = conectarse_a_un_servidor(ip,puerto,log);
@@ -185,9 +197,13 @@ int conectarseAColasMensajes(char* ip, char* puerto, t_log* log){
 	}
 	else {
 		//Si todos conectan entonces mando handshakes a cada una de las colas
-		packAndSend_Handshake(socket_appeared, "Team", t_APPEARED);
-		packAndSend_Handshake(socket_caught, "Team", t_CAUGHT);
-		packAndSend_Handshake(socket_localized, "Team", t_LOCALIZED);
+		enviarHandshake(socket_appeared, "Team", t_APPEARED);
+		while (identificadorProceso == NULL){
+			log_info(logger, "Esperando identificador del proceso...");
+		}
+		log_info(logger, "Identificador de team adquirido, TEAM ID:%s", identificadorProceso);
+		enviarHandshake(socket_caught, identificadorProceso, t_CAUGHT);
+		enviarHandshake(socket_localized, identificadorProceso, t_LOCALIZED);
 		return 0;
 	}
 }
@@ -302,7 +318,9 @@ void enviarPokemonesAlBroker(){
 void enviarGET(char* ip, char* puerto, char* pokemon){
 	int socket = conectarse_a_un_servidor(ip, puerto, logger);
 	uint32_t id = -1;
-	int resultadoGet = packAndSend_Get(socket, id, pokemon);
+	void* paquete = pack_Get(id, pokemon);
+	uint32_t tamPaquete = sizeof(paquete);
+	int resultadoGet = packAndSend (socket, paquete, tamPaquete, t_GET);
 	if (resultadoGet == -1){
 		log_info(logger, "El envio del GET ha fallado");
 		log_info(loggerObligatorio, "El envio fallo por un error de conexion, se procedera a realizar la operacion por default");
@@ -315,7 +333,9 @@ void enviarGET(char* ip, char* puerto, char* pokemon){
 void enviarCATCH(char* ip, char* puerto, char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY){
 	int socket = conectarse_a_un_servidor(ip, puerto, logger);
 	uint32_t id = -1;
-	int resultadoCatch = packAndSend_Catch(socket, id, pokemon, coordenadaX, coordenadaY);
+	void* paquete = pack_Catch(id, pokemon, coordenadaX, coordenadaY);
+	uint32_t tamPaquete = sizeof(paquete);
+	int resultadoCatch = packAndSend(socket, paquete, tamPaquete, t_CATCH);
 	if (resultadoCatch == -1){
 		log_info(logger, "El envio del CATCH ha fallado");
 		log_info(loggerObligatorio, "El envio fallo por un error de conexion, se procedera a realizar la operacion por default");
@@ -327,7 +347,9 @@ void enviarCATCH(char* ip, char* puerto, char* pokemon, uint32_t coordenadaX, ui
 
 void enviarACK(char* ip, char* puerto, uint32_t ID, t_operacion operacion){
 	int socket = conectarse_a_un_servidor(ip, puerto, logger);
-	int resultadoACK = packAndSend_Ack(socket, ID, operacion);
+	void* paquete = pack_Ack(ID, operacion, identificadorProceso);
+	uint32_t tamPaquete = sizeof(paquete);
+	int resultadoACK = packAndSend(socket, paquete, tamPaquete, t_ACK);
 	if(resultadoACK == -1){
 		log_info(logger, "El envio del ACK ha fallado");
 		log_info(loggerObligatorio, "El envio fallo por un error de conexion"); //QUE HACER ENE ESTE CASO? HAY ACCION POR DEFAULT?
@@ -563,6 +585,14 @@ void atenderCliente(int socket_cliente){
 		uint32_t tamanio = headerRecibido.tamanioMensaje;
 		switch(headerRecibido.operacion){
 
+		case t_HANDSHAKE:;
+			log_info(loggerObligatorio, "Llego un mensaje de HANDSHAKE");
+			void* paqueteHandshake = receiveAndUnpack(socket_cliente, tamanio);
+			char* aux = unpackProceso(paqueteHandshake);
+			identificadorProceso = aux;
+			free(paqueteHandshake);
+		break;
+
 		case t_LOCALIZED:;
 			//ESTE SE USA
 			log_info(loggerObligatorio, "Llego un mensaje de LOCALIZED");
@@ -572,6 +602,7 @@ void atenderCliente(int socket_cliente){
 				uint32_t tamanioPokemon = sizeof(pokemonLocalized);
 				uint32_t cantidadPokemones = unpackCantidadParesCoordenadas_Localized(paqueteLocalized, tamanioPokemon);
 				uint32_t desplazamiento = tamanioPokemon + sizeof(uint32_t);
+				uint32_t ID = unpackID(paqueteLocalized);
 				for (int i=0; i<cantidadPokemones; i++){
 					t_pokemon* pokemonAAtrapar = malloc(sizeof(t_pokemon));
 					pokemonAAtrapar->nombrePokemon = pokemonLocalized;
@@ -583,7 +614,7 @@ void atenderCliente(int socket_cliente){
 					desplazamiento += sizeof(uint32_t);
 					log_info(loggerObligatorio, "Pokemon agregado: %s, ubicado en X:%d  Y:%d", pokemonLocalized, coordenadaX, coordenadaY);
 					list_add(pokemonesEnMapa,pokemonAAtrapar);
-
+					enviarACK(ip_broker, puerto_broker, ID, t_LOCALIZED); // CONFIRMO LA LLEGADA DEL MENSAJE
 				}
 				free(paqueteLocalized);
 			}
@@ -600,11 +631,13 @@ void atenderCliente(int socket_cliente){
 				uint32_t tamanioPokemon = sizeof(pokemonAppeared);
 				uint32_t coordenadaX = unpackCoordenadaX_Appeared(paqueteAppeared, tamanioPokemon);
 				uint32_t coordenadaY = unpackCoordenadaY_Appeared(paqueteAppeared, tamanioPokemon);
+				uint32_t ID = unpackID(paqueteAppeared);
 				pokemonAAtrapar->nombrePokemon = pokemonAppeared;
 				pokemonAAtrapar->coordenadaX = coordenadaX;
 				pokemonAAtrapar->coordenadaY = coordenadaY;
 				log_info(loggerObligatorio, "Pokemon agregado: %s, ubicado en X:%d  Y:%d", pokemonAppeared, coordenadaX, coordenadaY);
 				list_add(pokemonesEnMapa,pokemonAAtrapar);
+				enviarACK(ip_broker, puerto_broker, ID, t_APPEARED); // CONFIRMO LA LLEGADA DEL MENSAJE
 				free(paqueteAppeared);
 			}
 			log_info(logger, "El mensaje de appeared de este pokemon ya fue recibido o no necesita atraparse, queda descartado");
@@ -614,13 +647,14 @@ void atenderCliente(int socket_cliente){
 			//ESTE SE USA
 			log_info(loggerObligatorio, "Llego un mensaje de CAUGHT");
 			void* paqueteCaught = receiveAndUnpack(socket_cliente, tamanio);
-			uint32_t id = unpackID(paqueteCaught);
+			uint32_t ID = unpackID(paqueteCaught);
 			bool resultadoCaught = unpackResultado_Caught(paqueteCaught);
-			if(correspondeAUnCatch(id)){
+			if(correspondeAUnCatch(ID)){
 
 			//SI CORRESPONDE LE ASIGNO EL POKEMON AL ENTRENADOR Y LO DESBLOQUEO (PASA A READY)
-
+			enviarACK(ip_broker, puerto_broker, ID, t_CAUGHT); // CONFIRMO LA LLEGADA DEL MENSAJE
 			}
+			free(paqueteCaught);
 
 			log_info(logger, "El mensaje enviado no se corresponde con un mensaje CATCH, queda descartado");
 			break;
@@ -629,23 +663,26 @@ void atenderCliente(int socket_cliente){
 			//ESTE SE USA
 			log_info(loggerObligatorio, "Llego un mensaje de ID");
 			void* paqueteID = receiveAndUnpack(socket_cliente, tamanio);
-			uint32_t ID = unpackID(paqueteID);
-			t_operacion operacionAsociada = unpackOperacionIDACK(paqueteID);
+			uint32_t id = unpackID(paqueteID);
+			t_operacion operacionAsociada = unpackOperacionID(paqueteID);
 			switch(operacionAsociada){
 
 			case t_GET:;
-			list_add(mensajesGET,&ID);
-			enviarACK(ip_broker,puerto_broker,ID,operacionAsociada);
+			list_add(mensajesGET,&id);
+			enviarACK(ip_broker,puerto_broker,id,operacionAsociada);
+			free(paqueteID);
 			break;
 
 			case t_CATCH:;
-			list_add(mensajesCATCH,&ID);
-			enviarACK(ip_broker,puerto_broker,ID,operacionAsociada);
+			list_add(mensajesCATCH,&id);
+			enviarACK(ip_broker,puerto_broker,id,operacionAsociada);
+			free(paqueteID);
 			break;
 
 			default:
-				log_error(loggerObligatorio, "No se reciben IDs del codigo de operacion: %i", headerRecibido.operacion);
-				break;
+			log_error(loggerObligatorio, "No se reciben IDs del codigo de operacion: %i", headerRecibido.operacion);
+			free(paqueteID);
+			break;
 			}
 			break;
 

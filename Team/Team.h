@@ -49,6 +49,7 @@ t_list* colaBlocked;
 t_list* colaExit;
 
 //VARIABLES
+char* identificadorProceso = NULL;
 t_log* logger;
 t_log* loggerObligatorio;
 t_config* archivoConfig;
@@ -86,6 +87,7 @@ int iniciar_servidor(char* ip, char* puerto, t_log* log);
 int esperar_cliente(int socket_servidor, t_log* logger);
 int conectarse_a_un_servidor(char* ip, char* puerto, t_log* log);
 int conectarseAColasMensajes(char* ip, char* puerto, t_log* log);
+void enviarHandshake (int socket, char* identificador, t_operacion operacion);
 void reconectarseAColasMensajes();
 int obtenerCantidadEntrenadores();
 void inicializarEntrenadores();
