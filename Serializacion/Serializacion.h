@@ -104,7 +104,6 @@ bool unpackResultado_Caught(void* pack);
 
 void* pack_ID(uint32_t ID, t_operacion operacion);
 
-t_operacion unpackOperacionIDACK(void* pack);
 
 //FUNCIONES PARA ACK
 
