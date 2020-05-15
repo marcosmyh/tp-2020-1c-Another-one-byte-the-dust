@@ -6,7 +6,9 @@ int main(void) {
     setearValores(config);
     inicializarColas();
     inicializarListasSuscriptores();
-    pthread_mutex_init(&semaforoID,NULL);
+    pthread_mutex_init(&semaforoIDMensaje,NULL);
+    pthread_mutex_init(&semaforoIDTeam,NULL);
+    pthread_mutex_init(&semaforoIDGameCard,NULL);
 
     socket_servidor = iniciar_servidor(ip,puerto);
 
@@ -19,7 +21,9 @@ int main(void) {
 
     }
 
-    pthread_mutex_destroy(&semaforoID);
+    pthread_mutex_destroy(&semaforoIDMensaje);
+    pthread_mutex_destroy(&semaforoIDTeam);
+    pthread_mutex_destroy(&semaforoIDGameCard);
     destruirColas();
     destruirListasSuscriptores();
     config_destroy(config);
@@ -89,84 +93,139 @@ void atender_cliente(int *socket){
 void procesar_solicitud(Header header,int cliente_fd){
      uint32_t sizePaquete = header.tamanioMensaje;
      int codigo_operacion = header.operacion;
-     t_operacion operacionDeSuscripcion;
-
-     //--IMPORTANTE--
-     //Este puntero a estructura va a representar el mensaje en la cola.
      t_mensaje *mensaje;
 
      void *paquete;
-     char *proceso;
 
-     //Creo una función auxiliar para poder enviar el mensaje recibido a todos los suscriptores.
-     //La misma tiene que estar dentro del scope de procesar solicitud, para poder obtener detalles
-     //tales como el paquete, tamaño del paquete, etc.
-
-     void enviarMensajeA(int *socket){
-    	 //if(conexion sigue activa) xd
-    	 //{
-    	 packAndSend(*socket,paquete,sizePaquete,codigo_operacion);
-    	 validarRecepcionMensaje(*socket,mensaje);
-    	 //}
-
-    	 //validarRecepcioMensaje recibe mensaje para poder registrar que el suscriptor en cuestion
-    	 //recibió el mensaje.
+     void enviarMensajeA(t_suscriptor *suscriptor){
+    	 int socket = suscriptor->socket_suscriptor;
+    	 packAndSend(socket,paquete,sizePaquete,codigo_operacion);
      }
 
      switch (codigo_operacion) {
-     		case t_HANDSHAKE:
+     		case t_HANDSHAKE:;
+     		    t_operacion operacionDeSuscripcion;
+     		    char *nombreProceso;
+     		    char *identificadorProceso;
+     		    void *paqueteHANDSHAKE;
+
      			paquete = receiveAndUnpack(cliente_fd,sizePaquete);
-     			proceso = unpackProceso(paquete);
-     			uint32_t sizeProceso = sizeof(proceso);
+     			nombreProceso = unpackProceso(paquete);
+     			uint32_t sizeProceso = strlen(nombreProceso) + 1;
      			operacionDeSuscripcion = unpackOperacion(paquete,sizeProceso);
 
-     			suscribirProceso(proceso,&cliente_fd,operacionDeSuscripcion);
+     			//Ejemplo: si se conecta por primera vez un Team el nombreProceso será "Team"
+     			//Si es la segunda vez que se conecta, su nombreProceso será "Team-1"..
 
-     			free(proceso);
+     			identificadorProceso = nombreProceso;
+
+     			if(yaExisteID(identificadorProceso,IDs_procesos,stringComparator)){
+     				packAndSend(cliente_fd,paquete,sizePaquete,t_HANDSHAKE);
+     			}
+     			else{
+     				identificadorProceso = asignarIDProceso(nombreProceso);
+     				list_add(IDs_procesos,identificadorProceso);
+     				paqueteHANDSHAKE = pack_Handshake(identificadorProceso,operacionDeSuscripcion);
+     				uint32_t sizePaquete = sizeof(paqueteHANDSHAKE);
+     				packAndSend(cliente_fd,paqueteHANDSHAKE,sizePaquete,t_HANDSHAKE);
+     			}
+
+     			suscribirProceso(identificadorProceso,cliente_fd,operacionDeSuscripcion);
+
+     			free(nombreProceso);
+     			free(paqueteHANDSHAKE);
+     			free(paquete);
 
      			break;
 
-     		case t_NEW:
+     		case t_NEW:;
      			//TODO
-     			paquete = receiveAndUnpack(cliente_fd,sizePaquete);
-     			mensaje = crearMensaje(paquete,cliente_fd);
+     		    void *paqueteNEW;
+
+     		    paquete = receiveAndUnpack(cliente_fd,sizePaquete);
+
+     		    //Hace falta desempaquetar el ID para ver de que tipo de mensaje se trata.
+     		    //Si es -1, es un mensaje "común".
+     		    //Si ID >= 1, entonces se trata de una respuesta. Acá entra en juego el ID correlativo.
+     		    //Ver como proceder.
+
+                char *pokemon = unpackPokemon(paquete);
+
+                uint32_t sizePokemon = strlen(pokemon) + 1;
+
+                uint32_t cantidadPokemon = unpackCantidadPokemons_New(paquete,sizePokemon);
+
+                uint32_t coordenadaX = unpackCoordenadaX_New(paquete,sizePokemon);
+
+                uint32_t coordenadaY = unpackCoordenadaY_New(paquete,sizePokemon);
+
+                //Asigno un ID al mensaje recibido
+                uint32_t ID_NEW = asignarIDMensaje();
+
+                void *paqueteID = pack_ID(ID_NEW,t_NEW);
+
+                uint32_t sizePaqueteID = sizeof(paqueteID);
+
+                //Le envio el ID al productor.
+                packAndSend(cliente_fd,paqueteID,sizePaqueteID,t_ID);
+
+                //Ahora armo el paquete que van a recibir los suscriptores (consumidores)
+     			paqueteNEW = pack_New(ID_NEW,pokemon,cantidadPokemon,coordenadaX,coordenadaY);
+
+     			paquete = paqueteNEW;
+
+                mensaje = crearMensaje(paquete,ID_NEW);
 
      			agregarMensajeACola(mensaje,NEW_POKEMON,"NEW_POKEMON");
 
      			//Recurro al casting (Ver prototipo de la función enviarMensajeA)
      			enviarMensajeRecibidoASuscriptores(suscriptores_NEW_POKEMON,(void *) enviarMensajeA);
 
+     			free(paqueteNEW);
+     			free(paquete);
+
      			break;
 
-     		case t_LOCALIZED:
+     		case t_LOCALIZED:;
      			//TODO
      			//agregar mensaje a la cola LOCALIZED_POKEMON y enviar mensaje a los suscriptores.
      			break;
 
-     		case t_GET:
+     		case t_GET:;
      			//TODO
      			//agregar mensaje a la cola GET_POKEMON y enviar mensaje a los suscriptores.
      			break;
 
-     		case t_APPEARED:
+     		case t_APPEARED:;
      			//TODO
      			//agregar mensaje a la cola APPEARED_POKEMON y enviar mensaje a los suscriptores.
      			break;
 
-     		case t_CATCH:
+     		case t_CATCH:;
      			//TODO
      			//agregar mensaje a la cola CATCH_POKEMON y enviar mensaje a los suscriptores.
      			break;
 
-     		case t_CAUGHT:
+     		case t_CAUGHT:;
      			//TODO
      			//agregar mensaje a la cola CAUGHT_POKEMON y enviar mensaje a los suscriptores.
+     			break;
+
+     		case t_ACK:
+     			paquete = receiveAndUnpack(cliente_fd,sizePaquete);
+     			uint32_t ID_mensaje = unpackID(paquete);
+     			t_operacion nombreCola = unpackOperacionACK(paquete);
+     			char *ID_proceso = unpackIdentificadorProcesoACK(paquete);
+
+     			validarRecepcionMensaje(ID_mensaje,nombreCola,ID_proceso);
+
      			break;
 
      			//Revisar bien esto.
      		default:
      			pthread_exit(NULL);
      		}
+
 }
 
 
@@ -181,33 +240,148 @@ void enviarMensajeRecibidoASuscriptores(t_list *listaSuscriptores,void(*funcionD
 	list_iterate(listaSuscriptores,funcionDeEnvio);
 }
 
-void validarRecepcionMensaje(int cliente_fd,t_mensaje *mensaje){
-	//TODO
-	//1° EL suscriptor me avisa que recibió el mensaje.
-	//Luego:
-	list_add(mensaje->suscriptoresQueRecibieronMensaje,&cliente_fd);
+t_mensaje *obtenerMensaje(uint32_t ID_mensaje_a_modificar,t_list *colaDeMensajes){
+	t_mensaje *mensaje;
+	for(int i = 0;i < list_size(colaDeMensajes);i++){
+		mensaje = list_get(colaDeMensajes,i);
+		uint32_t ID_mensaje = mensaje->ID_mensaje;
+		if(intComparator(&ID_mensaje_a_modificar,&(ID_mensaje))){
+			break;
+		}
+	}
+	return mensaje;
 }
 
-uint32_t asignarID(){
-	//Primera aproximación..
+void validarRecepcionMensaje(uint32_t ID_mensaje,t_operacion nombreCola,char *ID_proceso){
+	t_mensaje *mensaje;
 
-    //pthread_mutex_lock(&semaforoID);
-	contadorID++;
-	//pthread_mutex_unlock(&semaforoID);
+	switch (nombreCola) {
+	         	case t_NEW:;
+                    mensaje = obtenerMensaje(ID_mensaje,NEW_POKEMON);
+                    list_add(mensaje->suscriptoresQueRecibieronMensaje,ID_proceso);
+                    log_info(logger,"%s recibió satisfactoriamente el mensaje con ID %d",ID_proceso,ID_mensaje);
 
-	return contadorID;
+	     			break;
+
+	         	case t_LOCALIZED:;
+                    mensaje = obtenerMensaje(ID_mensaje,LOCALIZED_POKEMON);
+                    list_add(mensaje->suscriptoresQueRecibieronMensaje,ID_proceso);
+                    log_info(logger,"%s recibió satisfactoriamente el mensaje con ID %d",ID_proceso,ID_mensaje);
+
+	     			break;
+
+	         	case t_GET:;
+                    mensaje = obtenerMensaje(ID_mensaje,GET_POKEMON);
+                    list_add(mensaje->suscriptoresQueRecibieronMensaje,ID_proceso);
+                    log_info(logger,"%s recibió satisfactoriamente el mensaje con ID %d",ID_proceso,ID_mensaje);
+
+	     			break;
+
+	         	case t_APPEARED:;
+                    mensaje = obtenerMensaje(ID_mensaje,APPEARED_POKEMON);
+                    list_add(mensaje->suscriptoresQueRecibieronMensaje,ID_proceso);
+                    log_info(logger,"%s recibió satisfactoriamente el mensaje con ID %d",ID_proceso,ID_mensaje);
+
+	     			break;
+
+	         	case t_CATCH:;
+                    mensaje = obtenerMensaje(ID_mensaje,CATCH_POKEMON);
+                    list_add(mensaje->suscriptoresQueRecibieronMensaje,ID_proceso);
+                    log_info(logger,"%s recibió satisfactoriamente el mensaje con ID %d",ID_proceso,ID_mensaje);
+
+	     			break;
+
+	         	case t_CAUGHT:;
+                    mensaje = obtenerMensaje(ID_mensaje,CAUGHT_POKEMON);
+                    list_add(mensaje->suscriptoresQueRecibieronMensaje,ID_proceso);
+                    log_info(logger,"%s recibió satisfactoriamente el mensaje con ID %d",ID_proceso,ID_mensaje);
+
+	     			break;
+
+	     		default:
+	     			break;
+	     		}
 }
 
-//Primera aproximación..
-t_mensaje *crearMensaje(void *paquete,int cliente_fd){
+char *asignarIDProceso(char *nombreProceso){
+	char *ID_generado;
+
+	if(stringComparator("Team",nombreProceso)){
+		pthread_mutex_lock(&semaforoIDTeam);
+		contadorIDTeam++;
+		pthread_mutex_lock(&semaforoIDTeam);
+		ID_generado = string_itoa(contadorIDTeam);
+	}
+	else if(stringComparator("GameCard",nombreProceso)){
+		pthread_mutex_lock(&semaforoIDGameCard);
+		contadorIDGameCard++;
+		pthread_mutex_lock(&semaforoIDGameCard);
+		ID_generado = string_itoa(contadorIDGameCard);
+	}
+
+	char *identificadorProceso = string_from_format("%s-%s",nombreProceso,ID_generado);
+	//Por ejemplo, si se trata del primer team que se conecta al Broker,
+	//su ID será: Team-1
+
+	return identificadorProceso;
+}
+
+//Puede utilizarse para strings e ints.
+bool yaExisteID(void *ID_a_buscar, t_list *lista,bool(*comparator)(void *,void *)){
+	bool resultado = false;
+
+	for (int i = 0; i < list_size(lista);i++){
+		void *ID_a_comparar = list_get(lista,i);
+
+		if(comparator(ID_a_buscar,ID_a_comparar)){
+			resultado = true;
+			break;
+		}
+	}
+
+	return resultado;
+}
+
+bool intComparator(void *unNumero,void *otroNumero){
+	int *valor = unNumero;
+	int *otroValor = otroNumero;
+
+	return *valor == *otroValor;
+}
+
+
+bool stringComparator(void *unString, void *otroString){
+	return string_equals_ignore_case(unString,otroString);
+}
+
+
+uint32_t asignarIDMensaje(){
+    pthread_mutex_lock(&semaforoIDMensaje);
+	contadorIDMensaje++;
+	pthread_mutex_unlock(&semaforoIDMensaje);
+
+	return contadorIDMensaje;
+}
+
+
+t_mensaje *crearMensaje(void *paquete,uint32_t ID){
+	//Creo el mensaje con el paquete y el ID que asigné.
 	t_mensaje *mensaje = malloc(sizeof(mensaje));
 	mensaje->paquete = paquete;
-	mensaje->ID_mensaje = asignarID();
-	if(list_is_empty(mensaje->suscriptoresQueRecibieronMensaje)){
-		mensaje->suscriptoresQueRecibieronMensaje = list_create();
-	}
-	list_add(mensaje->suscriptoresQueRecibieronMensaje,&cliente_fd);
+	mensaje->ID_mensaje = ID;
+	mensaje->suscriptoresQueRecibieronMensaje = list_create();
+
+	//Faltaría ver lo del id correlativo.
+
 	return mensaje;
+}
+
+t_suscriptor *crearSuscriptor(char *identificadorProceso,int cliente_fd){
+	t_suscriptor *suscriptor = malloc(sizeof(t_suscriptor));
+	suscriptor->identificadorProceso = identificadorProceso;
+	suscriptor->socket_suscriptor = cliente_fd;
+
+	return suscriptor;
 }
 
 void setearValores(t_config *config){
@@ -261,40 +435,44 @@ void destruirColas(){
 	//Desarrollar función destructora de mensajes.
 }
 
-void suscribirProceso(char *proceso,int *cliente_fd,t_operacion operacionSuscripcion){
+void suscribirProceso(char *identificadorProceso,int cliente_fd,t_operacion operacionSuscripcion){
+	//Al suscribir a un proceso a una determinada cola adquiere el caracter de suscriptor.
+
+	t_suscriptor *nuevoSuscriptor;
+	nuevoSuscriptor = crearSuscriptor(identificadorProceso,cliente_fd);
+
 	switch (operacionSuscripcion) {
-	         	case t_NEW:
-	         		list_add(suscriptores_NEW_POKEMON,cliente_fd);
-	         		log_info(logger,"Se suscribio el proceso %s a la cola %s",proceso,"NEW_POKEMON");
+	         	case t_NEW:;
+	         		list_add(suscriptores_NEW_POKEMON,nuevoSuscriptor);
+	         		log_info(logger,"Se suscribio al %s a la cola %s",identificadorProceso,"NEW_POKEMON");
 	     			break;
 
-	     		case t_LOCALIZED:
-	     			list_add(suscriptores_LOCALIZED_POKEMON,cliente_fd);
-	     			log_info(logger,"Se suscribio el proceso %s a la cola %s",proceso,"LOCALIZED_POKEMON");
+	     		case t_LOCALIZED:;
+	     			list_add(suscriptores_LOCALIZED_POKEMON,nuevoSuscriptor);
+	     			log_info(logger,"Se suscribio al %s a la cola %s",identificadorProceso,"LOCALIZED_POKEMON");
 	     			break;
 
-	     		case t_GET:
-	     			list_add(suscriptores_GET_POKEMON,cliente_fd);
-	     			log_info(logger,"Se suscribio el proceso %s a la cola %s",proceso,"GET_POKEMON");
+	     		case t_GET:;
+	     			list_add(suscriptores_GET_POKEMON,nuevoSuscriptor);
+	     			log_info(logger,"Se suscribio al %s a la cola %s",identificadorProceso,"GET_POKEMON");
 	     			break;
 
-	     		case t_APPEARED:
-	     			list_add(suscriptores_APPEARED_POKEMON,cliente_fd);
-	     			log_info(logger,"Se suscribio el proceso %s a la cola %s",proceso,"APPEARED_POKEMON");
+	     		case t_APPEARED:;
+	     			list_add(suscriptores_APPEARED_POKEMON,nuevoSuscriptor);
+	     			log_info(logger,"Se suscribio al %s a la cola %s",identificadorProceso,"APPEARED_POKEMON");
 	     			break;
 
-	     		case t_CATCH:
-                    list_add(suscriptores_CATCH_POKEMON,cliente_fd);
-                    log_info(logger,"Se suscribio el proceso %s a la cola %s",proceso,"CATCH_POKEMON");
+	     		case t_CATCH:;
+                    list_add(suscriptores_CATCH_POKEMON,nuevoSuscriptor);
+                    log_info(logger,"Se suscribio al %s a la cola %s",identificadorProceso,"CATCH_POKEMON");
 	     			break;
 
-	     		case t_CAUGHT:
-                    list_add(suscriptores_CATCH_POKEMON,cliente_fd);
-                    log_info(logger,"Se suscribio el proceso %s a la cola %s",proceso,"CAUGHT_POKEMON");
+	     		case t_CAUGHT:;
+                    list_add(suscriptores_CAUGHT_POKEMON,nuevoSuscriptor);
+                    log_info(logger,"Se suscribio al %s a la cola %s",identificadorProceso,"CAUGHT_POKEMON");
 	     			break;
 
 	     		default:
 	     			break;
 	     		}
 }
-

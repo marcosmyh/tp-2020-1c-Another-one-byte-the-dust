@@ -6,23 +6,25 @@
 #include "../Serializacion/Serializacion.h"
 #include <commons/log.h>
 #include <commons/config.h>
+#include <commons/string.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #include <netdb.h>
 #include <commons/collections/list.h>
+#include <commons/string.h>
 #include <string.h>
 #include <pthread.h>
 
 //Estructuras
 //Las presentes estructuras no son definitivas.
 
-/*
+
 typedef struct
 {
     int socket_suscriptor;
-    //t_list *colasALasQueEstaSuscrito;
+    char *identificadorProceso;
 }t_suscriptor;
-*/
+
 
 typedef struct
 {
@@ -35,7 +37,9 @@ typedef struct
 
 //Variables
 
-uint32_t contadorID = 0;
+uint32_t contadorIDMensaje = 0;
+uint32_t contadorIDTeam = 0;
+uint32_t contadorIDGameCard = 0;
 t_log *logger;
 t_config *config;
 char *ip;
@@ -60,8 +64,12 @@ t_list *GET_POKEMON;
 t_list *suscriptores_GET_POKEMON;
 t_list *LOCALIZED_POKEMON;
 t_list *suscriptores_LOCALIZED_POKEMON;
+t_list *IDs_mensajes;
+t_list *IDs_procesos;
 pthread_t hiloAtencionCliente;
-pthread_mutex_t semaforoID;
+pthread_mutex_t semaforoIDMensaje;
+pthread_mutex_t semaforoIDTeam;
+pthread_mutex_t semaforoIDGameCard;
 
 
 //Funciones
@@ -75,12 +83,18 @@ void setearValores(t_config *);
 void agregarMensajeACola(t_mensaje *,t_list *,char *);
 void inicializarColas();
 void destruirColas();
-void suscribirProceso(char *,int *,t_operacion);
-t_mensaje *crearMensaje(void *,int);
-uint32_t asignarID();
+void suscribirProceso(char *,int ,t_operacion);
+t_mensaje *crearMensaje(void *,uint32_t);
+uint32_t asignarIDMensaje();
 void inicializarListasSuscriptores();
 void destruirListasSuscriptores();
 void enviarMensajeRecibidoASuscriptores(t_list *,void(*)(void*));
-void validarRecepcionMensaje(int, t_mensaje *);
+void validarRecepcionMensaje(uint32_t,t_operacion,char *);
+t_suscriptor *crearSuscriptor(char *,int);
+char *asignarIDProceso(char *);
+bool yaExisteID(void *, t_list *,bool(*)(void *,void *));
+bool intComparator(void *,void *);
+bool stringComparator(void *, void *);
+t_mensaje *obtenerMensaje(uint32_t,t_list *);
 
 #endif
