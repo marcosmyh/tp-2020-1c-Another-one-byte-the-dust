@@ -343,8 +343,8 @@ bool yaExisteID(void *ID_a_buscar, t_list *lista,bool(*comparator)(void *,void *
 }
 
 bool intComparator(void *unNumero,void *otroNumero){
-	int *valor = unNumero;
-	int *otroValor = otroNumero;
+	uint32_t *valor = unNumero;
+	uint32_t *otroValor = otroNumero;
 
 	return *valor == *otroValor;
 }
