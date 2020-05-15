@@ -6,6 +6,9 @@ int main(void) {
     setearValores(config);
     inicializarColas();
     inicializarListasSuscriptores();
+    IDs_mensajes = list_create();
+    IDs_procesos = list_create();
+
     pthread_mutex_init(&semaforoIDMensaje,NULL);
     pthread_mutex_init(&semaforoIDTeam,NULL);
     pthread_mutex_init(&semaforoIDGameCard,NULL);
@@ -24,6 +27,8 @@ int main(void) {
     pthread_mutex_destroy(&semaforoIDMensaje);
     pthread_mutex_destroy(&semaforoIDTeam);
     pthread_mutex_destroy(&semaforoIDGameCard);
+    list_destroy(IDs_mensajes);
+    list_destroy(IDs_procesos);
     destruirColas();
     destruirListasSuscriptores();
     config_destroy(config);
@@ -358,6 +363,7 @@ bool stringComparator(void *unString, void *otroString){
 uint32_t asignarIDMensaje(){
     pthread_mutex_lock(&semaforoIDMensaje);
 	contadorIDMensaje++;
+	list_add(IDs_mensajes,&contadorIDMensaje);
 	pthread_mutex_unlock(&semaforoIDMensaje);
 
 	return contadorIDMensaje;
