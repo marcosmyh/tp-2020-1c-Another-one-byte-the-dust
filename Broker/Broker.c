@@ -129,7 +129,6 @@ void procesar_solicitud(Header header,int cliente_fd){
      			}
      			else{
      				identificadorProceso = asignarIDProceso(nombreProceso);
-     				list_add(IDs_procesos,identificadorProceso);
      				paqueteHANDSHAKE = pack_Handshake(identificadorProceso,operacionDeSuscripcion);
      				uint32_t sizePaquete = sizeof(paqueteHANDSHAKE);
      				packAndSend(cliente_fd,paqueteHANDSHAKE,sizePaquete,t_HANDSHAKE);
@@ -325,6 +324,9 @@ char *asignarIDProceso(char *nombreProceso){
 	}
 
 	char *identificadorProceso = string_from_format("%s-%s",nombreProceso,ID_generado);
+
+	list_add(IDs_procesos,identificadorProceso);
+
 	//Por ejemplo, si se trata del primer team que se conecta al Broker,
 	//su ID será: Team-1
 
