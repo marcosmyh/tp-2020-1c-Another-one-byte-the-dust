@@ -313,14 +313,14 @@ char *asignarIDProceso(char *nombreProceso){
 	if(stringComparator("Team",nombreProceso)){
 		pthread_mutex_lock(&semaforoIDTeam);
 		contadorIDTeam++;
-		pthread_mutex_lock(&semaforoIDTeam);
 		ID_generado = string_itoa(contadorIDTeam);
+		pthread_mutex_lock(&semaforoIDTeam);
 	}
 	else if(stringComparator("GameCard",nombreProceso)){
 		pthread_mutex_lock(&semaforoIDGameCard);
 		contadorIDGameCard++;
-		pthread_mutex_lock(&semaforoIDGameCard);
 		ID_generado = string_itoa(contadorIDGameCard);
+		pthread_mutex_lock(&semaforoIDGameCard);
 	}
 
 	char *identificadorProceso = string_from_format("%s-%s",nombreProceso,ID_generado);
