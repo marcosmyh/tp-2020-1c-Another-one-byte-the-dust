@@ -319,7 +319,7 @@ void enviarGET(char* ip, char* puerto, char* pokemon){
 	int socket = conectarse_a_un_servidor(ip, puerto, logger);
 	uint32_t id = -1;
 	void* paquete = pack_Get(id, pokemon);
-	uint32_t tamPaquete = sizeof(paquete);
+	uint32_t tamPaquete = sizeof(uint32_t) + strlen(pokemon) + 1;
 	int resultadoGet = packAndSend (socket, paquete, tamPaquete, t_GET);
 	if (resultadoGet == -1){
 		log_info(logger, "El envio del GET ha fallado");
@@ -334,7 +334,7 @@ void enviarCATCH(char* ip, char* puerto, char* pokemon, uint32_t coordenadaX, ui
 	int socket = conectarse_a_un_servidor(ip, puerto, logger);
 	uint32_t id = -1;
 	void* paquete = pack_Catch(id, pokemon, coordenadaX, coordenadaY);
-	uint32_t tamPaquete = sizeof(paquete);
+	uint32_t tamPaquete = sizeof(uint32_t)*3 + strlen(pokemon) + 1;
 	int resultadoCatch = packAndSend(socket, paquete, tamPaquete, t_CATCH);
 	if (resultadoCatch == -1){
 		log_info(logger, "El envio del CATCH ha fallado");
@@ -348,7 +348,7 @@ void enviarCATCH(char* ip, char* puerto, char* pokemon, uint32_t coordenadaX, ui
 void enviarACK(char* ip, char* puerto, uint32_t ID, t_operacion operacion){
 	int socket = conectarse_a_un_servidor(ip, puerto, logger);
 	void* paquete = pack_Ack(ID, operacion, identificadorProceso);
-	uint32_t tamPaquete = sizeof(paquete);
+	uint32_t tamPaquete = sizeof(ID) + sizeof(t_operacion) + strlen(identificadorProceso) + 1;
 	int resultadoACK = packAndSend(socket, paquete, tamPaquete, t_ACK);
 	if(resultadoACK == -1){
 		log_info(logger, "El envio del ACK ha fallado");
