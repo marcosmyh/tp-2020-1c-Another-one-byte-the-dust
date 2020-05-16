@@ -21,10 +21,17 @@
 #include <ctype.h>
 
 
+#include "../Serializacion/Serializacion.h"
 // VARIABLES
 int conexion;
-char* ip;
-char* puerto ;
+char* IP_BROKER;
+char* IP_TEAM;
+char* ip_broker;
+char* IP_GAMECARD;
+char* PUERTO_BROKER;
+char* PUERTO_TEAM;
+char* PUERTO_GAMECARD;
+
 t_log* logger;
 t_log* loggerObligatorio;
 t_config* config;
@@ -56,6 +63,7 @@ void liberar_conexion(int socket_cliente);
 
 void terminar_programa();
 void leer_config(void);
+void cargarConfig(t_config*);
 void iniciar_logger_obligatorio(void);
 void iniciar_logger(void);
 
@@ -64,12 +72,19 @@ bool esUnTipoDeMensajeValido(char* nombreDeProceso, char* tipo_de_mensaje);
 
 // Gran utilidad
 int convertir_nombre(char* nombreDeProceso);
+char* obtenerNombreSinElPokemon(char* proceso);
 
 //Envio de mensajes a los distintos procesos
 void enviar_mensaje_a_gamecard(char* tipo_de_mensaje,int cantidad_de_argumentos,char* argumentos[]);
 void enviar_mensaje_a_team(char* tipo_de_mensaje,int cantidad_de_argumentos,char* argumentos[]);
 void enviar_mensaje_a_broker(char* tipo_de_mensaje,int cantidad_de_argumentos,char* argumentos[]);
 
+void envioDeMensajeNew(char* pokemon, uint32_t posx, uint32_t posy,uint32_t cantidad,uint32_t idmensaje);
+void envioDeMensajeAppeared(char* pokemon, uint32_t posx, uint32_t posy, uint32_t idmensaje);
+void envioDeMensajeCatch(char* pokemon, uint32_t posx, uint32_t posy, uint32_t idmensaje);
+void envioDeMensajeCaught(uint32_t atrapado, uint32_t idmensaje);
+void envioDeMensajeGet(char* pokemon,uint32_t idmensaje);
 
+void conectarmeACola(int socket,int tiempo,char* colaDeMensaje);
 
 #endif /* GAMEBOY_GAMEBOY_H_ */

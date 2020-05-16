@@ -7,6 +7,86 @@
 
 #include "GameBoy.h"
 
+int main(int argc,char* argv[]){
+
+	// argv[0] es el nombre de nuestro programa
+	// argv[1] va a ser el nombre de proceso a ejecutar
+	// argv[2] es el tipo de mensaje
+	// En adelante va a ser los argumentos enviados
+	char* nombreDeProceso = argv[1];
+	char* tipoDeMensaje = obtenerNombreSinElPokemon(argv[2]);
+	// transforma el nombre del proceso en numeros
+	int hashDeProceso = convertir_nombre(nombreDeProceso);
+
+	iniciar_logger();
+	iniciar_logger_obligatorio();
+	leer_config();
+
+	switch(hashDeProceso){
+
+
+	case BROKER:
+				printf("Broker Omegalul \n");		//---------------------- QUITAR
+				if(esUnTipoDeMensajeValido(nombreDeProceso,tipoDeMensaje)){
+
+								conexion = crear_conexion(IP_BROKER,PUERTO_BROKER,nombreDeProceso);
+								enviar_mensaje_a_broker(tipoDeMensaje,argc,argv);
+							} else log_error(logger,"No está definido el tipo de mensaje %s para %s",tipoDeMensaje,nombreDeProceso);		//---------------------- QUITAR
+				break;
+
+	case TEAM:
+				printf("Team omegalul \n");
+				if(esUnTipoDeMensajeValido(nombreDeProceso,tipoDeMensaje)){
+								conexion = crear_conexion(IP_TEAM,PUERTO_TEAM,nombreDeProceso);
+								enviar_mensaje_a_team(tipoDeMensaje,argc,argv);
+							} else log_error(logger,"No está definido el tipo de mensaje %s para %s",tipoDeMensaje,nombreDeProceso);
+				break;
+	case GAMECARD:
+				printf("Gamecard omegalul \n");
+				if(esUnTipoDeMensajeValido(nombreDeProceso,tipoDeMensaje)){
+								conexion = crear_conexion(IP_GAMECARD,PUERTO_GAMECARD,nombreDeProceso);
+								enviar_mensaje_a_gamecard(tipoDeMensaje,argc,argv);
+							} else log_error(logger,"No está definido el tipo de mensaje %s para %s",tipoDeMensaje,nombreDeProceso);
+				break;
+
+//./gameboy SUSCRIPTOR [COLA_DE_MENSAJES] [TIEMPO]
+	case SUSCRIPTOR:
+				printf("Suscriptor omegalul \n");
+				if(esUnTipoDeMensajeValido(nombreDeProceso,tipoDeMensaje)){
+								conexion = crear_conexion(IP_BROKER,PUERTO_BROKER,"BROKER");
+								if(conexion != -1){
+								int tiempo = atoi(argv[3]);
+								// Hay que ver como enviar el nombre del mensaje.. se necesita una funcion que transforme nuestra
+								// variable colaDeMensaje en un t_operacion
+								// Tambien hay que ver como hacer la desconexion en tiempo x
+								//packAndSend_Handshake(conexion, "GAMEBOY" , colaDeMensaje);
+								conectarmeACola(conexion,tiempo,tipoDeMensaje);
+								printf("la cola a suscribirse es: %s \n",tipoDeMensaje);
+								printf("El tiempo es: %i \n",tiempo);
+								}
+							} else log_error(logger,"No está definido el tipo de mensaje %s para %s",tipoDeMensaje,nombreDeProceso);
+
+				break;
+
+			default: log_error(logger,"Ese proceso no existe macho");
+			 break;
+
+	}
+
+
+	terminar_programa();
+
+	/*
+		//enviar mensajea
+		//enviar_mensaje("Vamos Boca",conexion);
+		//recibir mensaje
+		//char *mensaje = recibir_mensaje(conexion);
+		//loguear mensaje recibido
+		//log_info(logger,mensaje);
+
+*/
+	return 0;
+}
 
 
 // Recibe un string. Transforma cada letra/digito del string en un int basado en su expresion ASCII
@@ -117,6 +197,19 @@ void leer_config(void){
 	if (config == NULL){
 		log_error(logger,"No existe el archivo de configuracion");
 		}
+
+	cargarConfig(config);
+	log_info(logger,"Configuracion cargada con exito");
+}
+
+void cargarConfig(t_config* configuracion){
+	IP_BROKER = config_get_string_value(configuracion,"IP_BROKER");
+	PUERTO_BROKER = config_get_string_value(configuracion,"PUERTO_BROKER");
+	IP_TEAM = config_get_string_value(configuracion,"IP_TEAM");
+	PUERTO_TEAM = config_get_string_value(configuracion,"PUERTO_TEAM");
+	IP_GAMECARD = config_get_string_value(configuracion,"IP_GAMECARD");
+	PUERTO_GAMECARD = config_get_string_value(configuracion,"PUERTO_GAMECARD");
+
 }
 
 void terminar_programa()
@@ -128,29 +221,54 @@ void terminar_programa()
 
 }
 
-int iniciarConexion(char* nombreDeProceso){
-	char* claveIP = string_new();
-	char* clavePUERTO = string_new();
+void envioDeMensajeNew(char* pokemon, uint32_t posx, uint32_t posy,uint32_t cantidad,uint32_t idmensaje){
 
-	if(strcmp(nombreDeProceso,"SUSCRIPTOR") != 0){
-	string_append(&claveIP,"IP_");
-	string_append(&claveIP,nombreDeProceso);
-	string_append(&clavePUERTO,"PUERTO_");
-	string_append(&clavePUERTO,nombreDeProceso);
-	}else{
-		string_append(&claveIP,"IP_BROKER");
-		string_append(&clavePUERTO,"PUERTO_BROKER");
-	}
-	ip = config_get_string_value(config,claveIP);
-	puerto = config_get_string_value(config,clavePUERTO);
+	void* paqueteNew = pack_New(idmensaje,pokemon,cantidad,posx,posy);
+	uint32_t tamPaquete =  strlen(pokemon) + 1 + 5*sizeof(uint32_t);
+	int resultado = packAndSend(conexion,paqueteNew,tamPaquete,t_NEW);
+	  	// packAndSend_Appeared(conexion,-1,pokemon,posx,posy);
+	if(resultado == -1)log_error(loggerObligatorio,"El envio del mensaje de NEW falló");
+	log_info(loggerObligatorio,"Mensaje de NEW enviado");
+}
 
-	free(claveIP);
-	free(clavePUERTO);
-	log_info(logger,ip);
-	log_info(logger,puerto);
+void envioDeMensajeAppeared(char* pokemon, uint32_t posx, uint32_t posy, uint32_t idmensaje){
+	void* paqueteAppeared = pack_Appeared(idmensaje,pokemon,posx,posy);
+	uint32_t tamPaquete =  strlen(pokemon) + 1 + 4*sizeof(uint32_t);
+	log_error(loggerObligatorio,"El tamaño del paquete es: %i ",tamPaquete);
+	int resultado = packAndSend(conexion,paqueteAppeared,tamPaquete,t_APPEARED);
+  	// packAndSend_Appeared(conexion,-1,pokemon,posx,posy);
+	if(resultado == -1)log_error(loggerObligatorio,"El envio del mensaje de APPEARED falló");
+	log_info(loggerObligatorio,"Mensaje de APPEARED enviado");
+}
 
-	conexion = crear_conexion(ip,puerto,nombreDeProceso);
-	return conexion;
+void envioDeMensajeCatch(char* pokemon, uint32_t posx, uint32_t posy, uint32_t idmensaje){
+	void* paqueteCatch = pack_Catch(idmensaje,pokemon,posx,posy);
+		uint32_t tamPaquete =  strlen(pokemon) + 1 + 4*sizeof(uint32_t);
+		log_error(loggerObligatorio,"El tamaño del paquete es: %i ",tamPaquete);
+		int resultado = packAndSend(conexion,paqueteCatch,tamPaquete,t_CATCH);
+	  	// packAndSend_Appeared(conexion,-1,pokemon,posx,posy);
+		if(resultado == -1)log_error(loggerObligatorio,"El envio del mensaje de CATCH falló");
+		log_info(loggerObligatorio,"Mensaje de CATCH enviado");
+}
+
+void envioDeMensajeCaught(uint32_t atrapado, uint32_t idmensaje){
+	void* paqueteCaught = pack_Caught(idmensaje,atrapado);
+		uint32_t tamPaquete =  2*sizeof(uint32_t);
+		log_error(loggerObligatorio,"El tamaño del paquete es: %i ",tamPaquete);
+		int resultado = packAndSend(conexion,paqueteCaught,tamPaquete,t_CAUGHT);
+	  	// packAndSend_Appeared(conexion,-1,pokemon,posx,posy);
+		if(resultado == -1)log_error(loggerObligatorio,"El envio del mensaje de CAUGHT falló");
+		log_info(loggerObligatorio,"Mensaje de CAUGHT enviado");
+}
+
+void envioDeMensajeGet(char* pokemon,uint32_t idmensaje){
+	void* paqueteGet = pack_Get(idmensaje,pokemon);
+			uint32_t tamPaquete = strlen(pokemon) + 1 + 2*sizeof(uint32_t);
+			log_error(loggerObligatorio,"El tamaño del paquete es: %i ",tamPaquete);
+			int resultado = packAndSend(conexion,paqueteGet,tamPaquete,t_GET);
+		  	// packAndSend_Appeared(conexion,-1,pokemon,posx,posy);
+			if(resultado == -1)log_error(loggerObligatorio,"El envio del mensaje de GET falló");
+			log_info(loggerObligatorio,"Mensaje de GET enviado");
 }
 
 void enviar_mensaje_a_broker(char* tipo_de_mensaje,int cantidad_de_argumentos,char* argumentos[]){
@@ -160,7 +278,7 @@ void enviar_mensaje_a_broker(char* tipo_de_mensaje,int cantidad_de_argumentos,ch
 
 
 		switch(hashDeMensaje){
-		// 	./gameboy GAMECARD NEW_POKEMON [POKEMON] [POSX] [POSY] [CANTIDAD] [ID_MENSAJE]
+		// 	./gameboy BROKER NEW_POKEMON [POKEMON] [POSX] [POSY] [CANTIDAD] [ID_MENSAJE]
 			case NEW:
 				if(cantidad_de_argumentos == 8){
 						char* pokemon = argumentos[3];
@@ -168,8 +286,11 @@ void enviar_mensaje_a_broker(char* tipo_de_mensaje,int cantidad_de_argumentos,ch
 						uint32_t posy = atoi(argumentos[5]);
 						uint32_t cantidad = atoi(argumentos[6]);
 						uint32_t idmensaje = atoi(argumentos[7]);
-					// packAndSend_New(conexion,idmensaje,pokemon,cantidad,posx,posy);
-						// log_info(loggerObligatorio,"Mensaje de NEW enviado");
+
+						//Envio del mensaje
+						envioDeMensajeNew(pokemon,posx,posy,cantidad,idmensaje);
+						//Envio del mensaje
+
 						printf("Aca envio el mensaje \n");
 						printf("Pokemon: %s \n",pokemon);
 						printf("PosX: %i \n",posx);
@@ -186,8 +307,11 @@ void enviar_mensaje_a_broker(char* tipo_de_mensaje,int cantidad_de_argumentos,ch
 								uint32_t posx = atoi(argumentos[4]);
 								uint32_t posy = atoi(argumentos[5]);
 								uint32_t idmensaje = atoi(argumentos[6]);
-								// packAndSend_Appeared(conexion,idmensaje,pokemon,posx,posy);
-								// log_info(loggerObligatorio,"Mensaje de APPEARED enviado");
+
+								// Envio del mensaje
+								envioDeMensajeAppeared(pokemon,posx,posy,idmensaje);
+								// envio del mensaje
+
 								printf("Aca envio el mensaje \n");
 								printf("Pokemon: %s \n",pokemon);
 								printf("PosX: %i \n",posx);
@@ -204,8 +328,12 @@ void enviar_mensaje_a_broker(char* tipo_de_mensaje,int cantidad_de_argumentos,ch
 								char* pokemon = argumentos[3];
 								uint32_t posx = atoi(argumentos[4]);
 								uint32_t posy = atoi(argumentos[5]);
-								// packAndSend_Appeared(conexion,-1,pokemon,posx,posy);
-								// log_info(loggerObligatorio,"Mensaje de CATCH enviado");
+								uint32_t idmensaje = -1;
+
+								// envio de mensaje
+								envioDeMensajeCatch(pokemon,posx,posy,idmensaje);
+								// envio de mensaje
+
 								printf("Aca envio el mensaje \n");
 								printf("Pokemon: %s \n",pokemon);
 								printf("PosX: %i \n",posx);
@@ -218,8 +346,11 @@ void enviar_mensaje_a_broker(char* tipo_de_mensaje,int cantidad_de_argumentos,ch
 				if(cantidad_de_argumentos == 5){
 								uint32_t idmensaje = atoi(argumentos[3]);
 								uint32_t atrapado = atoi(argumentos[4]);
-								// packAndSend_Caught(conexion,idmensaje,atrapado);
-								// log_info(loggerObligatorio,"Mensaje de CAUGHT enviado");
+
+								// envio de mensaje
+								envioDeMensajeCaught(atrapado,idmensaje);
+								// envio de mensaje
+
 								printf("Atrapado: %i \n",atrapado);
 								printf("id mensaje: %i \n",idmensaje);
 								}else printf("Faltan argumentos macho \n");
@@ -229,8 +360,12 @@ void enviar_mensaje_a_broker(char* tipo_de_mensaje,int cantidad_de_argumentos,ch
 			case GET://if(string_contains("GBS",primerLetraDeProceso)) valor = 1;
 				if(cantidad_de_argumentos == 4){
 								char* pokemon = argumentos[3];
-								// packAndSend_Get(conexion,-1,pokemon);
-								// log_info(loggerObligatorio,"Mensaje de GET enviado");
+								uint32_t idmensaje = -1;
+
+								// envio de mensaje
+								envioDeMensajeGet(pokemon,idmensaje);
+								// envio de mensaje
+
 								printf("pokemon: %s \n",pokemon);
 								}else printf("Faltan argumentos macho \n");
 			break;
@@ -249,8 +384,12 @@ void enviar_mensaje_a_team(char* tipo_de_mensaje,int cantidad_de_argumentos,char
 		char* pokemon = argumentos[3];
 		uint32_t posx = atoi(argumentos[4]);
 		uint32_t posy = atoi(argumentos[5]);
-    	// packAndSend_Appeared(conexion,-1,pokemon,posx,posy);
-		// log_info(loggerObligatorio,"Mensaje de APPEARED enviado");
+		uint32_t id = -1;
+
+    	// Envio del mensaje
+		envioDeMensajeAppeared(pokemon,posx,posy,id);
+		// Envio del mensaje
+
 		printf("Aca envio el mensaje \n");
 		printf("Pokemon: %s \n",pokemon);
 		printf("PosX: %i \n",posx);
@@ -270,8 +409,11 @@ void enviar_mensaje_a_gamecard(char* tipo_de_mensaje,int cantidad_de_argumentos,
 							uint32_t posy = atoi(argumentos[5]);
 							uint32_t cantidad = atoi(argumentos[6]);
 							uint32_t idmensaje = atoi(argumentos[7]);
-						// packAndSend_New(conexion,idmensaje,pokemon,cantidad,posx,posy);
-							// log_info(loggerObligatorio,"Mensaje de NEW enviado");
+
+					    	// Envio del mensaje
+							envioDeMensajeNew(pokemon,posx,posy,cantidad,idmensaje);
+							// Envio del mensaje
+
 							printf("Aca envio el mensaje \n");
 							printf("Pokemon: %s \n",pokemon);
 							printf("PosX: %i \n",posx);
@@ -281,14 +423,17 @@ void enviar_mensaje_a_gamecard(char* tipo_de_mensaje,int cantidad_de_argumentos,
 					}else printf("Faltan argumentos macho \n");
 				break;
 				// ./gameboy GAMECARD CATCH_POKEMON [POKEMON] [POSX] [POSY] [ID_MENSAJE]
-				case CATCH://if(string_contains("GBS",primerLetraDeProceso)) valor = 1;
+				case CATCH:
 					if(cantidad_de_argumentos == 7){
 									char* pokemon = argumentos[3];
 									uint32_t posx = atoi(argumentos[4]);
 									uint32_t posy = atoi(argumentos[5]);
 									uint32_t idmensaje = atoi(argumentos[6]);
-									// packAndSend_Appeared(conexion,-1,pokemon,posx,posy);
-									// log_info(loggerObligatorio,"Mensaje de CATCH enviado");
+
+							    	// Envio del mensaje
+									envioDeMensajeCatch(pokemon,posx,posy,idmensaje);
+									// Envio del mensaje
+
 									printf("Aca envio el mensaje \n");
 									printf("Pokemon: %s \n",pokemon);
 									printf("PosX: %i \n",posx);
@@ -298,13 +443,16 @@ void enviar_mensaje_a_gamecard(char* tipo_de_mensaje,int cantidad_de_argumentos,
 				break;
 
 				// ./gameboy GAMECARD GET_POKEMON [POKEMON]
-				case GET://if(string_contains("GBS",primerLetraDeProceso)) valor = 1;
+				case GET:
 					if(cantidad_de_argumentos == 4){
 									char* pokemon = argumentos[3];
 									printf("%s \n",pokemon);
-									//uint32_t id = -1;
-									//if(packAndSend_Get(conexion,id,pokemon))log_info(loggerObligatorio,"Mensaje de GET enviado");
-									//else log_error(loggerObligatorio,"Mensaje de GET no enviado");
+									uint32_t id = -1;
+
+							    	// Envio del mensaje
+									envioDeMensajeGet(pokemon,id);
+									// Envio del mensaje
+
 									printf("pokemon: %s \n",pokemon);
 									}else printf("Faltan argumentos macho \n");
 				break;
@@ -313,88 +461,41 @@ void enviar_mensaje_a_gamecard(char* tipo_de_mensaje,int cantidad_de_argumentos,
 				}
 }
 
-int main(int argc,char* argv[]){
+// Nos genera memory leak definitely lost
+char* obtenerNombreSinElPokemon(char* proceso){
+	char** nombres = string_split(proceso,"_");
+	char* nombreSinPoke = nombres[0];
+	free(nombres);
+	return nombreSinPoke;
+}
 
-	// argv[0] es el nombre de nuestro programa
-	// argv[1] va a ser el nombre de proceso a ejecutar
-	// argv[2] es el tipo de mensaje
-	// En adelante va a ser los argumentos enviados
-	char* nombreDeProceso = argv[1];
-	char* tipoDeMensaje = argv[2];
-	printf("Enviaste el proceso: %s \n",nombreDeProceso); //---------------------- QUITAR
-	printf("Enviaste el mensaje: %s \n",tipoDeMensaje); 	//---------------------- QUITAR
-	printf("---------------- \n");		//---------------------- QUITAR
-	int hashDeProceso = convertir_nombre(nombreDeProceso);
+void conectarmeACola(int socket,int tiempo,char* colaDeMensaje){
+	int hashDeCola = convertir_nombre(colaDeMensaje);
+	t_operacion tipoDeMensaje;
 
-	//int hashDeMensaje = convertir_nombre(tipoDeMensaje);
-	//printf("El hash es: %i \n",hashDeMensaje);
+	switch(hashDeCola){
 
-	iniciar_logger();
-	iniciar_logger_obligatorio();
-	leer_config();
-
-	switch(hashDeProceso){
-
-
-	case BROKER:
-				printf("Broker Omegalul \n");		//---------------------- QUITAR
-				if(esUnTipoDeMensajeValido(nombreDeProceso,tipoDeMensaje)){
-								conexion = iniciarConexion(nombreDeProceso);
-								enviar_mensaje_a_broker(tipoDeMensaje,argc,argv);
-								break;
-							} else log_error(logger,"No está definido el tipo de mensaje %s para %s",tipoDeMensaje,nombreDeProceso);		//---------------------- QUITAR
-				break;
-
-	case TEAM:
-				printf("Team omegalul \n");
-				if(esUnTipoDeMensajeValido(nombreDeProceso,tipoDeMensaje)){
-								conexion = iniciarConexion(nombreDeProceso);
-								enviar_mensaje_a_team(tipoDeMensaje,argc,argv);
-							} else log_error(logger,"No está definido el tipo de mensaje %s para %s",tipoDeMensaje,nombreDeProceso);
-				break;
-	case GAMECARD:
-				printf("Gamecard omegalul \n");
-				if(esUnTipoDeMensajeValido(nombreDeProceso,tipoDeMensaje)){
-								conexion = iniciarConexion(nombreDeProceso);
-								enviar_mensaje_a_gamecard(tipoDeMensaje,argc,argv);
-							} else log_error(logger,"No está definido el tipo de mensaje %s para %s",tipoDeMensaje,nombreDeProceso);
-				break;
-
-//./gameboy SUSCRIPTOR [COLA_DE_MENSAJES] [TIEMPO]
-	case SUSCRIPTOR:
-				printf("Suscriptor omegalul \n");
-				if(esUnTipoDeMensajeValido(nombreDeProceso,tipoDeMensaje)){
-								conexion = iniciarConexion(nombreDeProceso);
-								char* colaDeMensaje = argv[2];
-								int tiempo = atoi(argv[3]);
-								// Hay que ver como enviar el nombre del mensaje.. se necesita una funcion que transforme nuestra
-								// variable colaDeMensaje en un t_operacion
-								// Tambien hay que ver como hacer la desconexion en tiempo x
-								//packAndSend_Handshake(conexion, "GAMEBOY" , colaDeMensaje);
-
-								printf("la cola a suscribirse es: %s \n",colaDeMensaje);
-								printf("El tiempo es: %i \n",tiempo);
-								printf("Ahora aca perri\n");		//---------------------- QUITAR
-							} else log_info(logger,"No está definido el tipo de mensaje %s para %s",tipoDeMensaje,nombreDeProceso);
-
-				break;
-
-			default: printf("Ese proceso no existe macho \n");
-			return 0;
-
+		case NEW: tipoDeMensaje = t_NEW;
+			break;
+		case APPEARED: tipoDeMensaje = t_APPEARED;
+			break;
+		case CATCH: tipoDeMensaje = t_CATCH;
+			break;
+		case CAUGHT: tipoDeMensaje = t_CAUGHT;
+			break;
+		case GET: tipoDeMensaje = t_GET;
+			break;
+		case LOCALIZED: tipoDeMensaje = t_LOCALIZED;
+			break;
 	}
 
+	// SUSCRIPCION A FUTURO.
+	void* paqueteHandShake = pack_Handshake("Team",tipoDeMensaje);
+	uint32_t tamPaquete = strlen("Team") + 1 + sizeof(uint32_t) + sizeof(t_operacion);
+	int resultado = packAndSend(conexion,paqueteHandShake,tamPaquete,t_HANDSHAKE);
+	if(resultado == -1)log_error(loggerObligatorio,"La suscripcion a %s falló",colaDeMensaje);
+	log_info(loggerObligatorio,"Suscripcion a %s enviada",colaDeMensaje);
 
-	terminar_programa();
-
-	/*
-		//enviar mensajea
-		//enviar_mensaje("Vamos Boca",conexion);
-		//recibir mensaje
-		//char *mensaje = recibir_mensaje(conexion);
-		//loguear mensaje recibido
-		//log_info(logger,mensaje);
-
-*/
-	return 0;
+	free(paqueteHandShake);
 }
+
