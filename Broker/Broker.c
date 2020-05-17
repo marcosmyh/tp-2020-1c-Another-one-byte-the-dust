@@ -75,7 +75,7 @@ int iniciar_servidor(char *ip, char *puerto){
 
     freeaddrinfo(servinfo);
 
-    log_info(logger, "Listo para escuchar a mi cliente!");
+    log_info(logger, "Listo para recibir procesos!");
 
     return socket_servidor;
 }
@@ -85,7 +85,7 @@ int esperar_cliente(int socket_servidor){
 
 	int tam_direccion = sizeof(struct sockaddr_in);
 	int socket_cliente = accept(socket_servidor, (void*) &dir_cliente, &tam_direccion);
-	log_info(logger,"Se conecto un cliente");
+	log_info(logger,"Se conecto un proceso al Broker.");
 	return socket_cliente;
 }
 
@@ -122,23 +122,18 @@ void procesar_solicitud(Header header,int cliente_fd){
      			//Ejemplo: si se conecta por primera vez un Team el nombreProceso será "Team"
      			//Si es la segunda vez que se conecta, su nombreProceso será "Team-1"..
 
-     			identificadorProceso = nombreProceso;
-
-     			if(yaExisteID(identificadorProceso,IDs_procesos,stringComparator)){
+     			if(yaExisteID(nombreProceso,IDs_procesos,stringComparator)){
      				packAndSend(cliente_fd,paquete,sizePaquete,t_HANDSHAKE);
+     				identificadorProceso = nombreProceso;
      			}
      			else{
      				identificadorProceso = asignarIDProceso(nombreProceso);
      				paqueteHANDSHAKE = pack_Handshake(identificadorProceso,operacionDeSuscripcion);
-     				uint32_t sizePaquete = sizeof(paqueteHANDSHAKE);
+     				uint32_t sizePaquete = strlen(identificadorProceso) + 1 + sizeof(uint32_t) + sizeof(t_operacion);
      				packAndSend(cliente_fd,paqueteHANDSHAKE,sizePaquete,t_HANDSHAKE);
      			}
 
      			suscribirProceso(identificadorProceso,cliente_fd,operacionDeSuscripcion);
-
-     			free(nombreProceso);
-     			free(paqueteHANDSHAKE);
-     			free(paquete);
 
      			break;
 
@@ -168,7 +163,7 @@ void procesar_solicitud(Header header,int cliente_fd){
 
                 void *paqueteID = pack_ID(ID_NEW,t_NEW);
 
-                uint32_t sizePaqueteID = sizeof(paqueteID);
+                uint32_t sizePaqueteID = sizeof(ID_NEW) + sizeof(t_NEW);
 
                 //Le envio el ID al productor.
                 packAndSend(cliente_fd,paqueteID,sizePaqueteID,t_ID);
@@ -183,10 +178,7 @@ void procesar_solicitud(Header header,int cliente_fd){
      			agregarMensajeACola(mensaje,NEW_POKEMON,"NEW_POKEMON");
 
      			//Recurro al casting (Ver prototipo de la función enviarMensajeA)
-     			enviarMensajeRecibidoASuscriptores(suscriptores_NEW_POKEMON,(void *) enviarMensajeA);
-
-     			free(paqueteNEW);
-     			free(paquete);
+     			//enviarMensajeRecibidoASuscriptores(suscriptores_NEW_POKEMON,(void *) enviarMensajeA);
 
      			break;
 
@@ -314,13 +306,13 @@ char *asignarIDProceso(char *nombreProceso){
 		pthread_mutex_lock(&semaforoIDTeam);
 		contadorIDTeam++;
 		ID_generado = string_itoa(contadorIDTeam);
-		pthread_mutex_lock(&semaforoIDTeam);
+		pthread_mutex_unlock(&semaforoIDTeam);
 	}
 	else if(stringComparator("GameCard",nombreProceso)){
 		pthread_mutex_lock(&semaforoIDGameCard);
 		contadorIDGameCard++;
 		ID_generado = string_itoa(contadorIDGameCard);
-		pthread_mutex_lock(&semaforoIDGameCard);
+		pthread_mutex_unlock(&semaforoIDGameCard);
 	}
 
 	char *identificadorProceso = string_from_format("%s-%s",nombreProceso,ID_generado);
@@ -363,18 +355,20 @@ bool stringComparator(void *unString, void *otroString){
 
 
 uint32_t asignarIDMensaje(){
+	uint32_t ID;
     pthread_mutex_lock(&semaforoIDMensaje);
 	contadorIDMensaje++;
-	list_add(IDs_mensajes,&contadorIDMensaje);
+	memcpy(&ID,&contadorIDMensaje,sizeof(uint32_t));
+	list_add(IDs_mensajes,&ID);
 	pthread_mutex_unlock(&semaforoIDMensaje);
 
-	return contadorIDMensaje;
+	return ID;
 }
 
 
 t_mensaje *crearMensaje(void *paquete,uint32_t ID){
 	//Creo el mensaje con el paquete y el ID que asigné.
-	t_mensaje *mensaje = malloc(sizeof(mensaje));
+	t_mensaje *mensaje = malloc(sizeof(t_mensaje));
 	mensaje->paquete = paquete;
 	mensaje->ID_mensaje = ID;
 	mensaje->suscriptoresQueRecibieronMensaje = list_create();
