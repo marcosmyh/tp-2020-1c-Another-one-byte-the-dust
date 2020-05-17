@@ -16,9 +16,7 @@ int main(){
 	pthread_t hiloConexionLocalized;
 
 	pthread_create(&hiloConexionAppeared,NULL,(void *)conexionAColaAppeared,&socket_appeared);
-
 	pthread_create(&hiloConexionCaught,NULL,(void *)conexionAColaCaught,&socket_caught);
-
 	pthread_create(&hiloConexionLocalized,NULL,(void *)conexionAColaLocalized,&socket_localized);
 
 	pthread_join(hiloConexionAppeared,NULL);
@@ -29,20 +27,19 @@ int main(){
 		pthread_t hiloBrokerCaught;
 		pthread_t hiloBrokerLocalized;
 
-		if(pthread_create(&hiloBrokerAppeared, NULL, (void*)atenderBroker, &socket_appeared) == 0){
+		if(pthread_create(&hiloBrokerAppeared, NULL, (void*)atenderCliente, &socket_appeared) == 0){
 			pthread_detach(hiloBrokerAppeared);
 			log_info(logger, "Se creo el hilo atencion Broker appeared correctamente.");
 		}
 
 		sem_wait(&semaforoAtencionCaught);
-    	if(pthread_create(&hiloBrokerCaught, NULL, (void*)atenderBroker, &socket_caught) == 0){
+    	if(pthread_create(&hiloBrokerCaught, NULL, (void*)atenderCliente, &socket_caught) == 0){
 				pthread_detach(hiloBrokerCaught);
 				log_info(logger, "Se creo el hilo atencion Broker caught correctamente");
 		}
 
-
     	sem_wait(&semaforoAtencionLocalized);
-    	if(pthread_create(&hiloBrokerLocalized, NULL, (void*)atenderBroker, &socket_localized) == 0){
+    	if(pthread_create(&hiloBrokerLocalized, NULL, (void*)atenderCliente, &socket_localized) == 0){
 				pthread_detach(hiloBrokerLocalized);
 				log_info(logger, "Se creo el hilo atencion Broker localized correctamente");
 		}
@@ -65,13 +62,13 @@ int main(){
 
 
 	};
-
 	//INICIALIZO LAS COLAS
 	inicializarColas();
 	//INICIALIZO LOS ENTRENADORES
 	inicializarEntrenadores();
 	//MANDO UN GET AL BROKER PARA CADA ESPECIE POKEMON QUE ESTA EN EL OBJETIVO
 	enviarPokemonesAlBroker();
+
 	//CREO COLA DE PLANIFICACION A READY
 	pthread_t hiloPlanificacionReady;
 	if(pthread_create(&hiloPlanificacionReady, NULL, (void*)planificarEntradaAReady, NULL) == 0){
@@ -81,6 +78,7 @@ int main(){
 	else{
 		log_error(logger, "No se ha podido crear el hilo planificacionReady");
 	}
+
 	//CREO COLA DE PLANIFICACION DE LOS ENTRENADORES EN READY
 	pthread_t hiloPlanificacionEntrenadores;
 	if(pthread_create(&hiloPlanificacionEntrenadores, NULL, (void*)planificarEntrenadores, NULL) == 0){
@@ -657,43 +655,6 @@ bool estaOcupado(t_entrenador* unEntrenador){
 	return unEntrenador->ocupado;
 }
 
-//ESTE ATENDER BROKER ES TEMPORAL, HAY QUE PULIRLO
-
-void atenderBroker(int *socket_cliente){
-	log_info(logger, "Atendiendo al Broker, socket:%d", *socket_cliente);
-	Header headerRecibido;
-	headerRecibido = receiveHeader(*socket_cliente);
-	log_info(logger, "Codigo de operacion:%i", headerRecibido.operacion);
-	log_info(logger, "Tamanio:%i", headerRecibido.tamanioMensaje);
-	uint32_t tamanio = headerRecibido.tamanioMensaje;
-	switch(headerRecibido.operacion){
-
-		case t_HANDSHAKE:;
-				log_info(loggerObligatorio, "Llego un mensaje de HANDSHAKE");
-				//identificadorProceso = recibirIdentificadorProceso(*socket_cliente);
-				void *paqueteBroker = receiveAndUnpack(*socket_cliente,tamanio);
-				log_info(logger,"RECIBI UN PAQUETE");
-				identificadorProceso = unpackProceso(paqueteBroker);
-				sem_post(&semaforoCreacionCaught);
-				sem_post(&semaforoCreacionLocalized);
-				log_info(logger,"ID RECIBIDO: %s",identificadorProceso);
-				break;
-
-		case t_LOCALIZED:;
-			break;
-
-		case t_APPEARED:;
-			break;
-
-		case t_CAUGHT:;
-			break;
-	 //EN OTRO CASO, que el hilo llame al otro atender cliente.
-		default:
-			break;
-	}
-}
-
-
 void atenderCliente(int *socket_cliente) {
 	log_info(logger, "Atendiendo a cliente, socket:%d", *socket_cliente);
 	Header headerRecibido;
@@ -702,6 +663,17 @@ void atenderCliente(int *socket_cliente) {
 	log_info(logger, "Tamanio:%i", headerRecibido.tamanioMensaje);
 	uint32_t tamanio = headerRecibido.tamanioMensaje;
 	switch (headerRecibido.operacion) {
+
+	case t_HANDSHAKE:;
+			log_info(loggerObligatorio, "Llego un mensaje de HANDSHAKE");
+			//identificadorProceso = recibirIdentificadorProceso(*socket_cliente);
+			void *paqueteBroker = receiveAndUnpack(*socket_cliente,tamanio);
+			log_info(logger,"RECIBI UN PAQUETE");
+			identificadorProceso = unpackProceso(paqueteBroker);
+			sem_post(&semaforoCreacionCaught);
+			sem_post(&semaforoCreacionLocalized);
+			log_info(logger,"ID RECIBIDO: %s",identificadorProceso);
+			break;
 
 	case t_LOCALIZED:;
 		//ESTE SE USA

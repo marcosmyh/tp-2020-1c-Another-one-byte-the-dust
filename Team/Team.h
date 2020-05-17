@@ -125,14 +125,13 @@ void planificarEntradaAReady();
 void calcularDistanciaA(t_list* listaEntrenadores, t_pokemon* unPokemon);
 bool comparadorDeDistancia(t_entrenador* unEntrenador, t_entrenador* otroEntrenador);
 bool estaOcupado(t_entrenador* unEntrenador);
-void atenderCliente(int *socket_cliente); //ESTA ES LA FUNCION MAGICA
 int conectarseAColaMensaje(int socket,char *identificador,t_operacion operacion);
 char *recibirIdentificadorProceso(int socket);
-void atenderBroker(int *socket);
 void conexionAColaAppeared(int *socket);
 void conexionAColaCaught(int *socket);
 void conexionAColaLocalized(int *socket);
 void conexionAColas();
+void atenderCliente(int *socket_cliente); //ESTA ES LA FUNCION MAGICA
 
 #endif
 
