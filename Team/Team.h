@@ -16,6 +16,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <netdb.h>
+#include <semaphore.h>
 
 #include "../Serializacion/Serializacion.h"
 
@@ -49,6 +50,17 @@ t_list* colaBlocked;
 t_list* colaExit;
 
 //VARIABLES
+
+//pthread_mutex_t semaforoAppeared;
+//pthread_mutex_t semaforoCaught;
+pthread_t hiloConexionCaught;
+sem_t semaforoAtencionCaught;
+sem_t semaforoCreacionCaught;
+sem_t semaforoAtencionLocalized;
+sem_t semaforoCreacionLocalized;
+
+
+int flag = 0;
 char* identificadorProceso = NULL;
 t_log* logger;
 t_log* loggerObligatorio;
@@ -113,6 +125,14 @@ void planificarEntradaAReady();
 void calcularDistanciaA(t_list* listaEntrenadores, t_pokemon* unPokemon);
 bool comparadorDeDistancia(t_entrenador* unEntrenador, t_entrenador* otroEntrenador);
 bool estaOcupado(t_entrenador* unEntrenador);
-void atenderCliente(int socket_cliente); //ESTA ES LA FUNCION MAGICA
+void atenderCliente(int *socket_cliente); //ESTA ES LA FUNCION MAGICA
+int conectarseAColaMensaje(int socket,char *identificador,t_operacion operacion);
+char *recibirIdentificadorProceso(int socket);
+void atenderBroker(int *socket);
+void conexionAColaAppeared(int *socket);
+void conexionAColaCaught(int *socket);
+void conexionAColaLocalized(int *socket);
+void conexionAColas();
 
 #endif
+
