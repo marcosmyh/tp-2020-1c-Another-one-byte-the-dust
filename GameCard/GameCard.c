@@ -2,27 +2,20 @@
 
 int main(void){
 	crearLogger();
+	crearLoggerObligatorio();
+
+
 	leerArchivoDeConfiguracion();
 	//doy inicio a mi servidor y obtengo el socket
 	socket_servidor = iniciar_servidor(ip_gc,puerto_gc,logger);
 	//Servidor iniciado
-	printf("Server ready for action! \n");
-
-
-
-
-
+	log_info(logger,"Server ready for action!");
 
 	iniciar_punto_de_montaje(path_de_tallgrass);
 
 
-
-
-
-
 	while(1){
 	int cliente = esperar_cliente(socket_servidor,logger);
-
 	if(pthread_create(&thread,NULL,(void*)atender_cliente,&cliente) == 0){
 		pthread_detach(thread);
 		}
@@ -37,11 +30,18 @@ int main(void){
 
 
 void crearLogger(){
-	char *path = "/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/GameCard/GameCardServer.log";
-	char *nombreArchi = "GameCardServer";
+	char *path = "/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/GameCard/GameCardInformal.log";
+	char *nombreArchi = "GamecardInformal";
 	logger = log_create(path,nombreArchi,true, LOG_LEVEL_INFO);
 
 }
+
+void crearLoggerObligatorio(){
+	char *path = "/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/GameCard/GameCardServerObligatorio.log";
+	char *nombrePrograma = "Log_Gamecard";
+	loggerObligatorio = log_create(path,nombrePrograma,true, LOG_LEVEL_INFO);
+}
+
 
 int iniciar_servidor(char* ip, char* puerto, t_log* log){
 	int socket_servidor;
@@ -85,44 +85,122 @@ int esperar_cliente(int socket_servidor, t_log* log){
 	return socket_cliente;
 }
 
-void atender_cliente(int* socket){
-	int cod_op;
+int crear_conexion(char *ip, char* puerto){
+	struct addrinfo hints;
+	struct addrinfo *server_info;
 
-	if(recv(*socket, &cod_op, sizeof(int), MSG_WAITALL) == -1)
-		cod_op = -1;
-	procesar_solicitud(cod_op, *socket);
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_flags = AI_PASSIVE;
+
+	getaddrinfo(ip, puerto, &hints, &server_info);
+
+	int socket_cliente = socket(server_info->ai_family, server_info->ai_socktype, server_info->ai_protocol);
+
+	if(connect(socket_cliente, server_info->ai_addr, server_info->ai_addrlen) == -1)
+		log_error(loggerObligatorio,"No se pudo conectar al broker");
+	else log_info(loggerObligatorio,"Hubo conexion ");
+	freeaddrinfo(server_info);
+
+	return socket_cliente;
 }
 
-void procesar_solicitud(int cod_op, int cliente_fd) {
+
+void atender_cliente(int* socket){
+	Header headerRecibido;
+	headerRecibido = receiveHeader(*socket);
+
+	procesar_solicitud(headerRecibido, *socket);
+}
+
+void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 	//int size;
 	//void* msg;
+	uint32_t id;
+	uint32_t tamanio = headerRecibido.tamanioMensaje;
+	uint32_t tamanioPokemon;
+	uint32_t posX;
+	uint32_t posY;
 
-		switch (cod_op) {
+	char* pokemon;
+
+		switch (headerRecibido.operacion) {
 		case t_GET:
 			log_info(logger,"Me llegaron mensajes de Suscriber get");
-			//Hacer algo con get
-			//msg = recibir_mensaje(cliente_fd, &size);
-			//free(msg);
+
+			void* paqueteGet = receiveAndUnpack(cliente_fd, tamanio);
+			pokemon = unpackPokemon(paqueteGet);
+			tamanioPokemon = strlen(pokemon) + 1;
+			id = unpackID(paqueteGet);
+
+
+			log_info(logger,"Pokemon: %s id: %d",pokemon,id);
+
+
+			//
+			// ACA DEBERIA IR LO QUE DEBE HACERSE CON GET Y PASAR LAS VARIABLES A ESA FUNCION
+			//
+			// EL ENVIO DE MENSAJE QUEDA EN VERSION DE PRUEBA
+			// TODAVIA NO FUNCIONA int seEnvioGet = envioDeMensajeLocalize(pokemon,id); // Prueba
+
+			free(paqueteGet);
 			break;
 
 		case t_CATCH:
 			log_info(logger,"Me llegaron mensajes de Suscriber Catch");
-			//Hacer lo que debia hacerse cuando se recibiera un catch
-			//msg = recibir_mensaje(cliente_fd, &size);
-			//free(msg);
+			void* paqueteCatch = receiveAndUnpack(cliente_fd, tamanio);
+			pokemon = unpackPokemon(paqueteCatch);
+			tamanioPokemon = strlen(pokemon) + 1;
+
+
+			id = unpackID(paqueteCatch);
+			posX = unpackCoordenadaX_Catch(paqueteCatch, tamanioPokemon);
+			posY = unpackCoordenadaY_Catch(paqueteCatch, tamanioPokemon);
+
+			log_info(logger,"Pokemon: %s posX: %d posY: %d id: %d",pokemon,posX,posY,id);
+
+
+			//
+			// ACA DEBERIA IR LO QUE DEBE HACERSE CON CATCH Y PASAR LAS VARIABLES A ESA FUNCION
+			//
+			uint32_t resultado = 0; // Prueba
+
+			int seEnvioCaught = envioDeMensajeCaught(resultado,id); // Prueba
+
+			free(paqueteCatch);
 			break;
 		case t_NEW:
 			log_info(logger,"Me llegaron mensajes de Suscriber New");
-			//Hacer lo que debiera hacerse con new
-			//msg = recibir_mensaje(cliente_fd, &size);
-			//free(msg);
+			void* paqueteNew = receiveAndUnpack(cliente_fd, tamanio);
+			pokemon = unpackPokemon(paqueteNew);
+			tamanioPokemon = strlen(pokemon) + 1;
+
+
+			id = unpackID(paqueteNew);
+			posX = unpackCoordenadaX_New(paqueteNew, tamanioPokemon);
+			posY = unpackCoordenadaY_New(paqueteNew, tamanioPokemon);
+			uint32_t cantPokemon = unpackCantidadPokemons_New(paqueteNew, tamanioPokemon);
+
+			log_info(logger,"Pokemon: %s posX: %d posY: %d cantidad: %d id: %d",pokemon,posX,posY,cantPokemon, id);
+
+
+			//
+			// ACA DEBERIA IR LO QUE DEBE HACERSE CON NEW Y PASAR LAS VARIABLES A ESA FUNCION
+			//
+
+			int seEnvioNew = envioDeMensajeAppeared(pokemon,posX,posY,id); // Prueba
+
+			free(paqueteNew);
 			break;
 		case 0:
 			printf("Se desconecto.");
 			pthread_exit(NULL);
 
-		case -1:
+
+		default:
 			pthread_exit(NULL);
+			break;
 		}
 }
 
@@ -146,6 +224,38 @@ void setearValoresDeGame(t_config *config){
 	tiempo_de_reintento_operacion = config_get_int_value(config,"TIEMPO_DE_REINTENTO_OPERACION");
 }
 
+int envioDeMensajeCaught(uint32_t atrapado, uint32_t idmensaje){
+		void* paqueteCaught = pack_Caught(idmensaje,atrapado);
+		int socket = crear_conexion(ip_broker,puerto_broker);
+		uint32_t tamPaquete =  2*sizeof(uint32_t);
+		int resultado = packAndSend(socket,paqueteCaught,tamPaquete,t_CAUGHT);
+		close(socket);
+		free(paqueteCaught);
+		return resultado;
+}
+
+int envioDeMensajeAppeared(char* pokemon, uint32_t posx, uint32_t posy, uint32_t idmensaje){
+	void* paqueteAppeared = pack_Appeared(idmensaje,pokemon,posx,posy);
+	int socket = crear_conexion(ip_broker,puerto_broker);
+	uint32_t tamPaquete =  strlen(pokemon) + 1 + 4*sizeof(uint32_t);
+	int resultado = packAndSend(socket,paqueteAppeared,tamPaquete,t_APPEARED);
+	close(socket);
+	free(paqueteAppeared);
+  	return resultado;
+}
+
+int envioDeMensajeLocalize(char* pokemon,uint32_t idmensaje,uint32_t cantidadParesCoordenadas,uint32_t arrayCoordenadas){
+	void* paqueteGet = pack_Localized(idmensaje,pokemon,cantidadParesCoordenadas,arrayCoordenadas);
+	//
+	//	NO USAR. EN FASE DE PRUEBA
+	//
+	int socket = crear_conexion(ip_broker,puerto_broker);
+	uint32_t tamPaquete = strlen(pokemon) + 1 + 2*sizeof(uint32_t);
+	int resultado = packAndSend(socket,paqueteGet,tamPaquete,t_GET);
+	close(socket);
+	free(paqueteGet);
+	return resultado;
+}
 
 //////////////////////////////////////////////////
 //////////////	UTILIDADES PARA DAR INICIO AL FS

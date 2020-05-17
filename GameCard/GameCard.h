@@ -28,6 +28,7 @@
 
 pthread_t thread;
 t_log *logger; // ALGO QUE NO ESTA TAN BIEN CREO CREER
+t_log *loggerObligatorio;
 int socket_servidor;
 t_config *archivoConfig;
 char* ip_gc;
@@ -39,10 +40,11 @@ int tiempo_de_reintento_operacion;
 char* path_de_tallgrass;
 
 void crearLogger(void);
+void crearLoggerObligatorio();
 int iniciar_servidor(char* ip, char* puerto, t_log* log);
 int esperar_cliente(int socket_servidor, t_log* log);
 void atender_cliente(int *socket);
-void procesar_solicitud(int cod_op, int cliente_fd);
+void procesar_solicitud(Header headerRecibido, int cliente_fd);
 void leerArchivoDeConfiguracion(void);
 void setearValoresDeGame(t_config *confg);
 
@@ -82,5 +84,9 @@ bool archivoAbierto(char* nombrePokemon);
 void abrirArchivo(char* nombrePokemon);
 void cerrarArchivo(char* nombrePokemon);
 
-
+// ENVIO DE MENSAJES
+int envioDeMensajeCaught(uint32_t id,uint32_t resultado);
+int envioDeMensajeGet(char* pokemon,uint32_t idmensaje);
+int envioDeMensajeAppeared(char* pokemon, uint32_t posx, uint32_t posy, uint32_t idmensaje);
+int crear_conexion(char *ip, char* puerto);
 #endif /* GAMECARD_GAMECARD_H_ */
