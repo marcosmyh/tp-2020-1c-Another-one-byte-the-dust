@@ -9,7 +9,7 @@
 
 Header receiveHeader(int socketCliente){
 	void* buffer = malloc(sizeof(t_operacion) + sizeof(uint32_t));
-	int result = recv(socketCliente, buffer, (sizeof(t_operacion) + sizeof(uint32_t)), MSG_WAITALL);
+	int result = recv(socketCliente, buffer, (sizeof(t_operacion) + sizeof(uint32_t)),MSG_WAITALL);
 	if(result == 0 || result == -1){
 		Header headerQueRetorna;
 		headerQueRetorna.operacion = (-1);
@@ -177,7 +177,7 @@ void* pack_Ack(uint32_t ID, t_operacion operacion, char* identificadorProceso){
 	desplazamiento += sizeof(t_operacion);
 	memcpy(buffer+desplazamiento, &tamidentificadorProceso, sizeof(uint32_t));
 	desplazamiento += sizeof(uint32_t);
-	memcpy(buffer+desplazamiento, &identificadorProceso, tamidentificadorProceso);
+	memcpy(buffer+desplazamiento, identificadorProceso, tamidentificadorProceso);
 	return buffer;
 }
 
