@@ -21,7 +21,6 @@ int main(void) {
     	if(pthread_create(&hiloAtencionCliente,NULL,(void*)atender_cliente,&socket_cliente) == 0){
     		pthread_detach(hiloAtencionCliente);
     	}
-
     }
 
     pthread_mutex_destroy(&semaforoIDMensaje);
@@ -104,7 +103,15 @@ void procesar_solicitud(Header header,int cliente_fd){
 
      void enviarMensajeA(t_suscriptor *suscriptor){
     	 int socket = suscriptor->socket_suscriptor;
-    	 packAndSend(socket,paquete,sizePaquete,codigo_operacion);
+    	 char *identificadorProceso = suscriptor->identificadorProceso;
+    	 int resultado = packAndSend(socket,paquete,sizePaquete,codigo_operacion);
+
+    	 if(resultado != -1){
+    	 log_info(logger,"Le mande un mensaje a %s",identificadorProceso);
+    	 }
+    	 else{
+    		 log_info(logger,"No le pude mandar un mensaje a %s",identificadorProceso);
+    	 }
      }
 
      switch (codigo_operacion) {
@@ -119,10 +126,7 @@ void procesar_solicitud(Header header,int cliente_fd){
      			uint32_t sizeProceso = strlen(nombreProceso) + 1;
      			operacionDeSuscripcion = unpackOperacion(paquete,sizeProceso);
 
-     			//Ejemplo: si se conecta por primera vez un Team el nombreProceso será "Team"
-     			//Si es la segunda vez que se conecta, su nombreProceso será "Team-1"..
-
-     			if(yaExisteID(nombreProceso,IDs_procesos,stringComparator)){
+     			if(existeID(nombreProceso,IDs_procesos,stringComparator) || stringComparator(nombreProceso,"GameBoy")){
      				packAndSend(cliente_fd,paquete,sizePaquete,t_HANDSHAKE);
      				identificadorProceso = nombreProceso;
      			}
@@ -143,10 +147,11 @@ void procesar_solicitud(Header header,int cliente_fd){
 
      		    paquete = receiveAndUnpack(cliente_fd,sizePaquete);
 
-     		    //Hace falta desempaquetar el ID para ver de que tipo de mensaje se trata.
-     		    //Si es -1, es un mensaje "común".
-     		    //Si ID >= 1, entonces se trata de una respuesta. Acá entra en juego el ID correlativo.
-     		    //Ver como proceder.
+     		    uint32_t idMensajeRecibido_New = unpackID(paquete);
+
+     		    if(existeID(&idMensajeRecibido_New,IDs_mensajes,intComparator)){
+     		    	//Es un ID correlativo. Ver como proceder.
+     		    }
 
                 char *pokemon = unpackPokemon(paquete);
 
@@ -177,8 +182,7 @@ void procesar_solicitud(Header header,int cliente_fd){
 
      			agregarMensajeACola(mensaje,NEW_POKEMON,"NEW_POKEMON");
 
-     			//Recurro al casting (Ver prototipo de la función enviarMensajeA)
-     			//enviarMensajeRecibidoASuscriptores(suscriptores_NEW_POKEMON,(void *) enviarMensajeA);
+     			enviarMensajeRecibidoASuscriptores(suscriptores_NEW_POKEMON,enviarMensajeA);
 
      			break;
 
@@ -194,7 +198,45 @@ void procesar_solicitud(Header header,int cliente_fd){
 
      		case t_APPEARED:;
      			//TODO
-     			//agregar mensaje a la cola APPEARED_POKEMON y enviar mensaje a los suscriptores.
+     		    void *paqueteAppeared;
+
+     		    paquete = receiveAndUnpack(cliente_fd,sizePaquete);
+
+     		    uint32_t idMensajeRecibido_Appeared = unpackID(paquete);
+
+     		    if(existeID(&idMensajeRecibido_Appeared,IDs_mensajes,intComparator)){
+     		    	//Correlativo...
+
+     		    }
+
+     		    char *pokemonAppeared = unpackPokemon(paquete);
+
+                uint32_t sizePokemonAppeared = strlen(pokemonAppeared) + 1;
+
+                uint32_t coordenadaX_Appeared = unpackCoordenadaX_Appeared(paquete,sizePokemonAppeared);
+
+                uint32_t coordenadaY_Appeared = unpackCoordenadaY_Appeared(paquete,sizePokemonAppeared);
+
+                uint32_t ID_APPEARED = asignarIDMensaje();
+
+                void *paqueteID_Appeared = pack_ID(ID_APPEARED,t_APPEARED);
+
+                uint32_t sizePaqueteID_Appeared = sizeof(uint32_t) + sizeof(t_operacion);
+
+                //Le envio el ID al productor.
+                packAndSend(cliente_fd,paqueteID_Appeared,sizePaqueteID_Appeared,t_ID);
+
+                //Ahora armo el paquete que van a recibir los suscriptores (consumidores)
+                paqueteAppeared = pack_Appeared(ID_APPEARED,pokemonAppeared,coordenadaX_Appeared,coordenadaY_Appeared);
+
+                paquete = paqueteAppeared;
+
+                mensaje = crearMensaje(paquete,ID_APPEARED);
+
+                agregarMensajeACola(mensaje,APPEARED_POKEMON,"APPEARED_POKEMON");
+
+            	enviarMensajeRecibidoASuscriptores(suscriptores_APPEARED_POKEMON,enviarMensajeA);
+
      			break;
 
      		case t_CATCH:;
@@ -230,10 +272,11 @@ void agregarMensajeACola(t_mensaje *mensaje,t_list *colaDeMensajes,char *nombreC
 	list_add(colaDeMensajes,mensaje);
 	log_info(logger,"Un nuevo mensaje fue agregado a la cola %s",nombreCola);
 	log_info(logger,"La cola %s tiene %d mensajes",nombreCola,list_size(colaDeMensajes));
+
 }
 
-void enviarMensajeRecibidoASuscriptores(t_list *listaSuscriptores,void(*funcionDeEnvio)(void *)){
-	list_iterate(listaSuscriptores,funcionDeEnvio);
+void enviarMensajeRecibidoASuscriptores(t_list *listaSuscriptores,void(*funcionDeEnvio)(t_suscriptor *)){
+	list_iterate(listaSuscriptores,(void *) funcionDeEnvio);
 }
 
 t_mensaje *obtenerMensaje(uint32_t ID_mensaje_a_modificar,t_list *colaDeMensajes){
@@ -319,14 +362,10 @@ char *asignarIDProceso(char *nombreProceso){
 
 	list_add(IDs_procesos,identificadorProceso);
 
-	//Por ejemplo, si se trata del primer team que se conecta al Broker,
-	//su ID será: Team-1
-
 	return identificadorProceso;
 }
 
-//Puede utilizarse para strings e ints.
-bool yaExisteID(void *ID_a_buscar, t_list *lista,bool(*comparator)(void *,void *)){
+bool existeID(void *ID_a_buscar, t_list *lista,bool(*comparator)(void *,void *)){
 	bool resultado = false;
 
 	for (int i = 0; i < list_size(lista);i++){
@@ -359,7 +398,7 @@ uint32_t asignarIDMensaje(){
     pthread_mutex_lock(&semaforoIDMensaje);
 	contadorIDMensaje++;
 	memcpy(&ID,&contadorIDMensaje,sizeof(uint32_t));
-	list_add(IDs_mensajes,&ID);
+	list_add(IDs_mensajes,&contadorIDMensaje);
 	pthread_mutex_unlock(&semaforoIDMensaje);
 
 	return ID;
