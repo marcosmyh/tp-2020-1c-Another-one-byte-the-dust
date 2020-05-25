@@ -182,6 +182,8 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 			posY = unpackCoordenadaY_New(paqueteNew, tamanioPokemon);
 			uint32_t cantPokemon = unpackCantidadPokemons_New(paqueteNew, tamanioPokemon);
 
+
+			procedimientoNEW(id,pokemon,posX,posY,cantPokemon);
 			log_info(logger,"Pokemon: %s posX: %d posY: %d cantidad: %d id: %d",pokemon,posX,posY,cantPokemon, id);
 
 
@@ -501,29 +503,35 @@ t_config* obtener_metadata_de_pokemon(char *nombrePokemon){
 	string_append(&ruta_pokemon,RUTA_DE_FILES);
 	string_append(&ruta_pokemon,"/Pokemon/");
 	string_append(&ruta_pokemon,nombrePokemon);
-
+	string_append(&ruta_pokemon,"/Metadata.bin");
 	configPokemon = config_create(ruta_pokemon);
 	free(ruta_pokemon);
 
 	return configPokemon;
 }
 
-// Busca si existe el pokemon buscado encontrando su metadata
-// Aunque se encuentra en fase de prueba ya que si existe solo el directorio
-// va a retornar que si existe el pokemon
-// Retorna 0 si no existe el pokemon
-// sino retorna 1 si existe
+// Retorna si existe el pokemon: NO GENERA LEAKS
+int existePokemon(char* nombrePokemon){
 
-bool existePokemon(char* nombrePokemon){
-	t_config *metadataPokemon;
+	 // --- aca hay que usar la global path de files
+	char* pathDePokemon = string_new();
+	string_append(&pathDePokemon,RUTA_DE_POKEMON);
+	string_append(&pathDePokemon,"/");
+	string_append(&pathDePokemon,nombrePokemon);
+	string_append(&pathDePokemon,"/");
+	string_append(&pathDePokemon,"Metadata.bin");
 
-	metadataPokemon = obtener_metadata_de_pokemon(nombrePokemon);
-
-	if(metadataPokemon == NULL) {
+	FILE* archi;
+	archi = fopen(pathDePokemon,"r");
+	if(archi == NULL) {
+		printf("No me pude abrir\n");
+		free(pathDePokemon);
 		return 0;
 	}
+	printf("Me pude abrir\n");
+	free(pathDePokemon);
+	fclose(archi);
 
-	config_destroy(metadataPokemon);
 	return 1;
 }
 
@@ -550,6 +558,7 @@ void crearPokemon(char* nombrePokemon){
 	free(path_pokemon);
 }
 
+//Abre el archiv ode pokemon
 void abrirArchivo(char* nombrePokemon){
 	// CAPAZ UN MUTEX
 	t_config* metaPokemon = obtener_metadata_de_pokemon(nombrePokemon);
@@ -558,6 +567,7 @@ void abrirArchivo(char* nombrePokemon){
 	config_destroy(metaPokemon);
 }
 
+// Cierra el archivo de pokemon
 void cerrarArchivo(char* nombrePokemon){
 	// CAPAZ UN MUTEX
 	t_config* metaPokemon = obtener_metadata_de_pokemon(nombrePokemon);
@@ -565,7 +575,7 @@ void cerrarArchivo(char* nombrePokemon){
 	config_save(metaPokemon);
 	config_destroy(metaPokemon);
 }
-
+// Dice si el archivo del pokemon esta abierto o no
 bool archivoAbierto(char* nombrePokemon){
 	int valor;
 	t_config* metaPokemon = obtener_metadata_de_pokemon(nombrePokemon);
@@ -575,4 +585,161 @@ bool archivoAbierto(char* nombrePokemon){
 
 	config_destroy(metaPokemon);
 	return valor;
+}
+
+
+///_-------------- NUEVAS FUNCIONES
+void *reintentoAbrir(void* argumentos){
+	struct arg_estructura* valores = argumentos;
+
+	while(1){
+	if(!archivoAbierto(valores->nombrePokemon)){
+		printf("El Archivo se puede abrir! \n");
+		pthread_exit(NULL);
+		}
+	printf("Esperando .... %d segundos \n",valores->tiempo);
+	sleep(valores->tiempo);
+	}
+
+}
+
+// RETORNA LOS BLOQUES DEL METADATA FUNCIONA COMO STRING: NO DA LEAKS
+char* obtenerArrayDebloques(char* pokemon){
+			char* direccion = string_new();
+			string_append(&direccion,RUTA_DE_POKEMON);
+			string_append(&direccion,"/");
+			string_append(&direccion,pokemon);
+			string_append(&direccion,"/Metadata.bin");
+
+			t_config* archiPokemon = config_create(direccion);
+			char* auxBloques = string_duplicate(config_get_string_value(archiPokemon,"BLOCKS"));
+
+			config_destroy(archiPokemon);
+
+			free(direccion);
+			return auxBloques;
+}
+
+// Funcion auxiliar de  obtenerContenidoDeArchivos()
+// lo que hace es recibir un char con el numero del archivo
+// y llena un string con el contenido que tiene dicho archivo
+// Se debe agregar al final \0 NO GENERA LEAKS
+char* obtener_contenido_de_archivo(char* nroDeArchivo){
+	char* rutaDeFile = string_new();
+	string_append(&rutaDeFile,RUTA_DE_BLOQUES);
+	string_append(&rutaDeFile,"/");
+	string_append(&rutaDeFile,nroDeArchivo);
+	string_append(&rutaDeFile,".bin");
+
+	FILE* archi = fopen(rutaDeFile,"r");
+		fseek(archi, 0, SEEK_END);
+		int size = ftell(archi);
+		fseek(archi,0,SEEK_SET);
+		char* array = malloc(size+1);
+		fread(array,size,1,archi);
+		free(rutaDeFile);
+		fclose(archi);
+		array[size] = '\0';
+		return array;
+}
+
+void limpiarPunteroAPuntero(char** puntero){
+	int i = 0;
+
+	while(puntero[i] != NULL){
+		free(puntero[i]);
+		i++;
+	}
+	free(puntero);
+}
+
+//-----------------___ESTOY TRABAJANDO EN ESTA . GENERA LEAKS MIRAR PROXIMAMENTE
+char* obtenerContenidoDeArchivos(char* bloques){
+	// Los separa ["10","2","3"]
+	char** arrayBloques = string_get_string_as_array(bloques);
+	char* arrayDeArchivo = string_new();
+	int i = 0;
+	//Recorre cada numero y obtiene el contenido
+
+	char* contenidoAux;
+
+	while(arrayBloques[i] != NULL){
+		contenidoAux = obtener_contenido_de_archivo(arrayBloques[i]);
+		//	La linea obtenida es concatenada
+		//	asi forma un string largo con todo el contenido del archivo
+		string_append(&arrayDeArchivo,contenidoAux);
+
+		//printf("arrayDeArchivo: %s \n",arrayDeArchivo);
+		//free(contenidoAux);// MIRAR ACA
+		i++;
+
+	}
+	// MIRAR ESTO se necesita funcion que elimine puntero a punteros
+	free(contenidoAux);
+	limpiarPunteroAPuntero(arrayBloques);
+	return arrayDeArchivo;
+
+}
+// Dice que si el arrayPosicion pertenece a las array de lineas(Que es la informacion de los bloques en un array)
+// Hay que ver otra manera porque supongo que genera mucha carga a la memoria cargar todo un archivo completo
+// El array posicion debe ser "2-2=" o "2-2" por ejemplo
+bool contieneEstaPosicion(char* lineas,char* arrayPosicion){
+			return string_contains(lineas,arrayPosicion);
+}
+
+void procedimientoNEW(uint32_t idMensaje,char* pokemon,uint32_t posx,uint32_t posy,uint32_t cantidad){
+
+	if(!existePokemon(pokemon)){
+		crearPokemon(pokemon);
+		return;
+	}else printf("Existe el pokemon\n");
+
+
+
+
+	if(archivoAbierto(pokemon)){
+		printf("Archivo no se puede abrir\n");
+
+		// MATAR HILO
+		// REINTENTAR EN X TIEMPO
+
+		struct arg_estructura argumentos;
+		argumentos.nombrePokemon = pokemon;
+		argumentos.tiempo = tiempo_de_reintento_operacion;
+
+		pthread_t hiloDelReintento;
+		if(!pthread_create(&hiloDelReintento,NULL,&reintentoAbrir,(void*)&argumentos)) printf("Creadu \n");
+
+			pthread_join(hiloDelReintento,NULL);
+	}
+	printf("Se puede abrir el archivo\n");
+	abrirArchivo(pokemon);
+
+	char* bloques = obtenerArrayDebloques(pokemon);
+
+	char* arrayDeArchivo = obtenerContenidoDeArchivos(bloques);
+
+	char* posicion = string_new();
+	string_append(&posicion,string_itoa(posx));
+	string_append(&posicion,"-");
+	string_append(&posicion,string_itoa(posy));
+
+	if(!contieneEstaPosicion(arrayDeArchivo,posicion)){
+		// agregar al final del archivos
+		printf("No contengo la posicion \n");
+	}
+	else  printf("Contengo esa posicion \n");
+
+
+	//agregarAPosicion(posicion,pokemon,cantidad,lineas);
+
+
+	// CERRAR ARCHIVO
+
+	cerrarArchivo(pokemon);
+	printf("Archivo cerrado \n");
+	free(posicion);
+	free(arrayDeArchivo);
+	free(bloques);
+
 }

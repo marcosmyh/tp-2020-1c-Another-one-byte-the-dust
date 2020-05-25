@@ -48,6 +48,13 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd);
 void leerArchivoDeConfiguracion(void);
 void setearValoresDeGame(t_config *confg);
 
+///ESTRUCTURA AUXILIAR
+struct arg_estructura {
+    char* nombrePokemon;
+    int tiempo;
+};
+
+
 ////////////
 // Sobre el FS
 ////////////
@@ -74,15 +81,28 @@ void mostrarRutas(void);
 char* obtener_nombre_de_archivo(char *path);
 char* obtener_direccion_metadata(char *path);
 t_config* obtener_metadata_de_ruta(char *path);
+void limpiarPunteroAPuntero(char** puntero);
+
+
+
+// Manipulacion de archivos
 int esDirectorio(char* ruta);
+char* obtenerArrayDebloques(char* pokemon);
+char* obtener_contenido_de_archivo(char* nroDeArchivo);
+bool contieneEstaPosicion(char* lineas,char* arrayPosicion);
+
 
 // Utilidades para pokemon
 t_config* obtener_metadata_de_pokemon(char *nombrePokemon);
-bool existePokemon(char* nombrePokemon);
+int existePokemon(char* nombrePokemon);
 void crearPokemon(char* nombrePokemon);
 bool archivoAbierto(char* nombrePokemon);
 void abrirArchivo(char* nombrePokemon);
 void cerrarArchivo(char* nombrePokemon);
+
+// PROCEDIMIENTOS
+void procedimientoNEW(uint32_t idMensaje,char* pokemon,uint32_t posx,uint32_t posy,uint32_t cantidad);
+
 
 // ENVIO DE MENSAJES
 int envioDeMensajeCaught(uint32_t id,uint32_t resultado);
