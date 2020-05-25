@@ -13,6 +13,8 @@
 #include<commons/log.h> // AGREGADO
 #include<commons/string.h> // AGREGADO
 #include<commons/config.h> // AGREGADO
+#include<pthread.h>
+
 
 #include<sys/socket.h>
 #include<netdb.h>
@@ -31,7 +33,7 @@ char* IP_GAMECARD;
 char* PUERTO_BROKER;
 char* PUERTO_TEAM;
 char* PUERTO_GAMECARD;
-
+int tiempoRestante;
 t_log* logger;
 t_log* loggerObligatorio;
 t_config* config;

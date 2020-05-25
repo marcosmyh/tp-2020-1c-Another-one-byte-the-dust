@@ -61,6 +61,8 @@ int main(int argc,char* argv[]){
 								// Tambien hay que ver como hacer la desconexion en tiempo x
 								//packAndSend_Handshake(conexion, "GAMEBOY" , colaDeMensaje);
 								conectarmeACola(conexion,tiempo,tipoDeMensaje);
+
+
 								printf("la cola a suscribirse es: %s \n",tipoDeMensaje);
 								printf("El tiempo es: %i \n",tiempo);
 								}
@@ -469,6 +471,156 @@ char* obtenerNombreSinElPokemon(char* proceso){
 	return nombreSinPoke;
 }
 
+
+// Lo que hace es recibir los mensajes y loggearlos según su tipo de operacion
+// Si tiene que recibir de la cola get ésta funcion puede loggear mensajes get
+//
+void discriminarMensaje(){
+
+				Header headerRecibido;
+				headerRecibido = receiveHeader(conexion);
+				if(headerRecibido.operacion == -1) printf("Se desconecto todo \n");
+				uint32_t tamanio = headerRecibido.tamanioMensaje;
+				char* pokemon;
+				uint32_t tamanioPokemon;
+				uint32_t id;
+				uint32_t posX;
+				uint32_t posY;
+				switch (headerRecibido.operacion) {
+						case t_GET:
+							log_info(logger,"Me llegaron mensajes de Suscriber get");
+
+							void* paqueteGet = receiveAndUnpack(conexion, tamanio);
+							pokemon = unpackPokemon(paqueteGet);
+							tamanioPokemon = strlen(pokemon) + 1;
+							id = unpackID(paqueteGet);
+
+
+							log_info(logger,"Pokemon: %s id: %d",pokemon,id);
+
+							free(paqueteGet);
+							break;
+
+						case t_CATCH:
+							log_info(logger,"Me llegaron mensajes de Suscriber Catch");
+							void* paqueteCatch = receiveAndUnpack(conexion, tamanio);
+							pokemon = unpackPokemon(paqueteCatch);
+							tamanioPokemon = strlen(pokemon) + 1;
+
+
+							id = unpackID(paqueteCatch);
+							posX = unpackCoordenadaX_Catch(paqueteCatch, tamanioPokemon);
+							posY = unpackCoordenadaY_Catch(paqueteCatch, tamanioPokemon);
+
+							log_info(logger,"Pokemon: %s posX: %d posY: %d id: %d",pokemon,posX,posY,id);
+
+							free(paqueteCatch);
+							break;
+						case t_NEW:
+							log_info(logger,"Me llegaron mensajes de Suscriber New");
+							void* paqueteNew = receiveAndUnpack(conexion, tamanio);
+							pokemon = unpackPokemon(paqueteNew);
+							tamanioPokemon = strlen(pokemon) + 1;
+
+
+							id = unpackID(paqueteNew);
+							posX = unpackCoordenadaX_New(paqueteNew, tamanioPokemon);
+							posY = unpackCoordenadaY_New(paqueteNew, tamanioPokemon);
+							uint32_t cantPokemon = unpackCantidadPokemons_New(paqueteNew, tamanioPokemon);
+
+							log_info(logger,"Pokemon: %s posX: %d posY: %d cantidad: %d id: %d",pokemon,posX,posY,cantPokemon, id);
+
+							free(paqueteNew);
+							break;
+						case t_APPEARED:
+							log_info(logger,"Me llegaron mensajes de Suscriber APPEARED");
+							void* paqueteAppeared = receiveAndUnpack(conexion, tamanio);
+							pokemon = unpackPokemon(paqueteAppeared);
+							tamanioPokemon = strlen(pokemon) + 1;
+
+
+							id = unpackID(paqueteAppeared);
+							posX = unpackCoordenadaX_Appeared(paqueteAppeared, tamanioPokemon);
+							posY = unpackCoordenadaY_Appeared(paqueteAppeared, tamanioPokemon);
+
+							log_info(logger,"Pokemon: %s posX: %d posY: %d id: %d",pokemon,posX,posY, id);
+
+							free(paqueteAppeared);
+							break;
+
+						case t_CAUGHT:
+							log_info(logger,"Me llegaron mensajes de Suscriber CAUGHT");
+							void* paqueteCaught = receiveAndUnpack(conexion, tamanio);
+							pokemon = unpackPokemon(paqueteCaught);
+							tamanioPokemon = strlen(pokemon) + 1;
+
+
+							id = unpackID(paqueteCaught);
+							int resultado = unpackResultado_Caught(paqueteCaught);
+
+							log_info(logger,"Pokemon: %s resultado Caught: %d id: %d",pokemon,resultado, id);
+
+							free(paqueteCaught);
+							break;
+
+						case t_LOCALIZED:
+							log_info(logger,"Me llegaron mensajes de Suscriber LOCALIZED");
+							void* paqueteLocalized = receiveAndUnpack(conexion, tamanio);
+							pokemon = unpackPokemon(paqueteLocalized);
+							tamanioPokemon = strlen(pokemon) + 1;
+							id = unpackID(paqueteLocalized);
+							// EN FASE DE PRUEBA
+
+							log_info(logger,"Pokemon: %s resultado Caught: %d id: %d",pokemon,id);
+
+							free(paqueteLocalized);
+							break;
+
+						case 0:
+							printf("Se desconecto.");
+							pthread_exit(NULL);
+							break;
+
+						default:
+							pthread_exit(NULL);
+							break;
+						}
+}
+
+
+// Temporizador que modifica una variable global llamada tiempoRestante para cortar el while de la recepcion de mensajes
+
+void crearTimer(int *tiempo){
+	int i;
+	for(i = 0; i <= *tiempo; i++){
+		tiempoRestante = *tiempo - i;
+		printf("Tiempo restante: %d\n",tiempoRestante);
+		sleep(1);
+	}
+	return;
+}
+
+// Se encarga de recibir los mensajes de la cola suscripta
+void recepcionDeMensajes(int tiempo){
+
+	pthread_t thread;
+	pthread_t hiloTemporizador;
+	tiempoRestante = tiempo;
+	if(pthread_create(&hiloTemporizador,NULL,(void*)crearTimer,&tiempo) == 0){
+		pthread_detach(hiloTemporizador);
+	}
+
+		while(tiempoRestante != 0){
+			printf("Tiempo restadasdasante: %d\n",tiempoRestante);
+			if(pthread_create(&thread,NULL,(void*)discriminarMensaje,NULL) == 0){
+				pthread_detach(thread);
+				}
+		}
+
+
+}
+
+// Se conecta y suscribe a la cola de mensajes enviada por parametro y finaliza cuando su tiempo llega a 0
 void conectarmeACola(int socket,int tiempo,char* colaDeMensaje){
 	int hashDeCola = convertir_nombre(colaDeMensaje);
 	t_operacion tipoDeMensaje;
@@ -490,12 +642,28 @@ void conectarmeACola(int socket,int tiempo,char* colaDeMensaje){
 	}
 
 	// SUSCRIPCION A FUTURO.
-	void* paqueteHandShake = pack_Handshake("Team",tipoDeMensaje);
-	uint32_t tamPaquete = strlen("Team") + 1 + sizeof(uint32_t) + sizeof(t_operacion);
+	void* paqueteHandShake = pack_Handshake("GameBoy",tipoDeMensaje);
+	uint32_t tamPaquete = strlen("GameBoy") + 1 + sizeof(uint32_t) + sizeof(t_operacion);
 	int resultado = packAndSend(conexion,paqueteHandShake,tamPaquete,t_HANDSHAKE);
 	if(resultado == -1)log_error(loggerObligatorio,"La suscripcion a %s falló",colaDeMensaje);
 	log_info(loggerObligatorio,"Suscripcion a %s enviada",colaDeMensaje);
-
 	free(paqueteHandShake);
+
+	// RECIBIENDO ACK
+	Header headerRecibido = receiveHeader(conexion);
+	uint32_t tamanio = headerRecibido.tamanioMensaje;
+
+// RESPUESTA DEL MENSAJE PARA ASEGURARME QUE ME SUSCRIBIÓ
+	void *paqueteDeRespuesta = receiveAndUnpack(conexion,tamanio);
+	char* identificador = unpackProceso(paqueteDeRespuesta);
+	uint32_t sizeProceso = strlen(identificador) + 1;
+	t_operacion operacionSuscripta = unpackOperacion(paqueteDeRespuesta,sizeProceso);
+
+	if(operacionSuscripta == tipoDeMensaje){
+	log_info(loggerObligatorio,"Suscripción con éxito, Mi identificador: %s",identificador);
+
+	recepcionDeMensajes(tiempo);
+
+	}else log_error(loggerObligatorio,"No se pudo concretar la suscripción a %s",colaDeMensaje);
 }
 
