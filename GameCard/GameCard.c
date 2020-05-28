@@ -4,7 +4,6 @@ int main(void){
 	crearLogger();
 	crearLoggerObligatorio();
 
-
 	leerArchivoDeConfiguracion();
 	//doy inicio a mi servidor y obtengo el socket
 	socket_servidor = iniciar_servidor(ip_gc,puerto_gc,logger);
@@ -12,8 +11,7 @@ int main(void){
 	log_info(logger,"Server ready for action!");
 
 	iniciar_punto_de_montaje(path_de_tallgrass);
-
-
+	mostrarBitmap(); // ---------- SACAR
 	while(1){
 	int cliente = esperar_cliente(socket_servidor,logger);
 	if(pthread_create(&thread,NULL,(void*)atender_cliente,&cliente) == 0){
@@ -287,6 +285,7 @@ void iniciar_punto_de_montaje(char *puntoDeMontaje){
 
 
 		carga_config_fs();
+		iniciarBitmap();
 		bloques_iniciar();
 		mostrarRutas();
 
@@ -339,7 +338,7 @@ void bloques_iniciar(){
 	// Se crean los bloques pero hay un problema porque elimina los bloques
 	// que anteriormente fueron creados
 	// en esta funcion tengo mucha perdida de memoria. Revisar
-	for(i = 1; i <= BLOQUES_DE_BITMAP ; i++){
+	for(i = 1; i <= CANTIDAD_DE_BLOQUES ; i++){
 		printf("Creo el bloque %i \n",i);
 		char* bloque_a_crear = string_new();
 		string_append(&bloque_a_crear,RUTA_DE_BLOQUES);
@@ -395,10 +394,43 @@ void carpetas_iniciar(char* puntoDeMontaje){
 // del fs. Toma el tamaño de bloque, bloques del bitmap y el magicnumber
 void carga_config_fs(){
 	TAMANIO_DE_BLOQUE = config_get_int_value(config_fs,"BLOCK_SIZE");
-	BLOQUES_DE_BITMAP = config_get_int_value(config_fs,"BLOCKS");
+	CANTIDAD_DE_BLOQUES = config_get_int_value(config_fs,"BLOCKS");
 	MAGIC_NUMBER = config_get_string_value(config_fs,"MAGIC_NUMBER");
 }
 
+// Inicia el bitmap si existe el archivo bitmap.bin, si no existe crea un bitmap basado en el metadata.
+void iniciarBitmap(){
+	FILE *archi;
+
+	char* directorioBitmap = string_new();
+	string_append(&directorioBitmap,RUTA_DE_METADATA_MONTAJE);
+	string_append(&directorioBitmap,"/Bitmap.bin");
+	printf("%s directorio bitmap \n",directorioBitmap);
+	archi = fopen(directorioBitmap,"rb+");
+	if(archi == NULL){
+	//SE CREA EL BITMAP VACIO
+	archi = fopen(directorioBitmap,"wb+");
+	char* bitArray_vacio = calloc(1,((CANTIDAD_DE_BLOQUES+7)/8));
+	fwrite((void* )bitArray_vacio,((CANTIDAD_DE_BLOQUES+7)/8),1,archi);
+	//fclose(archi);
+	free(bitArray_vacio);
+
+
+	}
+
+	int fd = fileno(archi);
+	fseek(archi,0,SEEK_END);
+	int tamanioArchi = ftell(archi);
+	fseek(archi,0,SEEK_SET);
+
+	//SE "LEE" el contenido del archivo
+	char* bitarray = (char*) mmap(NULL, tamanioArchi, PROT_READ | PROT_WRITE , MAP_SHARED, fd,0);
+
+	bitmap = bitarray_create_with_mode(bitarray, tamanioArchi, LSB_FIRST);
+
+	free(directorioBitmap);
+	fclose(archi);
+}
 
 ////////////////////////////////////////////////
 ///////////////////////UTILIDADES VARIAS
@@ -417,13 +449,13 @@ void mostrarRutas(){
 		printf("\n");
 		printf("Mostrando config del FS \n");
 		printf("El tamaño del bloque del metadata es: %i \n",TAMANIO_DE_BLOQUE);
-		printf("La cantidad de bloques es: %i \n",BLOQUES_DE_BITMAP);
+		printf("La cantidad de bloques es: %i \n",CANTIDAD_DE_BLOQUES);
 		printf("El magic number es: %s \n",MAGIC_NUMBER);
 }
 
 // Retorna el nombre del archivo dado el path
 // Es decir retorna el último string despues del último "/"
-// PARA FUSE
+
 char* obtener_nombre_de_archivo(char *path){
 	char **aux;
 	char *nombre;
@@ -487,6 +519,15 @@ int esDirectorio(char* ruta){
 	else return -1;
 }
 
+// Funcion que sirve solo para orientarse. No es necesaria ni nada.
+void mostrarBitmap(){
+	int i;
+	for(i = 0; i < CANTIDAD_DE_BLOQUES; i++){
+		if(bitarray_test_bit(bitmap,i)) printf("%d",1);
+		else printf("%d",0);
+	}
+	printf("\n");
+}
 
 ////////////////////////////////////////////////
 ////////////////////////// COSAS DEL POKEMON

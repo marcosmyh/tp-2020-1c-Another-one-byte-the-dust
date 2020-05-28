@@ -17,11 +17,14 @@
 #include<netdb.h>
 #include<commons/log.h>
 #include<commons/collections/list.h>
+#include<commons/bitarray.h>
 #include<commons/config.h>
 #include<commons/string.h>
 #include<string.h>
 #include<pthread.h>
 #include "../Serializacion/Serializacion.h"
+
+#include <sys/mman.h>
 
 //VARIABLES
 
@@ -60,13 +63,14 @@ struct arg_estructura {
 ////////////
 
 uint32_t TAMANIO_DE_BLOQUE;
-uint32_t BLOQUES_DE_BITMAP;
+uint32_t CANTIDAD_DE_BLOQUES;
 char *MAGIC_NUMBER;
 char *RUTA_DE_BLOQUES;
 char *RUTA_DE_FILES;
 char *RUTA_DE_POKEMON;
 char *RUTA_DE_METADATA_MONTAJE;
 t_config *config_fs;
+t_bitarray* bitmap;
 
 // PARA INICIAR EL PUNTO DE MONTAJE
 void iniciar_punto_de_montaje(char *puntoDeMontaje);
@@ -74,6 +78,7 @@ void inicio_default(char* puntoDeMontaje);
 void carpetas_iniciar(char* puntoDeMontaje);
 void carga_config_fs();
 void bloques_iniciar();
+void iniciarBitmap();
 
 // Utilidades varias
 
@@ -82,7 +87,7 @@ char* obtener_nombre_de_archivo(char *path);
 char* obtener_direccion_metadata(char *path);
 t_config* obtener_metadata_de_ruta(char *path);
 void limpiarPunteroAPuntero(char** puntero);
-
+void mostrarBitmap();
 
 
 // Manipulacion de archivos
