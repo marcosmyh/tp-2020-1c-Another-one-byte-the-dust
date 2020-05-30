@@ -428,20 +428,22 @@ void actualizarBitmap(){
 // Inicia el bitmap si existe el archivo bitmap.bin, si no existe crea un bitmap basado en el metadata.
 void iniciarBitmap(){
 	FILE *archi;
+	int tamanio;
 
 	char* directorioBitmap = string_new();
 	string_append(&directorioBitmap,RUTA_DE_METADATA_MONTAJE);
 	string_append(&directorioBitmap,"/Bitmap.bin");
-	archi = fopen(directorioBitmap,"rb+");
-	if(archi == NULL){
+	archi = fopen(directorioBitmap,"wb+");
+	fseek(archi,0,SEEK_END);
+	tamanio = ftell(archi);
+	fseek(archi,0,SEEK_SET);
+	if(tamanio == 0){
 	//SE CREA EL BITMAP VACIO
 	archi = fopen(directorioBitmap,"wb+");
 	char* bitArray_vacio = calloc(1,((CANTIDAD_DE_BLOQUES+7)/8));
 	fwrite((void* )bitArray_vacio,((CANTIDAD_DE_BLOQUES+7)/8),1,archi);
 	//fclose(archi);
 	free(bitArray_vacio);
-
-
 	}
 
 	int fd = fileno(archi);
