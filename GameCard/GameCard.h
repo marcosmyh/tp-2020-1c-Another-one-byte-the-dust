@@ -79,6 +79,7 @@ void carpetas_iniciar(char* puntoDeMontaje);
 void carga_config_fs();
 void bloques_iniciar();
 void iniciarBitmap();
+void actualizarBitmap();
 
 // Utilidades varias
 
@@ -88,13 +89,18 @@ char* obtener_direccion_metadata(char *path);
 t_config* obtener_metadata_de_ruta(char *path);
 void limpiarPunteroAPuntero(char** puntero);
 void mostrarBitmap();
-
+int solicitarBloqueVacio();
+int length_punteroAPuntero(char** punteroAPuntero);
 
 // Manipulacion de archivos
 int esDirectorio(char* ruta);
 char* obtenerArrayDebloques(char* pokemon);
 char* obtener_contenido_de_archivo(char* nroDeArchivo);
 bool contieneEstaPosicion(char* lineas,char* arrayPosicion);
+
+// cositar para new
+void escribirEnArchivo(FILE *bloque, char* contenidoAagregar,int caracteresAEscribir,char* nombrePokemon);
+void agregarNuevaPosicion(char* contenidoAagregar,char* bloques,char* nombrePokemon);
 
 
 // Utilidades para pokemon
@@ -104,6 +110,8 @@ void crearPokemon(char* nombrePokemon);
 bool archivoAbierto(char* nombrePokemon);
 void abrirArchivo(char* nombrePokemon);
 void cerrarArchivo(char* nombrePokemon);
+void editarTamanioPokemon(char* nombrePokemon,int cantidad);
+void agregarBloqueAPokemon(char* nombrePokemon,int numeroDeBloque);
 
 // PROCEDIMIENTOS
 void procedimientoNEW(uint32_t idMensaje,char* pokemon,uint32_t posx,uint32_t posy,uint32_t cantidad);

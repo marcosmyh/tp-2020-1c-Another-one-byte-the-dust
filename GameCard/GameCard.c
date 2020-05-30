@@ -183,10 +183,9 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 
 			procedimientoNEW(id,pokemon,posX,posY,cantPokemon);
 			log_info(logger,"Pokemon: %s posX: %d posY: %d cantidad: %d id: %d",pokemon,posX,posY,cantPokemon, id);
-
-
+			mostrarBitmap();
 			//
-			// ACA DEBERIA IR LO QUE DEBE HACERSE CON NEW Y PASAR LAS VARIABLES A ESA FUNCION
+			// Procedimiento NEW casi terminado
 			//
 
 			int seEnvioNew = envioDeMensajeAppeared(pokemon,posX,posY,id); // Prueba
@@ -285,9 +284,8 @@ void iniciar_punto_de_montaje(char *puntoDeMontaje){
 
 
 		carga_config_fs();
-		iniciarBitmap();
 		bloques_iniciar();
-		mostrarRutas();
+		iniciarBitmap();
 
 		// Limpieza de variables
 
@@ -339,7 +337,6 @@ void bloques_iniciar(){
 	// que anteriormente fueron creados
 	// en esta funcion tengo mucha perdida de memoria. Revisar
 	for(i = 1; i <= CANTIDAD_DE_BLOQUES ; i++){
-		printf("Creo el bloque %i \n",i);
 		char* bloque_a_crear = string_new();
 		string_append(&bloque_a_crear,RUTA_DE_BLOQUES);
 		string_append(&bloque_a_crear,"/");
@@ -349,6 +346,8 @@ void bloques_iniciar(){
 		fclose(bloque);
 		free(bloque_a_crear);
 	}
+
+	log_info(logger,"Bloques creados");
 }
 
 
@@ -398,6 +397,34 @@ void carga_config_fs(){
 	MAGIC_NUMBER = config_get_string_value(config_fs,"MAGIC_NUMBER");
 }
 
+// Actualiza el bitmap. Busca en los bloques a los bloque que estan ocupados o contienen datos y coloca
+// en el bitmap 1 para indicar que esta ocupado ese bloque
+void actualizarBitmap(){
+	int i;
+	int tamanio;
+	for(i = 1; i <= CANTIDAD_DE_BLOQUES; i++){
+		FILE *bloque;
+		char* rutaDeBloque = string_new();
+		string_append(&rutaDeBloque,RUTA_DE_BLOQUES);
+		string_append(&rutaDeBloque,"/");
+		string_append(&rutaDeBloque,string_itoa(i));
+		string_append(&rutaDeBloque,".bin");
+
+		bloque = fopen(rutaDeBloque,"r");
+		fseek(bloque,0,SEEK_END);
+		tamanio = ftell(bloque);
+		if(tamanio != 0){
+
+			bitarray_set_bit(bitmap,i-1);
+		}else bitarray_clean_bit(bitmap,i-1);
+
+		fclose(bloque);
+		free(rutaDeBloque);
+
+	}
+
+}
+
 // Inicia el bitmap si existe el archivo bitmap.bin, si no existe crea un bitmap basado en el metadata.
 void iniciarBitmap(){
 	FILE *archi;
@@ -405,7 +432,6 @@ void iniciarBitmap(){
 	char* directorioBitmap = string_new();
 	string_append(&directorioBitmap,RUTA_DE_METADATA_MONTAJE);
 	string_append(&directorioBitmap,"/Bitmap.bin");
-	printf("%s directorio bitmap \n",directorioBitmap);
 	archi = fopen(directorioBitmap,"rb+");
 	if(archi == NULL){
 	//SE CREA EL BITMAP VACIO
@@ -427,6 +453,9 @@ void iniciarBitmap(){
 	char* bitarray = (char*) mmap(NULL, tamanioArchi, PROT_READ | PROT_WRITE , MAP_SHARED, fd,0);
 
 	bitmap = bitarray_create_with_mode(bitarray, tamanioArchi, LSB_FIRST);
+
+	actualizarBitmap();
+	log_info(logger,"Bitmap cargado y actualizado");
 
 	free(directorioBitmap);
 	fclose(archi);
@@ -522,11 +551,33 @@ int esDirectorio(char* ruta){
 // Funcion que sirve solo para orientarse. No es necesaria ni nada.
 void mostrarBitmap(){
 	int i;
+	printf("Mostrando bitmap: ");
 	for(i = 0; i < CANTIDAD_DE_BLOQUES; i++){
 		if(bitarray_test_bit(bitmap,i)) printf("%d",1);
 		else printf("%d",0);
 	}
 	printf("\n");
+}
+
+// Retorna el length de un puntero a puntero
+int length_punteroAPuntero(char** punteroAPuntero){
+	int i = 0;
+
+	while(punteroAPuntero[i] != NULL){
+		i++;
+	}
+	return i;
+}
+
+// Limpia un puntero a puntero
+void limpiarPunteroAPuntero(char** puntero){
+	int i = 0;
+
+	while(puntero[i] != NULL){
+		free(puntero[i]);
+		i++;
+	}
+	free(puntero);
 }
 
 ////////////////////////////////////////////////
@@ -628,8 +679,6 @@ bool archivoAbierto(char* nombrePokemon){
 	return valor;
 }
 
-
-///_-------------- NUEVAS FUNCIONES
 void *reintentoAbrir(void* argumentos){
 	struct arg_estructura* valores = argumentos;
 
@@ -684,16 +733,6 @@ char* obtener_contenido_de_archivo(char* nroDeArchivo){
 		return array;
 }
 
-void limpiarPunteroAPuntero(char** puntero){
-	int i = 0;
-
-	while(puntero[i] != NULL){
-		free(puntero[i]);
-		i++;
-	}
-	free(puntero);
-}
-
 //-----------------___ESTOY TRABAJANDO EN ESTA . GENERA LEAKS MIRAR PROXIMAMENTE
 char* obtenerContenidoDeArchivos(char* bloques){
 	// Los separa ["10","2","3"]
@@ -728,18 +767,143 @@ bool contieneEstaPosicion(char* lineas,char* arrayPosicion){
 			return string_contains(lineas,arrayPosicion);
 }
 
+// Retorna un entero que indica el numero de bloque vacio
+int solicitarBloqueVacio(){
+	int i;
+	for(i = 0; i < CANTIDAD_DE_BLOQUES; i++){
+		if(!bitarray_test_bit(bitmap,i))return i+1;
+	}
+	return -1;
+}
+
+
+//Recibe el nombre del pokemon y un numero de bloque que va a ser
+// añadido BLOCKS de su metadata
+void agregarBloqueAPokemon(char* nombrePokemon,int numeroDeBloque){
+	t_config* pokemon = obtener_metadata_de_pokemon(nombrePokemon);
+
+	char** bloques = config_get_array_value(pokemon,"BLOCKS");
+	int i = 0;
+	char* cargaDeBloques = string_new();
+
+	while(bloques[i] != NULL){
+		string_append(&cargaDeBloques,bloques[i]);
+		string_append(&cargaDeBloques,",");
+		i++;
+	}
+	string_append(&cargaDeBloques,string_itoa(numeroDeBloque));
+
+	char* bloquesActualizados = string_from_format("[%s]",cargaDeBloques);
+
+	config_set_value(pokemon,"BLOCKS",bloquesActualizados);
+	config_save(pokemon);
+
+	config_destroy(pokemon);
+	free(cargaDeBloques);
+	limpiarPunteroAPuntero(bloques);
+}
+// Agrega la cantidad a size. Si es negativo el resta
+void editarTamanioPokemon(char* nombrePokemon,int cantidad){
+	t_config* pokemon = obtener_metadata_de_pokemon(nombrePokemon);
+	int tamanioViejo = config_get_int_value(pokemon,"SIZE");
+	tamanioViejo += cantidad;
+	config_set_value(pokemon,"SIZE",string_itoa(tamanioViejo));
+	config_save(pokemon);
+
+	config_destroy(pokemon);
+}
+
+
+// Recibe un fd, el contenido que va a ser agregado, su longitud y el nombre del pokemon
+// Escribe en el ultimo bloque y su última linea Funcion auxiliar de agregarNuevaPosicion
+void escribirEnArchivo(FILE *bloque, char* contenidoAagregar,int caracteresAEscribir,char* nombrePokemon){
+
+	fseek(bloque,0,SEEK_END);
+	int tamanioDeArchivo = ftell(bloque);
+	int cantidadQueSePuedeEscribir = TAMANIO_DE_BLOQUE - tamanioDeArchivo;
+	int nuevaCantidad = caracteresAEscribir;
+	printf("Tamaño del archivo: %d\nCantidad que se puede escribir: %d\n",tamanioDeArchivo,cantidadQueSePuedeEscribir);
+	printf("Apunto de escribir \n");
+
+	printf("La cantidad que quiero escribir: %d\n",caracteresAEscribir);
+	if(caracteresAEscribir == 0) return;
+
+	if(tamanioDeArchivo <= TAMANIO_DE_BLOQUE){
+
+		printf("Escribiendo y mi tamaño es menor al bloque\n");
+			if(caracteresAEscribir <= cantidadQueSePuedeEscribir){
+				fwrite(contenidoAagregar,caracteresAEscribir,1,bloque);
+				editarTamanioPokemon(nombrePokemon,caracteresAEscribir);
+			}	else {
+			fwrite(contenidoAagregar,cantidadQueSePuedeEscribir,1,bloque);
+			editarTamanioPokemon(nombrePokemon,cantidadQueSePuedeEscribir);
+			}
+		nuevaCantidad = caracteresAEscribir - cantidadQueSePuedeEscribir;
+		}
+
+	printf("Cantidad que me queda por escribir: %d\n",nuevaCantidad);
+	if(nuevaCantidad > 0){
+		printf("Solicito nuevo bloque para escribir \n");
+		FILE* nuevoBloque;
+		char* rutaNuevoBloque = string_new();
+		int numeroDeBloque = solicitarBloqueVacio();
+		string_append(&rutaNuevoBloque,RUTA_DE_BLOQUES);
+		string_append(&rutaNuevoBloque,"/");
+		string_append(&rutaNuevoBloque,string_itoa(numeroDeBloque));
+		string_append(&rutaNuevoBloque,".bin");
+		nuevoBloque = fopen(rutaNuevoBloque,"a");
+
+		char* string_nuevo = string_substring_from(contenidoAagregar,cantidadQueSePuedeEscribir);
+		printf("Nuevo string %s\n",string_nuevo);
+		escribirEnArchivo(nuevoBloque,string_nuevo,strlen(string_nuevo),nombrePokemon);
+
+		printf("Numero de bloque: %d\n",numeroDeBloque);
+
+		//t_config* pokemon = obtener_metadata_de_pokemon(nombrePokemon);
+		agregarBloqueAPokemon(nombrePokemon,numeroDeBloque);
+		bitarray_set_bit(bitmap,numeroDeBloque-1);
+		free(string_nuevo);
+		free(rutaNuevoBloque);
+		fclose(nuevoBloque);
+	}
+
+}
+
+// Se agrega una posicion al final del archivo, es decir en el ultimo bloque
+void agregarNuevaPosicion(char* contenidoAagregar,char* bloques,char* nombrePokemon){
+	char** bloquesSeparados = string_get_string_as_array(bloques);
+
+
+	int ultimaPosicion = length_punteroAPuntero(bloquesSeparados);
+	char* ultimoBloque = bloquesSeparados[ultimaPosicion-1];
+	printf("Ultima posicion: %d\n",ultimaPosicion);
+	printf("El ultimo bloque es: %s \n",ultimoBloque);
+	char* direccionDeBloque = string_new();
+	string_append(&direccionDeBloque,RUTA_DE_BLOQUES);
+	string_append(&direccionDeBloque,"/");
+	string_append(&direccionDeBloque,ultimoBloque);
+	string_append(&direccionDeBloque,".bin");
+
+	FILE* bloque = fopen(direccionDeBloque,"a");
+	int cantidadDeCaracteres = strlen(contenidoAagregar);
+
+	escribirEnArchivo(bloque,contenidoAagregar,cantidadDeCaracteres,nombrePokemon);
+	fclose(bloque);
+	printf("El ultimo bloque es: %s \n",ultimoBloque);
+}
+
 void procedimientoNEW(uint32_t idMensaje,char* pokemon,uint32_t posx,uint32_t posy,uint32_t cantidad){
 
 	if(!existePokemon(pokemon)){
 		crearPokemon(pokemon);
 		return;
-	}else printf("Existe el pokemon\n");
+	}else log_info(logger,"Existe el pokemon");
 
 
 
 
 	if(archivoAbierto(pokemon)){
-		printf("Archivo no se puede abrir\n");
+		log_error(logger,"Archivo no se puede abrir");
 
 		// MATAR HILO
 		// REINTENTAR EN X TIEMPO
@@ -753,7 +917,7 @@ void procedimientoNEW(uint32_t idMensaje,char* pokemon,uint32_t posx,uint32_t po
 
 			pthread_join(hiloDelReintento,NULL);
 	}
-	printf("Se puede abrir el archivo\n");
+	log_info(logger,"Se puede abrir el archivo");
 	abrirArchivo(pokemon);
 
 	char* bloques = obtenerArrayDebloques(pokemon);
@@ -767,18 +931,23 @@ void procedimientoNEW(uint32_t idMensaje,char* pokemon,uint32_t posx,uint32_t po
 
 	if(!contieneEstaPosicion(arrayDeArchivo,posicion)){
 		// agregar al final del archivos
-		printf("No contengo la posicion \n");
+		log_error(logger,"No contengo la posicion");
+
+		char* posicionYCantidad = string_new();
+		string_append(&posicionYCantidad,posicion);
+		string_append(&posicionYCantidad,"=");
+		string_append(&posicionYCantidad,string_itoa(cantidad));
+		string_append(&posicionYCantidad,"\n");
+		agregarNuevaPosicion(posicionYCantidad,bloques,pokemon);
+
+
 	}
-	else  printf("Contengo esa posicion \n");
-
-
-	//agregarAPosicion(posicion,pokemon,cantidad,lineas);
-
+	else  log_info(logger,"Contengo esa posicion");
 
 	// CERRAR ARCHIVO
 
 	cerrarArchivo(pokemon);
-	printf("Archivo cerrado \n");
+	log_info(logger,"Archivo cerrado");
 	free(posicion);
 	free(arrayDeArchivo);
 	free(bloques);
