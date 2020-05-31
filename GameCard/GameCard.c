@@ -608,47 +608,47 @@ t_config* obtener_metadata_de_pokemon(char *nombrePokemon){
 int existePokemon(char* nombrePokemon){
 
 	 // --- aca hay que usar la global path de files
-	char* pathDePokemon = string_new();
-	string_append(&pathDePokemon,RUTA_DE_POKEMON);
-	string_append(&pathDePokemon,"/");
-	string_append(&pathDePokemon,nombrePokemon);
-	string_append(&pathDePokemon,"/");
-	string_append(&pathDePokemon,"Metadata.bin");
+	//char* pathDePokemon = string_new();
+//	string_append(&pathDePokemon,RUTA_DE_POKEMON);
+	//string_append(&pathDePokemon,"/");
+//	string_append(&pathDePokemon,nombrePokemon);
+	//string_append(&pathDePokemon,"/");
+//	string_append(&pathDePokemon,"Metadata.bin");
 
-	FILE* archi;
-	archi = fopen(pathDePokemon,"r");
-	if(archi == NULL) {
-		printf("No me pude abrir\n");
-		free(pathDePokemon);
+	t_config* config_pokemon = obtener_metadata_de_pokemon(nombrePokemon);
+
+	if(config_pokemon == NULL){
+		printf("No existe el pokemon %s\n",nombrePokemon);
 		return 0;
 	}
-	printf("Me pude abrir\n");
-	free(pathDePokemon);
-	fclose(archi);
-
+	printf("Existe el pokemon %s\n",nombrePokemon);
+	config_destroy(config_pokemon);
 	return 1;
 }
 
 //	Crea un archivo con su metadata del nombre del pokemon
 //	Obviamente el archivo va a estar vacio hasta ser llenado
 void crearPokemon(char* nombrePokemon){
+
 	char* path_pokemon = string_new();
 	string_append(&path_pokemon,RUTA_DE_POKEMON);
-	string_append(&RUTA_DE_POKEMON,"/");
-	string_append(&RUTA_DE_POKEMON,nombrePokemon);
+	string_append(&path_pokemon,"/");
+	string_append(&path_pokemon,nombrePokemon);
+
 	mkdir(path_pokemon,0777);
 
-	string_append(&RUTA_DE_POKEMON,"/Metadata.bin");
-	FILE *archivoVacioMetadata = fopen(RUTA_DE_POKEMON,"rw");
+	string_append(&path_pokemon,"/Metadata.bin");
+	FILE *archivoVacioMetadata = fopen(path_pokemon,"a");
 	fclose(archivoVacioMetadata);
 
-	t_config* metaPokemon = config_create(RUTA_DE_POKEMON);
+	t_config* metaPokemon = config_create(path_pokemon);
 	config_set_value(metaPokemon,"DIRECTORY","N");
 	config_set_value(metaPokemon,"SIZE","0");
 	config_set_value(metaPokemon,"BLOCKS","[]");
 	config_set_value(metaPokemon,"OPEN","N");
 	config_save(metaPokemon);
 	config_destroy(metaPokemon);
+
 	free(path_pokemon);
 }
 
@@ -794,7 +794,7 @@ void agregarBloqueAPokemon(char* nombrePokemon,int numeroDeBloque){
 		i++;
 	}
 	string_append(&cargaDeBloques,string_itoa(numeroDeBloque));
-
+	bitarray_set_bit(bitmap,numeroDeBloque -1);
 	char* bloquesActualizados = string_from_format("[%s]",cargaDeBloques);
 
 	config_set_value(pokemon,"BLOCKS",bloquesActualizados);
@@ -863,7 +863,7 @@ void escribirEnArchivo(FILE *bloque, char* contenidoAagregar,int caracteresAEscr
 
 		//t_config* pokemon = obtener_metadata_de_pokemon(nombrePokemon);
 		agregarBloqueAPokemon(nombrePokemon,numeroDeBloque);
-		bitarray_set_bit(bitmap,numeroDeBloque-1);
+
 		free(string_nuevo);
 		free(rutaNuevoBloque);
 		fclose(nuevoBloque);
@@ -877,6 +877,19 @@ void agregarNuevaPosicion(char* contenidoAagregar,char* bloques,char* nombrePoke
 
 
 	int ultimaPosicion = length_punteroAPuntero(bloquesSeparados);
+	printf("Ultimaposicion: %d\n",ultimaPosicion);
+	if(ultimaPosicion == 0){
+				int nuevoBloque = solicitarBloqueVacio();
+				if(nuevoBloque == -1){
+					log_error(logger,"No hay espacio en el disco");
+					return;
+				}
+				printf("Voy a agregar el nuevo bloque\n");
+				agregarBloqueAPokemon(nombrePokemon,nuevoBloque);
+				bloquesSeparados = string_get_string_as_array(obtenerArrayDebloques(nombrePokemon));
+				ultimaPosicion = length_punteroAPuntero(bloquesSeparados);
+	}
+
 	char* ultimoBloque = bloquesSeparados[ultimaPosicion-1];
 	printf("Ultima posicion: %d\n",ultimaPosicion);
 	printf("El ultimo bloque es: %s \n",ultimoBloque);
@@ -892,15 +905,17 @@ void agregarNuevaPosicion(char* contenidoAagregar,char* bloques,char* nombrePoke
 	escribirEnArchivo(bloque,contenidoAagregar,cantidadDeCaracteres,nombrePokemon);
 	fclose(bloque);
 	printf("El ultimo bloque es: %s \n",ultimoBloque);
+	limpiarPunteroAPuntero(bloquesSeparados);
+
 }
 
 void procedimientoNEW(uint32_t idMensaje,char* pokemon,uint32_t posx,uint32_t posy,uint32_t cantidad){
 
 	if(!existePokemon(pokemon)){
 		crearPokemon(pokemon);
-		return;
-	}else log_info(logger,"Existe el pokemon");
 
+	}else log_info(logger,"Existe el pokemon");
+	printf("Estoy aca\n");
 
 
 
