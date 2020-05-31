@@ -51,16 +51,14 @@ t_list* colaExit;
 
 //VARIABLES
 
-//pthread_mutex_t semaforoAppeared;
-//pthread_mutex_t semaforoCaught;
-pthread_t hiloConexionCaught;
-sem_t semaforoAtencionCaught;
-sem_t semaforoCreacionCaught;
-sem_t semaforoAtencionLocalized;
-sem_t semaforoCreacionLocalized;
+pthread_mutex_t semaforoAppeared;
+pthread_mutex_t semaforoCaught;
+pthread_mutex_t semaforoSuscripciones;
+pthread_mutex_t semaforoLocalized;
 
-
-int flag = 0;
+bool conexionAppeared = 0;
+bool conexionCaught = 0;
+bool conexionLocalized = 0;
 char* identificadorProceso = NULL;
 t_log* logger;
 t_log* loggerObligatorio;
@@ -90,21 +88,27 @@ int socket_appeared;
 int socket_caught;
 int socket_localized;
 
+
 //FUNCIONES
 void crearLogger();
 void crearLoggerObligatorio();
 void leerArchivoDeConfiguracion();
+void suscripcionCaught();
 void setearValores(t_config* archConfiguracion);
 int iniciar_servidor(char* ip, char* puerto, t_log* log);
-int esperar_cliente(int socket_servidor, t_log* logger);
+void atenderGameBoy(int* socket_servidor);
 int conectarse_a_un_servidor(char* ip, char* puerto, t_log* log);
 int conectarseAColasMensajes(char* ip, char* puerto, t_log* log);
 void enviarHandshake (int socket, char* identificador, t_operacion operacion);
+void recepcionMensajesAppeared();
+void recepcionMensajesCaught();
+void recepcionMensajesLocalized();
 void reconectarseAColasMensajes();
 int obtenerCantidadEntrenadores();
 void inicializarEntrenadores();
 void inicializarColas();
 void enviarPokemonesAlBroker();
+void suscripcionAppeared();
 void enviarGET(char* ip, char* puerto, char* pokemon);
 void enviarCATCH(char* ip, char* puerto, char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY);
 void enviarACK(char* ip, char* puerto, uint32_t ID, t_operacion operacion);
@@ -112,9 +116,12 @@ bool necesitaAtraparse(char* pokemon);
 char* obtenerPokemon(t_pokemon* unPokemon);
 void planificarEntrenadores();
 void aplicarFIFO();
+void guardarID(uint32_t *,uint32_t *);
 void aplicarRR();
 void aplicarSJFConDesalojo();
 void aplicarSJF();
+void atenderBroker();
+void suscripcionLocalized();
 t_entrenador* calcularEstimacion(t_entrenador* unEntrenador);
 bool comparadorDeEntrenadores(t_entrenador* unEntrenador, t_entrenador* otroEntrenador);
 bool comparadorDeRafagas(t_entrenador* unEntrenador, t_entrenador* otroEntrenador);
@@ -122,16 +129,16 @@ int list_get_index(t_list* self, void* elemento, bool (*comparator) (void*,void*
 bool estaEnElMapa(char* unPokemon);
 bool correspondeAUnCatch(uint32_t id);
 void planificarEntradaAReady();
+void gestionarSuscripcionesBroker();
 void calcularDistanciaA(t_list* listaEntrenadores, t_pokemon* unPokemon);
 bool comparadorDeDistancia(t_entrenador* unEntrenador, t_entrenador* otroEntrenador);
 bool estaOcupado(t_entrenador* unEntrenador);
 int conectarseAColaMensaje(int socket,char *identificador,t_operacion operacion);
-char *recibirIdentificadorProceso(int socket);
-void conexionAColaAppeared(int *socket);
-void conexionAColaCaught(int *socket);
-void conexionAColaLocalized(int *socket);
-void conexionAColas();
+void conexionAColaAppeared();
+void conexionAColaCaught();
+void conexionAColaLocalized();
 void atenderCliente(int *socket_cliente); //ESTA ES LA FUNCION MAGICA
+bool esSocketBroker(int socket);
 
 #endif
 
