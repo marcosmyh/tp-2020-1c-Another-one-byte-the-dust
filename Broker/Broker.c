@@ -3,11 +3,14 @@
 int main(void) {
     config = crearConfig();
     logger = crearLogger();
-    setearValores(config);
+    setearValores();
     inicializarColas();
     inicializarListasSuscriptores();
     IDs_mensajes = list_create();
     IDs_procesos = list_create();
+
+    //Agrego esto para testear la comunicación con el Team...
+    list_add(IDs_procesos,"Team-1");
 
     pthread_mutex_init(&semaforoIDMensaje,NULL);
     pthread_mutex_init(&semaforoIDTeam,NULL);
@@ -19,8 +22,10 @@ int main(void) {
     	int socket_cliente = esperar_cliente(socket_servidor);
 
     	if(pthread_create(&hiloAtencionCliente,NULL,(void*)atender_cliente,&socket_cliente) == 0){
-    		pthread_detach(hiloAtencionCliente);
+    		pthread_join(hiloAtencionCliente,NULL);
+    		//CORRECCIÓN FUNDAMENTAL!!!
     	}
+
     }
 
     pthread_mutex_destroy(&semaforoIDMensaje);
@@ -245,8 +250,7 @@ void procesar_solicitud(Header header,int cliente_fd){
      			break;
 
      		case t_CAUGHT:;
-     			//TODO
-     			//agregar mensaje a la cola CAUGHT_POKEMON y enviar mensaje a los suscriptores.
+
      			break;
 
      		case t_ACK:
@@ -425,7 +429,7 @@ t_suscriptor *crearSuscriptor(char *identificadorProceso,int cliente_fd){
 	return suscriptor;
 }
 
-void setearValores(t_config *config){
+void setearValores(){
 	tamanio_memoria = config_get_int_value(config,"TAMANO_MEMORIA");
 	tamanio_minimo_particion = config_get_int_value(config,"TAMANO_MINIMO_PARTICION");
 	algoritmo_memoria = config_get_string_value(config,"ALGORITMO_MEMORIA");

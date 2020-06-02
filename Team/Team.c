@@ -11,18 +11,15 @@ int main(){
 	pthread_mutex_init(&semaforoSuscripciones,NULL);
 	pthread_mutex_init(&semaforoLocalized,NULL);
 
-    pthread_t hiloAtencionBroker;
-	pthread_t hiloAtencionGameBoy;
-	pthread_t hiloSuscripcionBroker;
-
-	pthread_create(&hiloSuscripcionBroker,NULL,(void *)gestionarSuscripcionesBroker,NULL);
+	pthread_create(&hiloSuscripcionBroker,NULL,(void *)administrarSuscripcionesBroker,NULL);
     pthread_create(&hiloAtencionBroker,NULL,(void *)atenderBroker,NULL);
 	pthread_create(&hiloAtencionGameBoy,NULL,(void*)atenderGameBoy,&socket_servidor);
 
 	pthread_join(hiloAtencionGameBoy,NULL);
-	pthread_join(hiloAtencionBroker,NULL);
 	pthread_join(hiloSuscripcionBroker,NULL);
+	pthread_join(hiloAtencionBroker,NULL);
 
+	/*
 	//INICIALIZO LAS COLAS
 	inicializarColas();
 	//INICIALIZO LOS ENTRENADORES
@@ -50,6 +47,7 @@ int main(){
 		log_error(logger, "No se ha podido crear el hilo planificacionEntrenadores");
 	}
 
+	*/
 
 	//DESTRUIR TODO AL FINAL
 
@@ -61,29 +59,14 @@ int main(){
 	return EXIT_SUCCESS;
 }
 
-void suscripcionAppeared(){
-	pthread_t hiloReconexion;
-
+void suscripcionColaAppeared(){
 	conexionAColaAppeared();
-
-	if(!conexionAppeared){
-	while(1){
-			if(pthread_create(&hiloReconexion,NULL,(void*)reconectarseAColasMensajes,NULL) == 0){
-				pthread_detach(hiloReconexion);
-				break;
-			}
-	}
-	}
-	else{
-		pthread_mutex_unlock(&semaforoSuscripciones);
-	}
-
-
+	pthread_mutex_unlock(&semaforoSuscripciones);
 }
 
-void suscripcionCaught(){
+void suscripcionColaCaught(){
 	while(1){
-		if(identificadorProceso != NULL && conexionAppeared){
+		if(conexionAppeared && identificadorProceso != NULL){
 			conexionAColaCaught();
 			pthread_mutex_unlock(&semaforoSuscripciones);
 			break;
@@ -91,7 +74,7 @@ void suscripcionCaught(){
 	}
 }
 
-void suscripcionLocalized(){
+void suscripcionColaLocalized(){
 	while(1){
 		if(conexionCaught){
 			conexionAColaLocalized();
@@ -119,18 +102,18 @@ void recepcionMensajesLocalized(){
 }
 
 void atenderBroker(){
+
 	pthread_t hiloAppeared;
 	pthread_t hiloCaught;
 	pthread_t hiloLocalized;
 
 	while(1){
-
 		if(conexionAppeared){
+
 		pthread_mutex_lock(&semaforoAppeared);
 		pthread_create(&hiloAppeared,NULL,(void *)recepcionMensajesAppeared,NULL);
 		pthread_detach(hiloAppeared);
 		log_error(logger,"Se creo un hilo appeared");
-		}
 
 		if(conexionCaught){
 			pthread_mutex_lock(&semaforoCaught);
@@ -146,46 +129,53 @@ void atenderBroker(){
 			log_error(logger,"Se creo un hilo localized");
 		}
 	}
+	}
 }
 
-void gestionarSuscripcionesBroker(){
-	pthread_t hiloAppeared;
-	pthread_t hiloCaught;
-	pthread_t hiloLocalized;
+void administrarSuscripcionesBroker(){
+
+	pthread_mutex_lock(&semaforoSuscripciones);
+	suscripcionColaAppeared();
+
+	pthread_mutex_lock(&semaforoSuscripciones);
+	if(conexionAppeared){
+	suscripcionColaCaught();
+
+	pthread_mutex_lock(&semaforoSuscripciones);
+	suscripcionColaLocalized();
+	}
+	else{
+		pthread_mutex_unlock(&semaforoSuscripciones);
+	}
 
 	while(1){
-
 	if(!conexionAppeared){
 		pthread_mutex_lock(&semaforoSuscripciones);
-		pthread_create(&hiloAppeared,NULL,(void *)suscripcionAppeared,NULL);
-		pthread_detach(hiloAppeared);
+		reconexionColaAppeared();
 
 		pthread_mutex_lock(&semaforoSuscripciones);
-		pthread_create(&hiloCaught,NULL,(void *)suscripcionCaught,NULL);
-		pthread_detach(hiloCaught);
+		suscripcionColaCaught();
 
 		pthread_mutex_lock(&semaforoSuscripciones);
-		pthread_create(&hiloLocalized,NULL,(void *)suscripcionLocalized,NULL);
-		pthread_detach(hiloLocalized);
+		suscripcionColaLocalized();
 	}
 	}
 }
+
 
 
 void conexionAColaAppeared(){
 	socket_appeared = conectarse_a_un_servidor(ip_broker,puerto_broker,logger);
 	if(socket_appeared != -1){
-
 	if (identificadorProceso == NULL){
 	conectarseAColaMensaje(socket_appeared,"Team",t_APPEARED);
-    conexionAppeared = 1;
+	conexionAppeared = 1;
 	}
 	else{
-		log_info(logger,"ME RECONECTE AL BROKER. LE MANDE EL ID: %s",identificadorProceso);
 		conectarseAColaMensaje(socket_appeared,identificadorProceso,t_APPEARED);
-	    conexionAppeared = 1;
+		conexionAppeared = 1;
+		log_info(logger,"ME RECONECTE AL BROKER. LE MANDE EL ID: %s",identificadorProceso);
 	}
-
 	}
 }
 
@@ -321,12 +311,13 @@ void atenderGameBoy(int* socket_servidor){
 	}
 }
 
-void reconectarseAColasMensajes(){
+void reconexionColaAppeared(){
 	while (1){
 		sleep(tiempo_reconexion);
 		conexionAColaAppeared();
 		if(conexionAppeared){
 			log_info(loggerObligatorio, "La reconexion al Broker se realizo con exito");
+			conexionAppeared = 1;
 
 			pthread_mutex_unlock(&semaforoSuscripciones);
 
@@ -741,11 +732,9 @@ void atenderCliente(int *socket_cliente) {
 	headerRecibido = receiveHeader(*socket_cliente);
 	if(headerRecibido.operacion == -1 && headerRecibido.tamanioMensaje == 0){
 		//log_info(logger,"Se desconectó el Broker o hubo un error en el envío del mensaje");
-
 		conexionAppeared = 0;
 		conexionCaught = 0;
 		conexionLocalized = 0;
-
 	}
 	else{
 	//log_info(logger, "Codigo de operacion:%i", headerRecibido.operacion);

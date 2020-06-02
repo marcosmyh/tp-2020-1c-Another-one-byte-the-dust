@@ -50,6 +50,9 @@ t_list* colaBlocked;
 t_list* colaExit;
 
 //VARIABLES
+pthread_t hiloAtencionBroker;
+pthread_t hiloAtencionGameBoy;
+pthread_t hiloSuscripcionBroker;
 
 pthread_mutex_t semaforoAppeared;
 pthread_mutex_t semaforoCaught;
@@ -91,9 +94,9 @@ int socket_localized;
 
 //FUNCIONES
 void crearLogger();
+void gestionarHilosDelBroker();
 void crearLoggerObligatorio();
 void leerArchivoDeConfiguracion();
-void suscripcionCaught();
 void setearValores(t_config* archConfiguracion);
 int iniciar_servidor(char* ip, char* puerto, t_log* log);
 void atenderGameBoy(int* socket_servidor);
@@ -103,12 +106,14 @@ void enviarHandshake (int socket, char* identificador, t_operacion operacion);
 void recepcionMensajesAppeared();
 void recepcionMensajesCaught();
 void recepcionMensajesLocalized();
-void reconectarseAColasMensajes();
+void suscripcionColaCaught();
+void suscripcionColaAppeared();
+void suscripcionColaLocalized();
+void reconexionColaAppeared();
 int obtenerCantidadEntrenadores();
 void inicializarEntrenadores();
 void inicializarColas();
 void enviarPokemonesAlBroker();
-void suscripcionAppeared();
 void enviarGET(char* ip, char* puerto, char* pokemon);
 void enviarCATCH(char* ip, char* puerto, char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY);
 void enviarACK(char* ip, char* puerto, uint32_t ID, t_operacion operacion);
@@ -121,7 +126,6 @@ void aplicarRR();
 void aplicarSJFConDesalojo();
 void aplicarSJF();
 void atenderBroker();
-void suscripcionLocalized();
 t_entrenador* calcularEstimacion(t_entrenador* unEntrenador);
 bool comparadorDeEntrenadores(t_entrenador* unEntrenador, t_entrenador* otroEntrenador);
 bool comparadorDeRafagas(t_entrenador* unEntrenador, t_entrenador* otroEntrenador);
@@ -129,7 +133,7 @@ int list_get_index(t_list* self, void* elemento, bool (*comparator) (void*,void*
 bool estaEnElMapa(char* unPokemon);
 bool correspondeAUnCatch(uint32_t id);
 void planificarEntradaAReady();
-void gestionarSuscripcionesBroker();
+void administrarSuscripcionesBroker();
 void calcularDistanciaA(t_list* listaEntrenadores, t_pokemon* unPokemon);
 bool comparadorDeDistancia(t_entrenador* unEntrenador, t_entrenador* otroEntrenador);
 bool estaOcupado(t_entrenador* unEntrenador);

@@ -79,7 +79,7 @@ int iniciar_servidor(char *, char *);
 int esperar_cliente(int);
 void atender_cliente(int *);
 void procesar_solicitud(Header,int);
-void setearValores(t_config *);
+void setearValores();
 void agregarMensajeACola(t_mensaje *,t_list *,char *);
 void inicializarColas();
 void destruirColas();
