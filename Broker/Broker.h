@@ -15,10 +15,6 @@
 #include <string.h>
 #include <pthread.h>
 
-//Estructuras
-//Las presentes estructuras no son definitivas.
-
-
 typedef struct
 {
     int socket_suscriptor;
@@ -29,8 +25,8 @@ typedef struct
 typedef struct
 {
 	uint32_t ID_mensaje;
-	uint32_t ID_correlativo;
 	void *paquete;
+	uint32_t tamanioPaquete;
 	t_list *suscriptoresQueRecibieronMensaje;
 } t_mensaje;
 
@@ -71,7 +67,6 @@ pthread_mutex_t semaforoIDMensaje;
 pthread_mutex_t semaforoIDTeam;
 pthread_mutex_t semaforoIDGameCard;
 
-
 //Funciones
 t_log *crearLogger();
 t_config *crearConfig();
@@ -84,7 +79,7 @@ void agregarMensajeACola(t_mensaje *,t_list *,char *);
 void inicializarColas();
 void destruirColas();
 void suscribirProceso(char *,int ,t_operacion);
-t_mensaje *crearMensaje(void *,uint32_t);
+t_mensaje *crearMensaje(void *,uint32_t,uint32_t);
 uint32_t asignarIDMensaje();
 void inicializarListasSuscriptores();
 void destruirListasSuscriptores();
@@ -96,5 +91,7 @@ bool existeID(void *, t_list *,bool(*)(void *,void *));
 bool intComparator(void *,void *);
 bool stringComparator(void *, void *);
 t_mensaje *obtenerMensaje(uint32_t,t_list *);
+void *quitarIDPaquete(void *,uint32_t);
+void *insertarIDEnPaquete(uint32_t,void *,uint32_t);
 
 #endif

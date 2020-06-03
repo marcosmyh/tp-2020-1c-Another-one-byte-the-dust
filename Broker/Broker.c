@@ -131,6 +131,8 @@ void procesar_solicitud(Header header,int cliente_fd){
      			uint32_t sizeProceso = strlen(nombreProceso) + 1;
      			operacionDeSuscripcion = unpackOperacion(paquete,sizeProceso);
 
+     			//Si me llega Team-1, en cualquier instante, se trata de un id que asigné anteriormente.
+
      			if(existeID(nombreProceso,IDs_procesos,stringComparator) || stringComparator(nombreProceso,"GameBoy")){
      				packAndSend(cliente_fd,paquete,sizePaquete,t_HANDSHAKE);
      				identificadorProceso = nombreProceso;
@@ -148,46 +150,33 @@ void procesar_solicitud(Header header,int cliente_fd){
 
      		case t_NEW:;
      			//TODO
-     		    void *paqueteNEW;
-
      		    paquete = receiveAndUnpack(cliente_fd,sizePaquete);
 
-     		    uint32_t idMensajeRecibido_New = unpackID(paquete);
-
-     		    if(existeID(&idMensajeRecibido_New,IDs_mensajes,intComparator)){
-     		    	//Es un ID correlativo. Ver como proceder.
-     		    }
-
-                char *pokemon = unpackPokemon(paquete);
-
-                uint32_t sizePokemon = strlen(pokemon) + 1;
-
-                uint32_t cantidadPokemon = unpackCantidadPokemons_New(paquete,sizePokemon);
-
-                uint32_t coordenadaX = unpackCoordenadaX_New(paquete,sizePokemon);
-
-                uint32_t coordenadaY = unpackCoordenadaY_New(paquete,sizePokemon);
+     		    //Este paquete es el que se va a guardar en la cola.
+     		    void *paqueteNewSinID = quitarIDPaquete(paquete,sizePaquete);
 
                 //Asigno un ID al mensaje recibido
                 uint32_t ID_NEW = asignarIDMensaje();
 
-                void *paqueteID = pack_ID(ID_NEW,t_NEW);
+                void *paqueteID_New = pack_ID(ID_NEW,t_NEW);
 
                 uint32_t sizePaqueteID = sizeof(ID_NEW) + sizeof(t_NEW);
 
                 //Le envio el ID al productor.
-                packAndSend(cliente_fd,paqueteID,sizePaqueteID,t_ID);
+                packAndSend(cliente_fd,paqueteID_New,sizePaqueteID,t_ID);
 
                 //Ahora armo el paquete que van a recibir los suscriptores (consumidores)
-     			paqueteNEW = pack_New(ID_NEW,pokemon,cantidadPokemon,coordenadaX,coordenadaY);
+                void *paqueteNEW = insertarIDEnPaquete(ID_NEW,paqueteNewSinID,sizePaquete);
 
-     			paquete = paqueteNEW;
+                paquete = paqueteNEW;
 
-                mensaje = crearMensaje(paquete,ID_NEW);
+                mensaje = crearMensaje(paqueteNewSinID,ID_NEW,sizePaquete - sizeof(uint32_t));
 
      			agregarMensajeACola(mensaje,NEW_POKEMON,"NEW_POKEMON");
 
      			enviarMensajeRecibidoASuscriptores(suscriptores_NEW_POKEMON,enviarMensajeA);
+
+     			free(paqueteNEW);
 
      			break;
 
@@ -203,40 +192,21 @@ void procesar_solicitud(Header header,int cliente_fd){
 
      		case t_APPEARED:;
      			//TODO
-     		    void *paqueteAppeared;
-
      		    paquete = receiveAndUnpack(cliente_fd,sizePaquete);
 
-     		    uint32_t idMensajeRecibido_Appeared = unpackID(paquete);
+     		    uint32_t ID_APPEARED = unpackID(paquete);
 
-     		    if(existeID(&idMensajeRecibido_Appeared,IDs_mensajes,intComparator)){
-     		    	//Correlativo...
-
-     		    }
-
-     		    char *pokemonAppeared = unpackPokemon(paquete);
-
-                uint32_t sizePokemonAppeared = strlen(pokemonAppeared) + 1;
-
-                uint32_t coordenadaX_Appeared = unpackCoordenadaX_Appeared(paquete,sizePokemonAppeared);
-
-                uint32_t coordenadaY_Appeared = unpackCoordenadaY_Appeared(paquete,sizePokemonAppeared);
-
-                uint32_t ID_APPEARED = asignarIDMensaje();
+     		    void *paqueteAppearedSinID = quitarIDPaquete(paquete,sizePaquete);
 
                 void *paqueteID_Appeared = pack_ID(ID_APPEARED,t_APPEARED);
 
                 uint32_t sizePaqueteID_Appeared = sizeof(uint32_t) + sizeof(t_operacion);
 
-                //Le envio el ID al productor.
+                //Le envio el ID al productor (que es el mismo ID que vino seteado en el paquete).
+                //Es decir, no hay que asignar un nuevo ID.
                 packAndSend(cliente_fd,paqueteID_Appeared,sizePaqueteID_Appeared,t_ID);
 
-                //Ahora armo el paquete que van a recibir los suscriptores (consumidores)
-                paqueteAppeared = pack_Appeared(ID_APPEARED,pokemonAppeared,coordenadaX_Appeared,coordenadaY_Appeared);
-
-                paquete = paqueteAppeared;
-
-                mensaje = crearMensaje(paquete,ID_APPEARED);
+                mensaje = crearMensaje(paqueteAppearedSinID,ID_APPEARED,sizePaquete - sizeof(uint32_t));
 
                 agregarMensajeACola(mensaje,APPEARED_POKEMON,"APPEARED_POKEMON");
 
@@ -270,17 +240,31 @@ void procesar_solicitud(Header header,int cliente_fd){
 
 }
 
-
 //Posible funcion.
 void agregarMensajeACola(t_mensaje *mensaje,t_list *colaDeMensajes,char *nombreCola){
 	list_add(colaDeMensajes,mensaje);
 	log_info(logger,"Un nuevo mensaje fue agregado a la cola %s",nombreCola);
 	log_info(logger,"La cola %s tiene %d mensajes",nombreCola,list_size(colaDeMensajes));
-
 }
 
 void enviarMensajeRecibidoASuscriptores(t_list *listaSuscriptores,void(*funcionDeEnvio)(t_suscriptor *)){
 	list_iterate(listaSuscriptores,(void *) funcionDeEnvio);
+}
+
+void *quitarIDPaquete(void *paquete,uint32_t tamanioPaquete){
+	void *paqueteNuevo = malloc(tamanioPaquete - sizeof(uint32_t));
+	memcpy(paqueteNuevo,paquete+sizeof(uint32_t),tamanioPaquete-sizeof(uint32_t));
+
+	return paqueteNuevo;
+}
+
+void *insertarIDEnPaquete(uint32_t ID,void *paquete,uint32_t tamanioPaquete){
+	void *paqueteAEnviar = malloc(tamanioPaquete+sizeof(uint32_t));
+	memcpy(paqueteAEnviar,&ID,sizeof(uint32_t));
+	memcpy(paqueteAEnviar+sizeof(uint32_t),paquete,tamanioPaquete);
+
+	return paqueteAEnviar;
+
 }
 
 t_mensaje *obtenerMensaje(uint32_t ID_mensaje_a_modificar,t_list *colaDeMensajes){
@@ -409,14 +393,12 @@ uint32_t asignarIDMensaje(){
 }
 
 
-t_mensaje *crearMensaje(void *paquete,uint32_t ID){
-	//Creo el mensaje con el paquete y el ID que asigné.
+t_mensaje *crearMensaje(void *paquete,uint32_t ID,uint32_t tamanioPaquete){
 	t_mensaje *mensaje = malloc(sizeof(t_mensaje));
 	mensaje->paquete = paquete;
+	mensaje->tamanioPaquete = tamanioPaquete;
 	mensaje->ID_mensaje = ID;
 	mensaje->suscriptoresQueRecibieronMensaje = list_create();
-
-	//Faltaría ver lo del id correlativo.
 
 	return mensaje;
 }
