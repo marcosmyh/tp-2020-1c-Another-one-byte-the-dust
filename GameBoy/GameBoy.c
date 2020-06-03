@@ -282,15 +282,14 @@ void enviar_mensaje_a_broker(char* tipo_de_mensaje,int cantidad_de_argumentos,ch
 		switch(hashDeMensaje){
 		// 	./gameboy BROKER NEW_POKEMON [POKEMON] [POSX] [POSY] [CANTIDAD] [ID_MENSAJE]
 			case NEW:
-				if(cantidad_de_argumentos == 8){
+				if(cantidad_de_argumentos == 7){
 						char* pokemon = argumentos[3];
 						uint32_t posx = atoi(argumentos[4]);
 						uint32_t posy = atoi(argumentos[5]);
 						uint32_t cantidad = atoi(argumentos[6]);
-						uint32_t idmensaje = atoi(argumentos[7]);
 
 						//Envio del mensaje
-						envioDeMensajeNew(pokemon,posx,posy,cantidad,idmensaje);
+						envioDeMensajeNew(pokemon,posx,posy,cantidad,-1);
 						//Envio del mensaje
 
 						printf("Aca envio el mensaje \n");
@@ -298,7 +297,6 @@ void enviar_mensaje_a_broker(char* tipo_de_mensaje,int cantidad_de_argumentos,ch
 						printf("PosX: %i \n",posx);
 						printf("PosY: %i \n",posy);
 						printf("Cantidad: %i \n",cantidad);
-						printf("id mensaje: %i \n",idmensaje);
 				}else printf("Faltan argumentos macho \n");
 			break;
 
