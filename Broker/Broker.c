@@ -177,6 +177,7 @@ void procesar_solicitud(Header header,int cliente_fd){
      			enviarMensajeRecibidoASuscriptores(suscriptores_NEW_POKEMON,enviarMensajeA);
 
      			free(paqueteNEW);
+     			free(paqueteID_New);
 
      			break;
 
@@ -212,6 +213,9 @@ void procesar_solicitud(Header header,int cliente_fd){
 
             	enviarMensajeRecibidoASuscriptores(suscriptores_APPEARED_POKEMON,enviarMensajeA);
 
+            	free(paquete);
+            	free(paqueteID_Appeared);
+
      			break;
 
      		case t_CATCH:;
@@ -231,6 +235,8 @@ void procesar_solicitud(Header header,int cliente_fd){
 
      			validarRecepcionMensaje(ID_mensaje,nombreCola,ID_proceso);
 
+     			free(paquete);
+
      			break;
 
      			//Revisar bien esto.
@@ -240,7 +246,7 @@ void procesar_solicitud(Header header,int cliente_fd){
 
 }
 
-//Posible funcion.
+
 void agregarMensajeACola(t_mensaje *mensaje,t_list *colaDeMensajes,char *nombreCola){
 	list_add(colaDeMensajes,mensaje);
 	log_info(logger,"Un nuevo mensaje fue agregado a la cola %s",nombreCola);
@@ -252,16 +258,19 @@ void enviarMensajeRecibidoASuscriptores(t_list *listaSuscriptores,void(*funcionD
 }
 
 void *quitarIDPaquete(void *paquete,uint32_t tamanioPaquete){
-	void *paqueteNuevo = malloc(tamanioPaquete - sizeof(uint32_t));
-	memcpy(paqueteNuevo,paquete+sizeof(uint32_t),tamanioPaquete-sizeof(uint32_t));
+	uint32_t tamPaquete = tamanioPaquete - sizeof(uint32_t);
+	void *paqueteNuevo = malloc(tamPaquete);
+	log_error(logger,"TAM DEL MALLOC QUE HACE QUITAR: %d",tamPaquete);
+	memcpy(paqueteNuevo,paquete+sizeof(uint32_t),tamPaquete);
 
 	return paqueteNuevo;
 }
 
 void *insertarIDEnPaquete(uint32_t ID,void *paquete,uint32_t tamanioPaquete){
-	void *paqueteAEnviar = malloc(tamanioPaquete+sizeof(uint32_t));
+	void *paqueteAEnviar = malloc(tamanioPaquete);
+	log_error(logger,"TAM DEL MALLOC QUE HACE INSERTAR: %d",tamanioPaquete);
 	memcpy(paqueteAEnviar,&ID,sizeof(uint32_t));
-	memcpy(paqueteAEnviar+sizeof(uint32_t),paquete,tamanioPaquete);
+	memcpy(paqueteAEnviar+sizeof(uint32_t),paquete,tamanioPaquete - sizeof(uint32_t));
 
 	return paqueteAEnviar;
 

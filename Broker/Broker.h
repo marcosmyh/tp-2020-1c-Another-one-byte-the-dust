@@ -32,7 +32,6 @@ typedef struct
 
 
 //Variables
-
 uint32_t contadorIDMensaje = 0;
 uint32_t contadorIDTeam = 0;
 uint32_t contadorIDGameCard = 0;
