@@ -220,10 +220,50 @@ void procesar_solicitud(Header header,int cliente_fd){
 
      		case t_CATCH:;
      			//TODO
-     			//agregar mensaje a la cola CATCH_POKEMON y enviar mensaje a los suscriptores.
+     			// Recibo el Paquete
+     		     paquete = receiveAndUnpack(cliente_fd,sizePaquete);
+     		     //Sacarle el ID_Basura con el que llega al BROKER / <<< Esto se usara para guardarlo en la cola >>>
+
+
+     		     //Generar una ID nueva / lo empaco / se lo envio al productor
+     		     uint32_t ID_CATCH = asignarIDMensaje();
+     		     void *paqueteID_CATCH = pack_ID(ID_CATCH, t_CATCH);
+     		     uint32_t sizePaqueteID_Catch = sizeof(uint32_t)+sizeof(t_operacion);
+     		     packAndSend(cliente_fd,paqueteID_CATCH,sizePaqueteID_Catch,t_ID);
+
+     		     //Saco el ID para armar el MENSAJE / Armar el Mensaje / Guardarlo en COLA
+     		     void *paqueteCatchSinID = quitarIDPaquete(paquete,sizePaquete);
+     		     mensaje = crearMensaje(paqueteCatchSinID,ID_CATCH,sizePaquete - sizeof(uint32_t));
+     		     agregarMensajeACola(mensaje,CATCH_POKEMON,"CATCH_POKEMON");
+
+     		     //Empaqueto Mensaje con ID asignado para Enviar / Enviar a Suscriptores
+     		     void *paqueteCATCH = insertarIDEnPaquete(ID_CATCH,paqueteCatchSinID,sizePaquete);
+     		     paquete = paqueteCATCH;
+     		     enviarMensajeRecibidoASuscriptores(suscriptores_CATCH_POKEMON,enviarMensajeA);
+
+     		     free(paqueteCATCH);
+     		     free(paqueteID_CATCH);
+
      			break;
 
-     		case t_CAUGHT:;
+     		case t_CAUGHT:
+     			// Recibo el Paquete / Esto me sirve para guardarlo directamente en memoria
+     			paquete = receiveAndUnpack(cliente_fd,sizePaquete);
+     			//Obtengo el ID del paquete que llega el BROKER
+     			uint32_t ID_CAUGHT = unpackID(paquete);
+
+     			//Generar una ID nueva / lo empaco / se lo envio al productor
+     			//Esto no es necesario porque conserva el paquete el mismo ID
+
+     			//Saco el ID para armar el MENSAJE / Armar el Mensaje / Guardarlo en COLA
+     			void *paqueteCaughtSinID = quitarIDPaquete(paquete,sizePaquete);
+     			mensaje = crearMensaje(paqueteCaughtSinID,ID_CAUGHT,sizePaquete - sizeof(uint32_t));
+     			agregarMensajeACola(mensaje,CAUGHT_POKEMON,"CAUGHT_POKEMON");
+
+     			//Empaqueto Mensaje con ID asignado para Enviar / Enviar a Suscriptores
+     			enviarMensajeRecibidoASuscriptores(suscriptores_CAUGHT_POKEMON,enviarMensajeA);
+
+     			free(paquete);
 
      			break;
 
