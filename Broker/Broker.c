@@ -260,7 +260,6 @@ void enviarMensajeRecibidoASuscriptores(t_list *listaSuscriptores,void(*funcionD
 void *quitarIDPaquete(void *paquete,uint32_t tamanioPaquete){
 	uint32_t tamPaquete = tamanioPaquete - sizeof(uint32_t);
 	void *paqueteNuevo = malloc(tamPaquete);
-	log_error(logger,"TAM DEL MALLOC QUE HACE QUITAR: %d",tamPaquete);
 	memcpy(paqueteNuevo,paquete+sizeof(uint32_t),tamPaquete);
 
 	return paqueteNuevo;
@@ -268,7 +267,6 @@ void *quitarIDPaquete(void *paquete,uint32_t tamanioPaquete){
 
 void *insertarIDEnPaquete(uint32_t ID,void *paquete,uint32_t tamanioPaquete){
 	void *paqueteAEnviar = malloc(tamanioPaquete);
-	log_error(logger,"TAM DEL MALLOC QUE HACE INSERTAR: %d",tamanioPaquete);
 	memcpy(paqueteAEnviar,&ID,sizeof(uint32_t));
 	memcpy(paqueteAEnviar+sizeof(uint32_t),paquete,tamanioPaquete - sizeof(uint32_t));
 
