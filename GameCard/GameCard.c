@@ -221,6 +221,7 @@ void setearValoresDeGame(t_config *config){
 	path_de_tallgrass = config_get_string_value(config,"PUNTO_MONTAJE_TALLGRASS");
 	tiempo_de_reconexion = config_get_int_value(config,"TIEMPO_DE_REINTENTO_CONEXION");
 	tiempo_de_reintento_operacion = config_get_int_value(config,"TIEMPO_DE_REINTENTO_OPERACION");
+	tiempo_de_retardo = config_get_int_value(config,"TIEMPO_RETARDO_OPERACION");
 }
 
 int envioDeMensajeCaught(uint32_t atrapado, uint32_t idmensaje){
@@ -582,6 +583,225 @@ void limpiarPunteroAPuntero(char** puntero){
 	free(puntero);
 }
 
+// En construccion
+void refrescarBloquesLibres(){
+
+		//bloquesLibres = 0;
+		int i;
+		for(i = 0; i < CANTIDAD_DE_BLOQUES; i++){
+			if(bitarray_test_bit(bitmap,i));
+			//else bloquesLibres++;
+		}
+
+
+}
+
+
+
+// Recibe un arreglo de arrays y el arrayObjetivo.
+// Retorna el numero de linea donde se encuentra dicho array
+int obtenerLinea(char** lineas,char* array){
+				int i = 0;
+				while(lineas[i] != NULL){
+
+				if(string_contains(lineas[i],array)){
+					 return i;
+					}else i++;
+				}
+				return -1;
+}
+// Recibe un array y un caracter
+// Busca la posicion de un caracter de un array y retorna su posicion
+int buscarPosicionDeCaracter(char* array,char *caracter){
+	int i;
+	int tamanio = strlen(array);
+	for(i = 0; i < tamanio; i++){
+
+		if(array[i] == caracter) return i;
+	}
+
+	return -1;
+}
+
+// Tan solo crea un path del tipo bloque y lo retorna
+char* crearPathDeBloque(char* nroDeBloque){
+	char* rutaBloque = string_from_format("%s/%s.bin",RUTA_DE_BLOQUES,nroDeBloque);
+	return rutaBloque;
+}
+
+// Recibe un arreglo de posiciones con sus cantidades(1-1=10), la nueva linea que va a reemplazar en el nroDeLinea pasado
+// y el nroDeLinea que se va a realizar el reemplazo
+// retorna un string que contiene todas las lineas (Ya habiendo reemplazado la linea deseada)
+char* actualizarPosicion(char** posicionesSeparadas,char* lineaAActualizar,int nroDeLinea){
+	int i = 0;
+	char* posicionActualizada = string_new();
+
+
+	while(posicionesSeparadas[i] != NULL){
+
+		if(i != nroDeLinea) {
+
+			string_append(&posicionActualizada,posicionesSeparadas[i]);
+
+		}else{
+			string_append(&posicionActualizada,lineaAActualizar);
+		}
+
+		if(posicionesSeparadas[i+1] != NULL){
+			string_append(&posicionActualizada,"\n");
+		}
+
+
+		i++;
+	}
+
+	return posicionActualizada;
+}
+
+// Escribe un bloque, le debemos decir el nombre/numero de bloque, lo que deseamos escribir y
+// el desplazamiento dentro de ese bloque(pisa los datos que se encuentren en esa posicion y las que siguen).
+// Si es 0, empieza a escribir como si estuviera vacio. (Va a pisar lo que haya dentro)
+int escribirBloquePosicionandoPuntero(char* nombreDeBloque,char* stringAEscribir,int desplazamiento){
+
+	char* rutaBloque = crearPathDeBloque(nombreDeBloque);
+
+	FILE* bloque = fopen(rutaBloque,"r+w");
+	//fseek(bloque,0,SEEK_END);
+	//int tamanioBloque = ftell(bloque);
+
+
+	int bytesAEscribir = TAMANIO_DE_BLOQUE - desplazamiento;
+
+	if(strlen(stringAEscribir) < bytesAEscribir){
+		bytesAEscribir = strlen(stringAEscribir);
+	}
+
+	fseek(bloque,desplazamiento,SEEK_CUR);
+
+	fwrite(stringAEscribir,bytesAEscribir,1,bloque);
+
+	fclose(bloque);
+
+	free(rutaBloque);
+
+	return bytesAEscribir;
+
+}
+
+//Recibe una posicion y su cantidad (1-1=10) y le suma cantidadASumar(1)
+// retorna el nuevo array con la nueva cantidad (1-1=11)
+char* sumarCantidadPokemon(char* lineaPokemon,int cantidadASumar){
+
+	int cantidadPokemon = obtenerCantidad(lineaPokemon);
+
+	cantidadPokemon += cantidadASumar;
+
+	char** arraySeparado = string_split(lineaPokemon,"=");
+
+	char* nuevaLineaPokemon = string_from_format("%s=%d",arraySeparado[0],cantidadPokemon);
+
+	limpiarPunteroAPuntero(arraySeparado);
+
+	return nuevaLineaPokemon;
+}
+
+//	Recibe un arreglo de posiciones con sus cantidades y una posicion objetivo
+//	retorna el desplazamiento que habría desde el iniico hasta el caracter despues del "=" de esa posicion objetivo. (es decir la primera
+//	posicion de la cantidad pokemon)
+//	como si fuera que lineasSeparadas estuviera concatenada con \n en cada una de las concatenaciones de cada linea
+int desplazamientoDelArrayHastaCantPokemon(char** posicionesSeparadas,char* posObjetivo){
+	int i = 0;
+	int offset = 0;
+
+	//Vemos si es el fin de posicionesSeparadas
+	while(posicionesSeparadas[i] != NULL){
+		//Vemos si esa posicion coincide con nuestra posicion objetivo
+		if(string_contains(posicionesSeparadas[i],posObjetivo))break;
+		//Si no sumamos al desplazamiento la cantidad de caracteres de esa posicion
+		offset += strlen(posicionesSeparadas[i]);
+		//Avanzamos de linea
+		i++;
+	}
+	// suma el offset, numero de linea(ya que hay que sumar 1 caracter por cada linea saltada ya que en el posicionesSeparadas no esta
+	// contemplado el \n) ,la posicion del caracter "=" en la linea y el +1 porque avanzamos un caracter más despues del "="
+
+	offset = offset + i + 1 + buscarPosicionDeCaracter(posicionesSeparadas[i],'=');
+
+	return offset;
+}
+
+// Retorna la posicion del bloque afectado
+int bloqueAfectado(int desplazamiento){
+	return desplazamiento/TAMANIO_DE_BLOQUE;
+}
+
+// Retorna el desplazamiento que hay que tener en el bloque.
+//  El desplazamiento dado por parametro debe ser basado en el desplazamiento TOTAL del array que contiene todas las posiciones.
+int desplazamientoEnBloque(int desplazamiento){
+	return desplazamiento%TAMANIO_DE_BLOQUE;
+}
+
+// Retorna la cantidad de pokemones dado una lineaPokemon/posicionYCantidad (1-1=10)
+// retorna 10
+int obtenerCantidad(char* lineaPokemon){
+
+	char** posicionYCantidad = string_split(lineaPokemon,"=");
+
+			int numeroBuscado = atoi(posicionYCantidad[1]);
+
+
+
+			printf("Cantidad: %d\n",numeroBuscado);
+			limpiarPunteroAPuntero(posicionYCantidad);
+			return numeroBuscado;
+}
+
+//	Recibe el nombre del bloque, el desplazamiento que debe haber en el bloque y los caracter que hay que colocar
+// pisa al caracter que se encuentre en dicha posicion
+// Es util solo cuando la  cantidadDePokemones antigua y actualizada tienen el mismo length
+// Es decir: Que si antes de agregar tiene 10 y leugo de agregar tiene 18 es util usar esta funcion
+// Ya que nos ahorramos el hecho de reescribir todos los bloques
+void sobreescribirUnCaracter(char* nombreDeBloque,int desplazamiento,char* caracterAEscribir){
+
+	char* rutaBloque = crearPathDeBloque(nombreDeBloque);
+
+	printf("Ruta de bloque %s\n",rutaBloque);
+	FILE* bloque = fopen(rutaBloque,"r+w");
+
+	fseek(bloque,desplazamiento,SEEK_CUR);
+
+	fputs(caracterAEscribir,bloque);
+
+	fclose(bloque);
+
+	free(rutaBloque);
+}
+
+// Funcion en proceso. dado un string va a retornar la cantidad de bloques que se necesitan para guardar
+// ese string
+int bloqueNecesariosParaEscribir(char* datos){
+	int  cantidadDeBytes = strlen(datos);
+
+	int bloquesNecesarios = (cantidadDeBytes/TAMANIO_DE_BLOQUE) + 1;
+
+	return bloquesNecesarios;
+}
+
+// Funcion en proceso. Se le da la cantidad de bloques que debe reservar el pokemon
+// Deberia retornar 0 si fueron solicitados todos
+// o -1 si es que no hay suficiente espacio para asignar todos esos bloques
+int solicitarBloquesParaPokemon(int cantidadDeBloques,char* pokemon){
+	int i;
+
+
+		for(i = 0; i < cantidadDeBloques ; i++){
+		int nuevoBloque = solicitarBloqueVacio();
+		printf("Voy a agregar el nuevo bloque\n");
+		agregarBloqueAPokemon(pokemon,nuevoBloque);
+
+		}
+}
+
 ////////////////////////////////////////////////
 ////////////////////////// COSAS DEL POKEMON
 //////////////////////////////////////////
@@ -856,7 +1076,7 @@ void escribirEnArchivo(FILE *bloque, char* contenidoAagregar,int caracteresAEscr
 		nuevoBloque = fopen(rutaNuevoBloque,"a");
 
 		char* string_nuevo = string_substring_from(contenidoAagregar,cantidadQueSePuedeEscribir);
-		printf("Nuevo string %s\n",string_nuevo);
+		//printf("Nuevo string %s\n",string_nuevo);
 		escribirEnArchivo(nuevoBloque,string_nuevo,strlen(string_nuevo),nombrePokemon);
 
 		printf("Numero de bloque: %d\n",numeroDeBloque);
@@ -909,15 +1129,103 @@ void agregarNuevaPosicion(char* contenidoAagregar,char* bloques,char* nombrePoke
 
 }
 
+// Funcion en revision. Sirve pero esta al tanto de modificaciones
+// Problema: Escribe a la marcha los bloques. Por lo tanto si no alcanza los blqoues hay inconsistencia de datos
+// Recibe un arreglo de los nombres de los bloques, el desplazamiento en el que empezó a diferir la posicion antigua con la actual
+// , el nuevo string de posiciones y el nombre de pokemon
+//
+//	Escribe en los bloques y si se necesitan más bytes para una escritura porque el arrayy nuevo creció pide bloques y los añade
+//	al pokemon.
+void actualizacionDeBloques(char** bloques,int desplazamientoDeCambio,char* posiciones,char* pokemon){
+	int posicionBloque = bloqueAfectado(desplazamientoDeCambio);
+	char* bloqueAfectado = bloques[posicionBloque];
+	int desplazamiento = desplazamientoEnBloque(desplazamientoDeCambio);
+
+	char* stringParaEscribir = string_substring_from(posiciones,desplazamientoDeCambio);
+
+
+	/////	Deberia crear una funcion para verificar si existe la cantidad necesaria de bloques antes
+	/// de empezar a escribir para que no haya inconsistencia de datos
+
+	int bytesEscritos = escribirBloquePosicionandoPuntero(bloqueAfectado,stringParaEscribir,desplazamiento);
+
+	stringParaEscribir = string_substring_from(stringParaEscribir,bytesEscritos);
+
+	posicionBloque++;
+
+	while(bloques[posicionBloque] != NULL){
+		bytesEscritos = escribirBloquePosicionandoPuntero(bloques[posicionBloque],stringParaEscribir,0);
+
+		stringParaEscribir = string_substring_from(stringParaEscribir,bytesEscritos);
+
+		posicionBloque++;
+	}
+
+	if(strlen(stringParaEscribir) != 0){
+		printf("Se necesitan bloques \n");
+		while(strlen(stringParaEscribir)){
+
+			int nuevoBloque = solicitarBloqueVacio();
+			printf("Voy a agregar el nuevo bloque\n");
+			agregarBloqueAPokemon(pokemon,nuevoBloque);
+
+			bytesEscritos = escribirBloquePosicionandoPuntero(string_itoa(nuevoBloque),stringParaEscribir,0);
+
+			stringParaEscribir = string_substring_from(stringParaEscribir,bytesEscritos);
+		}
+		printf("Bloques asignados \n");
+
+	}else printf("Todo escrito\n");
+}
+
+// Funcion que se encarga de añadir la cantidad al pokemon
+//	Recibe el string que contiene todas las posiciones(todo el contenido del archivo), la posicion que se busca modificar
+//	la cantidad que se desea sumar en esa posicion, el string que contiene los bloques y un nombre pokemon
+int anadirCantidad(char* posiciones,char* posicionBuscada,int cantidadASumar,char* bloquesString,char* pokemon){
+
+	char** bloques = string_get_string_as_array(bloquesString);
+	// Separo cada linea por \n
+	char** posicionesSeparadas = string_split(posiciones,"\n");
+
+	// Obtengo el numero de linea que contiene esa posicon
+	int posContenida = obtenerLinea(posicionesSeparadas,posicionBuscada);
+
+
+	// sumo la cantidad con esta funcion. Me retorna la linea actualizada.
+	char* nuevaLineaPokemon = sumarCantidadPokemon(posicionesSeparadas[posContenida],cantidadASumar);
+	printf("La nueva linea pokemon a  agregar es: %s\n",nuevaLineaPokemon);
+
+// Verifico si me ocupa lo mismo. Si ocupa lo mismo entonces no hace falta reescribir todos. SIno solo cambiar en el byte
+	// que hubo el cambio
+	if(strlen(posicionesSeparadas[posContenida]) == strlen(nuevaLineaPokemon)){
+
+		int primeraPosicionCantPoke = desplazamientoDelArrayHastaCantPokemon(posicionesSeparadas,posicionBuscada);
+		int posicionBloque = bloqueAfectado(primeraPosicionCantPoke);
+		char* bloqueAfectado = bloques[posicionBloque];
+		sobreescribirUnCaracter(bloqueAfectado,desplazamientoEnBloque(primeraPosicionCantPoke),string_itoa(obtenerCantidad(nuevaLineaPokemon)));
+
+		return 0;
+	}
+
+	// Sino debo reescribir a partir del bloque necesitado.
+	printf("Hay que aumentar bytes\n");
+
+	char* posicionActualizada = actualizarPosicion(posicionesSeparadas,nuevaLineaPokemon,posContenida);
+
+	int primeraPosicionCantPoke = desplazamientoDelArrayHastaCantPokemon(posicionesSeparadas,posicionBuscada);
+	int posicionBloque = bloqueAfectado(primeraPosicionCantPoke);
+
+	printf("Preparando archivo. posicion actualizada:\n%s\n",posicionActualizada);
+	actualizacionDeBloques(bloques,primeraPosicionCantPoke,posicionActualizada,pokemon);
+	return 0;
+}
+
 void procedimientoNEW(uint32_t idMensaje,char* pokemon,uint32_t posx,uint32_t posy,uint32_t cantidad){
 
 	if(!existePokemon(pokemon)){
 		crearPokemon(pokemon);
 
 	}else log_info(logger,"Existe el pokemon");
-	printf("Estoy aca\n");
-
-
 
 	if(archivoAbierto(pokemon)){
 		log_error(logger,"Archivo no se puede abrir");
@@ -939,36 +1247,34 @@ void procedimientoNEW(uint32_t idMensaje,char* pokemon,uint32_t posx,uint32_t po
 
 	char* bloques = obtenerArrayDebloques(pokemon);
 
-	char* arrayDeArchivo = obtenerContenidoDeArchivos(bloques);
+	char* posiciones = obtenerContenidoDeArchivos(bloques);
 
-	char* posicion = string_new();
-	string_append(&posicion,string_itoa(posx));
-	string_append(&posicion,"-");
-	string_append(&posicion,string_itoa(posy));
+	char* posicionBuscada = string_from_format("%s-%s",string_itoa(posx),string_itoa(posy));
 
-	if(!contieneEstaPosicion(arrayDeArchivo,posicion)){
+
+	if(!contieneEstaPosicion(posiciones,posicionBuscada)){
 		// agregar al final del archivos
 		log_error(logger,"No contengo la posicion");
 
-		char* posicionYCantidad = string_new();
-		string_append(&posicionYCantidad,posicion);
-		string_append(&posicionYCantidad,"=");
-		string_append(&posicionYCantidad,string_itoa(cantidad));
-		string_append(&posicionYCantidad,"\n");
+		char* posicionYCantidad = string_from_format("%s=%s\n",posicionBuscada,string_itoa(cantidad));
+
 		agregarNuevaPosicion(posicionYCantidad,bloques,pokemon);
 
 
-	}
-	else  log_info(logger,"Contengo esa posicion");
+	}else {
+		log_info(logger,"Contengo esa posicion");
 
+		int resultando = anadirCantidad(posiciones,posicionBuscada,cantidad,bloques,pokemon);
+
+	}
+	// Agregar sleep
 	// CERRAR ARCHIVO
 
 	cerrarArchivo(pokemon);
 	log_info(logger,"Archivo cerrado");
-	free(posicion);
-	free(arrayDeArchivo);
+	free(posicionBuscada);
+	free(posiciones);
 	free(bloques);
-
 }
 
 void procedimientoCATCH(uint32_t idMensaje,char* pokemon,uint32_t posx,uint32_t posy,uint32_t cantidad){
