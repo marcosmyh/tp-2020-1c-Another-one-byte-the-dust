@@ -63,7 +63,7 @@ t_operacion unpackOperacion(void* pack, uint32_t tamanioProceso);
 
 //FUNCIONES PARA NEW
 
-void* pack_New(char* pokemon, uint32_t cantidad, uint32_t coordenadaX, uint32_t coordenadaY);
+void* pack_New(uint32_t id, char* pokemon, uint32_t cantidad, uint32_t coordenadaX, uint32_t coordenadaY);
 
 uint32_t unpackCantidadPokemons_New(void* pack, uint32_t tamanioPokemon);
 uint32_t unpackCoordenadaX_New(void* pack, uint32_t tamanioPokemon);
@@ -82,7 +82,7 @@ uint32_t unpackCoordenadaY_Localized(void* pack, uint32_t desplazamiento);
 
 //FUNCIONES PARA GET
 
-void* pack_Get(char* pokemon);
+void* pack_Get(uint32_t id, char* pokemon);
 
 //FUNCIONES PARA APPEARED
 
@@ -94,7 +94,7 @@ uint32_t unpackCoordenadaY_Appeared(void* pack, uint32_t tamanioPokemon);
 
 //FUNCIONES PARA CATCH
 
-void* pack_Catch(char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY);
+void* pack_Catch(uint32_t id, char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY);
 
 uint32_t unpackCoordenadaX_Catch(void* pack, uint32_t tamanioPokemon);
 uint32_t unpackCoordenadaY_Catch(void* pack, uint32_t tamanioPokemon);
