@@ -489,7 +489,7 @@ void discriminarMensaje(){
 							log_info(logger,"Me llegaron mensajes de Suscriber get");
 
 							void* paqueteGet = receiveAndUnpack(conexion, tamanio);
-							pokemon = unpackPokemon(paqueteGet);
+							pokemon = unpackPokemonGet(paqueteGet);
 							tamanioPokemon = strlen(pokemon) + 1;
 							id = unpackID(paqueteGet);
 
@@ -502,7 +502,7 @@ void discriminarMensaje(){
 						case t_CATCH:
 							log_info(logger,"Me llegaron mensajes de Suscriber Catch");
 							void* paqueteCatch = receiveAndUnpack(conexion, tamanio);
-							pokemon = unpackPokemon(paqueteCatch);
+							pokemon = unpackPokemonCatch(paqueteCatch);
 							tamanioPokemon = strlen(pokemon) + 1;
 
 
@@ -517,7 +517,7 @@ void discriminarMensaje(){
 						case t_NEW:
 							log_info(logger,"Me llegaron mensajes de Suscriber New");
 							void* paqueteNew = receiveAndUnpack(conexion, tamanio);
-							pokemon = unpackPokemon(paqueteNew);
+							pokemon = unpackPokemonNew(paqueteNew);
 							tamanioPokemon = strlen(pokemon) + 1;
 
 
@@ -533,7 +533,7 @@ void discriminarMensaje(){
 						case t_APPEARED:
 							log_info(logger,"Me llegaron mensajes de Suscriber APPEARED");
 							void* paqueteAppeared = receiveAndUnpack(conexion, tamanio);
-							pokemon = unpackPokemon(paqueteAppeared);
+							pokemon = unpackPokemonAppeared(paqueteAppeared);
 							tamanioPokemon = strlen(pokemon) + 1;
 
 
@@ -549,7 +549,7 @@ void discriminarMensaje(){
 						case t_CAUGHT:
 							log_info(logger,"Me llegaron mensajes de Suscriber CAUGHT");
 							void* paqueteCaught = receiveAndUnpack(conexion, tamanio);
-							pokemon = unpackPokemon(paqueteCaught);
+							pokemon = unpackPokemonCaught(paqueteCaught);
 							tamanioPokemon = strlen(pokemon) + 1;
 
 
@@ -564,7 +564,7 @@ void discriminarMensaje(){
 						case t_LOCALIZED:
 							log_info(logger,"Me llegaron mensajes de Suscriber LOCALIZED");
 							void* paqueteLocalized = receiveAndUnpack(conexion, tamanio);
-							pokemon = unpackPokemon(paqueteLocalized);
+							pokemon = unpackPokemonLocalized(paqueteLocalized);
 							tamanioPokemon = strlen(pokemon) + 1;
 							id = unpackID(paqueteLocalized);
 							// EN FASE DE PRUEBA

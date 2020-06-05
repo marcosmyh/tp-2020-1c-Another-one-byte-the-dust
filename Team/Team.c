@@ -477,7 +477,7 @@ void enviarCATCH(char* ip, char* puerto, char* pokemon, uint32_t coordenadaX, ui
 	int socket = conectarse_a_un_servidor(ip, puerto, logger);
 	uint32_t id = -1;
 	void* paquete = pack_Catch(id, pokemon, coordenadaX, coordenadaY);
-	uint32_t tamPaquete = sizeof(uint32_t)*3 + strlen(pokemon) + 1;
+	uint32_t tamPaquete = sizeof(uint32_t)*4 + strlen(pokemon) + 1;
 	int resultadoCatch = packAndSend(socket, paquete, tamPaquete, t_CATCH);
 	if (resultadoCatch == -1){
 		log_info(logger, "El envio del CATCH ha fallado");
@@ -754,11 +754,11 @@ void atenderCliente(int *socket_cliente) {
 		//ESTE SE USA
 		log_info(loggerObligatorio, "Llego un mensaje de LOCALIZED");
 		void* paqueteLocalized = receiveAndUnpack(*socket_cliente, tamanio);
-		char* pokemonLocalized = unpackPokemon(paqueteLocalized);
+		char* pokemonLocalized = unpackPokemonLocalized(paqueteLocalized);
 		if (!estaEnElMapa(pokemonLocalized)&& necesitaAtraparse(pokemonLocalized)) {
 			uint32_t tamanioPokemon = sizeof(pokemonLocalized);
 			uint32_t cantidadPokemones =unpackCantidadParesCoordenadas_Localized(paqueteLocalized,tamanioPokemon);
-			uint32_t desplazamiento = tamanioPokemon + sizeof(uint32_t);
+			uint32_t desplazamiento = tamanioPokemon + 2*sizeof(uint32_t);
 			uint32_t ID = unpackID(paqueteLocalized);
 			for (int i = 0; i < cantidadPokemones; i++) {
 				t_pokemon* pokemonAAtrapar = malloc(sizeof(t_pokemon));
@@ -785,7 +785,7 @@ void atenderCliente(int *socket_cliente) {
 		//ESTE SE USA
 		log_info(loggerObligatorio, "Llego un mensaje de APPEARED");
 		void* paqueteAppeared = receiveAndUnpack(*socket_cliente, tamanio);
-        char* pokemonAppeared = unpackPokemon(paqueteAppeared);
+        char* pokemonAppeared = unpackPokemonAppeared(paqueteAppeared);
         uint32_t ID_APPEARED= unpackID(paqueteAppeared);
         log_error(logger,"ID MENSAJE RECIBIDO: %d",ID_APPEARED);
 

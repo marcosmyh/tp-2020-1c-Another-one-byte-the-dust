@@ -128,7 +128,7 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 			log_info(logger,"Me llegaron mensajes de Suscriber get");
 
 			void* paqueteGet = receiveAndUnpack(cliente_fd, tamanio);
-			pokemon = unpackPokemon(paqueteGet);
+			pokemon = unpackPokemonGet(paqueteGet);
 			tamanioPokemon = strlen(pokemon) + 1;
 			id = unpackID(paqueteGet);
 
@@ -148,7 +148,7 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 		case t_CATCH:
 			log_info(logger,"Me llegaron mensajes de Suscriber Catch");
 			void* paqueteCatch = receiveAndUnpack(cliente_fd, tamanio);
-			pokemon = unpackPokemon(paqueteCatch);
+			pokemon = unpackPokemonCatch(paqueteCatch);
 			tamanioPokemon = strlen(pokemon) + 1;
 
 
@@ -171,7 +171,7 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 		case t_NEW:
 			log_info(logger,"Me llegaron mensajes de Suscriber New");
 			void* paqueteNew = receiveAndUnpack(cliente_fd, tamanio);
-			pokemon = unpackPokemon(paqueteNew);
+			pokemon = unpackPokemonNew(paqueteNew);
 			tamanioPokemon = strlen(pokemon) + 1;
 
 
@@ -968,5 +968,95 @@ void procedimientoNEW(uint32_t idMensaje,char* pokemon,uint32_t posx,uint32_t po
 	free(posicion);
 	free(arrayDeArchivo);
 	free(bloques);
+
+}
+
+void procedimientoCATCH(uint32_t idMensaje,char* pokemon,uint32_t posx,uint32_t posy,uint32_t cantidad){
+
+	if(!existePokemon(pokemon)){
+		crearPokemon(pokemon);
+		return;
+	}else log_info(logger,"Existe el pokemon");
+
+
+
+
+	if(archivoAbierto(pokemon)){
+		log_error(logger,"Archivo no se puede abrir");
+
+		// MATAR HILO
+		// REINTENTAR EN X TIEMPO
+
+		struct arg_estructura argumentos;
+		argumentos.nombrePokemon = pokemon;
+		argumentos.tiempo = tiempo_de_reintento_operacion;
+
+		pthread_t hiloDelReintento;
+		if(!pthread_create(&hiloDelReintento,NULL,&reintentoAbrir,(void*)&argumentos)) printf("Creadu \n");
+
+			pthread_join(hiloDelReintento,NULL);
+	}
+	log_info(logger,"Se puede abrir el archivo");
+	abrirArchivo(pokemon);
+}
+
+void procedimientoGET(uint32_t idMensaje,char* pokemon){
+
+	log_info(logger,"comienza a ejecutar GET");
+	if(!existePokemon(pokemon)){
+		crearPokemon(pokemon);
+			return;
+		}else log_info(logger,"Existe el pokemon");
+
+
+	if(archivoAbierto(pokemon)){
+		log_error(logger,"Archivo no se puede abrir");
+
+		// MATAR HILO
+		// REINTENTAR EN X TIEMPO
+
+		struct arg_estructura argumentos;
+		argumentos.nombrePokemon = pokemon;
+		argumentos.tiempo = tiempo_de_reintento_operacion;
+
+		pthread_t hiloDelReintento;
+		if(!pthread_create(&hiloDelReintento,NULL,&reintentoAbrir,(void*)&argumentos)) printf("Creadu \n");
+
+			pthread_join(hiloDelReintento,NULL);
+		}
+		log_info(logger,"Se puede abrir el archivo");
+		abrirArchivo(pokemon);
+
+		char* bloques = obtenerArrayDebloques(pokemon);
+
+		char* arrayDeArchivo = obtenerContenidoDeArchivos(bloques);
+
+		char** posicionesSeparadasConCantidad = string_split(arrayDeArchivo,"\n");
+		//posicionesSeparadasConCantidad ---> {"1-2=10","1-3=4"}
+		int i=1;
+		while(posicionesSeparadasConCantidad[i] != NULL){
+			char** posicionesSeparadas = string_split(posicionesSeparadasConCantidad[i],"=");
+		}
+		//posicionesSeparadasConCantidad --->
+
+
+		/*char* coordenadasSeparadas = posicionesSeparadas[0];
+			while(posicionesSeparadas[i]!=NULL){
+				string_append(&coordenadasSeparadas,", ");
+				string_append(&coordenadasSeparadas,posicionesSeparadas[i]);
+				i++;
+			}*/
+
+			//log_info(logger,coordenadasSeparadas);
+		int cantidadParesCoordenadas = length_punteroAPuntero(posicionesSeparadasConCantidad);
+		log_info(logger,"La cantidad de pares de coordenadas es:%d",cantidadParesCoordenadas);
+
+		envioDeMensajeLocalize(idMensaje,pokemon,cantidadParesCoordenadas,posicionesSeparadasConCantidad);
+
+
+		cerrarArchivo(pokemon);
+			log_info(logger,"Archivo cerrado");
+			free(arrayDeArchivo);
+			free(bloques);
 
 }
