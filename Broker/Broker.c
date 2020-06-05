@@ -149,7 +149,7 @@ void procesar_solicitud(Header header,int cliente_fd){
      			break;
 
      		case t_NEW:;
-     			//TODO
+
      		    paquete = receiveAndUnpack(cliente_fd,sizePaquete);
 
      		    //Este paquete es el que se va a guardar en la cola.
@@ -160,10 +160,10 @@ void procesar_solicitud(Header header,int cliente_fd){
 
                 void *paqueteID_New = pack_ID(ID_NEW,t_NEW);
 
-                uint32_t sizePaqueteID = sizeof(ID_NEW) + sizeof(t_NEW);
+                uint32_t sizePaqueteID_New = sizeof(ID_NEW) + sizeof(t_NEW);
 
                 //Le envio el ID al productor.
-                packAndSend(cliente_fd,paqueteID_New,sizePaqueteID,t_ID);
+                packAndSend(cliente_fd,paqueteID_New,sizePaqueteID_New,t_ID);
 
                 //Ahora armo el paquete que van a recibir los suscriptores (consumidores)
                 void *paqueteNEW = insertarIDEnPaquete(ID_NEW,paqueteNewSinID,sizePaquete);
@@ -187,12 +187,36 @@ void procesar_solicitud(Header header,int cliente_fd){
      			break;
 
      		case t_GET:;
-     			//TODO
-     			//agregar mensaje a la cola GET_POKEMON y enviar mensaje a los suscriptores.
+
+     		    paquete = receiveAndUnpack(cliente_fd,sizePaquete);
+
+     		    void *paqueteGetSinID = quitarIDPaquete(paquete,sizePaquete);
+
+     		    uint32_t ID_GET = asignarIDMensaje();
+
+     		    void *paqueteID_Get = pack_ID(ID_GET,t_GET);
+
+     		    uint32_t sizePaqueteID_Get = sizeof(uint32_t) + sizeof(t_operacion);
+
+     		    packAndSend(cliente_fd,paqueteID_Get,sizePaqueteID_Get,t_ID);
+
+     		    void *paqueteGET = insertarIDEnPaquete(ID_GET,paqueteGetSinID,sizePaquete);
+
+     		    paquete = paqueteGET;
+
+     		    mensaje = crearMensaje(paqueteGetSinID,ID_GET,sizePaquete - sizeof(uint32_t));
+
+     		    agregarMensajeACola(mensaje,GET_POKEMON,"GET_POKEMON");
+
+     		    enviarMensajeRecibidoASuscriptores(suscriptores_GET_POKEMON,enviarMensajeA);
+
+     		    free(paqueteGET);
+     		    free(paqueteID_Get);
+
      			break;
 
      		case t_APPEARED:;
-     			//TODO
+
      		    paquete = receiveAndUnpack(cliente_fd,sizePaquete);
 
      		    uint32_t ID_APPEARED = unpackID(paquete);
@@ -219,7 +243,7 @@ void procesar_solicitud(Header header,int cliente_fd){
      			break;
 
      		case t_CATCH:;
-     			//TODO
+
      			// Recibo el Paquete
      		     paquete = receiveAndUnpack(cliente_fd,sizePaquete);
      		     //Sacarle el ID_Basura con el que llega al BROKER / <<< Esto se usara para guardarlo en la cola >>>
