@@ -261,11 +261,10 @@ void procesar_solicitud(Header header,int cliente_fd){
      		     paquete = receiveAndUnpack(cliente_fd,sizePaquete);
      		     //Sacarle el ID_Basura con el que llega al BROKER / <<< Esto se usara para guardarlo en la cola >>>
 
-
      		     //Generar una ID nueva / lo empaco / se lo envio al productor
      		     uint32_t ID_CATCH = asignarIDMensaje();
      		     void *paqueteID_CATCH = pack_ID(ID_CATCH, t_CATCH);
-     		     uint32_t sizePaqueteID_Catch = sizeof(uint32_t)+sizeof(t_operacion);
+     		     uint32_t sizePaqueteID_Catch = sizeof(uint32_t)+sizeof(t_CATCH);
      		     packAndSend(cliente_fd,paqueteID_CATCH,sizePaqueteID_Catch,t_ID);
 
      		     //Saco el ID para armar el MENSAJE / Armar el Mensaje / Guardarlo en COLA
@@ -274,7 +273,7 @@ void procesar_solicitud(Header header,int cliente_fd){
      		     agregarMensajeACola(mensaje,CATCH_POKEMON,"CATCH_POKEMON");
 
      		     //Empaqueto Mensaje con ID asignado para Enviar / Enviar a Suscriptores
-     		     void *paqueteCATCH = insertarIDEnPaquete(ID_CATCH,paqueteCatchSinID,sizePaquete,1);
+     		     void *paqueteCATCH = insertarIDEnPaquete(ID_CATCH,paqueteCatchSinID,sizePaquete,BROKER_ID);
      		     paquete = paqueteCATCH;
      		     enviarMensajeRecibidoASuscriptores(suscriptores_CATCH_POKEMON,enviarMensajeA);
 
@@ -284,23 +283,33 @@ void procesar_solicitud(Header header,int cliente_fd){
      			break;
 
      		case t_CAUGHT:
-     			// Recibo el Paquete / Esto me sirve para guardarlo directamente en memoria
+     			// Recibo el Paquete /
      			paquete = receiveAndUnpack(cliente_fd,sizePaquete);
      			//Obtengo el ID del paquete que llega el BROKER
-     			uint32_t ID_CAUGHT = unpackID(paquete);
+     			uint32_t ID_CAUGHT_Correlativo = unpackID(paquete);
 
-     			//Generar una ID nueva / lo empaco / se lo envio al productor
-     			//Esto no es necesario porque conserva el paquete el mismo ID
+     			if(existeMensajeEnCola(ID_CAUGHT_Correlativo,CAUGHT_POKEMON)){
+     				log_error(logger,"El mensaje con ID_Correlativo [%d] ya existeen la cola CAUGHT POKEMON",ID_CAUGHT_Correlativo);
+     				free(paquete);
+     			}
+     			else{
+					//Generar una ID nueva / lo empaco / se lo envio al productor
+					uint32_t ID_CAUGHT_Generado = asignarIDMensaje();
+					void *paqueteID_CAUGHT = pack_ID(ID_CAUGHT_Generado,t_CAUGHT);
+					uint32_t sizePaqueteID_CAUGHT = sizeof(uint32_t) + sizeof(t_CAUGHT);
+					packAndSend(cliente_fd,paqueteID_CAUGHT,sizePaqueteID_CAUGHT,t_ID);
 
-     			//Saco el ID para armar el MENSAJE / Armar el Mensaje / Guardarlo en COLA
-     			void *paqueteCaughtSinID = quitarIDPaquete(paquete,sizePaquete);
-     			mensaje = crearMensaje(paqueteCaughtSinID,ID_CAUGHT,-1,sizePaquete - sizeof(uint32_t));
-     			agregarMensajeACola(mensaje,CAUGHT_POKEMON,"CAUGHT_POKEMON");
+					//Saco el ID para armar el MENSAJE / Armar el Mensaje / Guardarlo en COLA
+					void *paqueteCaughtSinID = quitarIDPaquete(paquete,sizePaquete);
+					mensaje = crearMensaje(paqueteCaughtSinID,ID_CAUGHT_Generado,ID_CAUGHT_Correlativo,sizePaquete - sizeof(uint32_t));
+					agregarMensajeACola(mensaje,CAUGHT_POKEMON,"CAUGHT_POKEMON");
 
-     			//Empaqueto Mensaje con ID asignado para Enviar / Enviar a Suscriptores
-     			enviarMensajeRecibidoASuscriptores(suscriptores_CAUGHT_POKEMON,enviarMensajeA);
+					//Empaqueto Mensaje con ID asignado para Enviar / Enviar a Suscriptores
+					enviarMensajeRecibidoASuscriptores(suscriptores_CAUGHT_POKEMON,enviarMensajeA);
 
-     			free(paquete);
+					free(paquete);
+					free(paqueteID_CAUGHT);
+     			}
 
      			break;
 
@@ -351,13 +360,11 @@ void *insertarIDEnPaquete(uint32_t ID,void *paquete,uint32_t tamanioPaquete,t_FL
 		return paqueteAEnviar;
 	}
 	else{
-
 		void *paqueteAEnviar = malloc(tamanioPaquete);
 		memcpy(paqueteAEnviar,&ID,sizeof(uint32_t));
 		memcpy(paqueteAEnviar+sizeof(uint32_t),paquete,tamanioPaquete - sizeof(uint32_t));
 
 		return paqueteAEnviar;
-
 	}
 }
 
