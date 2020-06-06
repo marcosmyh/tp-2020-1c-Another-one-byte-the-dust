@@ -166,11 +166,11 @@ void procesar_solicitud(Header header,int cliente_fd){
                 packAndSend(cliente_fd,paqueteID_New,sizePaqueteID_New,t_ID);
 
                 //Ahora armo el paquete que van a recibir los suscriptores (consumidores)
-                void *paqueteNEW = insertarIDEnPaquete(ID_NEW,paqueteNewSinID,sizePaquete);
+                void *paqueteNEW = insertarIDEnPaquete(ID_NEW,paqueteNewSinID,sizePaquete,0);
 
                 paquete = paqueteNEW;
 
-                mensaje = crearMensaje(paqueteNewSinID,ID_NEW,sizePaquete - sizeof(uint32_t));
+                mensaje = crearMensaje(paqueteNewSinID,ID_NEW,-1,sizePaquete - sizeof(uint32_t));
 
      			agregarMensajeACola(mensaje,NEW_POKEMON,"NEW_POKEMON");
 
@@ -200,11 +200,11 @@ void procesar_solicitud(Header header,int cliente_fd){
 
      		    packAndSend(cliente_fd,paqueteID_Get,sizePaqueteID_Get,t_ID);
 
-     		    void *paqueteGET = insertarIDEnPaquete(ID_GET,paqueteGetSinID,sizePaquete);
+     		    void *paqueteGET = insertarIDEnPaquete(ID_GET,paqueteGetSinID,sizePaquete,0);
 
      		    paquete = paqueteGET;
 
-     		    mensaje = crearMensaje(paqueteGetSinID,ID_GET,sizePaquete - sizeof(uint32_t));
+     		    mensaje = crearMensaje(paqueteGetSinID,ID_GET,-1,sizePaquete - sizeof(uint32_t));
 
      		    agregarMensajeACola(mensaje,GET_POKEMON,"GET_POKEMON");
 
@@ -219,19 +219,30 @@ void procesar_solicitud(Header header,int cliente_fd){
 
      		    paquete = receiveAndUnpack(cliente_fd,sizePaquete);
 
-     		    uint32_t ID_APPEARED = unpackID(paquete);
+     		    uint32_t ID_APPEARED_Correlativo = unpackID(paquete);
+
+     		    if(existeMensajeEnCola(ID_APPEARED_Correlativo,APPEARED_POKEMON)){
+     		    	log_info(logger,"El mensaje con ID Correlativo [%d] ya existe en la cola APPEARED POKEMON",ID_APPEARED_Correlativo);
+     		    	free(paquete);
+     		    }
+     		    else{
+
+     		    uint32_t ID_APPEARED_Generado = asignarIDMensaje();
 
      		    void *paqueteAppearedSinID = quitarIDPaquete(paquete,sizePaquete);
 
-                void *paqueteID_Appeared = pack_ID(ID_APPEARED,t_APPEARED);
+                void *paqueteID_Appeared = pack_ID(ID_APPEARED_Generado,t_APPEARED);
 
                 uint32_t sizePaqueteID_Appeared = sizeof(uint32_t) + sizeof(t_operacion);
 
                 //Le envio el ID al productor (que es el mismo ID que vino seteado en el paquete).
-                //Es decir, no hay que asignar un nuevo ID.
                 packAndSend(cliente_fd,paqueteID_Appeared,sizePaqueteID_Appeared,t_ID);
 
-                mensaje = crearMensaje(paqueteAppearedSinID,ID_APPEARED,sizePaquete - sizeof(uint32_t));
+                void *paqueteAppeared = insertarIDEnPaquete(ID_APPEARED_Generado,paquete,sizePaquete,DOUBLE_ID);
+
+                paquete = paqueteAppeared;
+
+                mensaje = crearMensaje(paqueteAppearedSinID,ID_APPEARED_Generado,ID_APPEARED_Correlativo,sizePaquete - sizeof(uint32_t));
 
                 agregarMensajeACola(mensaje,APPEARED_POKEMON,"APPEARED_POKEMON");
 
@@ -239,6 +250,8 @@ void procesar_solicitud(Header header,int cliente_fd){
 
             	free(paquete);
             	free(paqueteID_Appeared);
+
+     		    }
 
      			break;
 
@@ -257,11 +270,11 @@ void procesar_solicitud(Header header,int cliente_fd){
 
      		     //Saco el ID para armar el MENSAJE / Armar el Mensaje / Guardarlo en COLA
      		     void *paqueteCatchSinID = quitarIDPaquete(paquete,sizePaquete);
-     		     mensaje = crearMensaje(paqueteCatchSinID,ID_CATCH,sizePaquete - sizeof(uint32_t));
+     		     mensaje = crearMensaje(paqueteCatchSinID,ID_CATCH,-1,sizePaquete - sizeof(uint32_t));
      		     agregarMensajeACola(mensaje,CATCH_POKEMON,"CATCH_POKEMON");
 
      		     //Empaqueto Mensaje con ID asignado para Enviar / Enviar a Suscriptores
-     		     void *paqueteCATCH = insertarIDEnPaquete(ID_CATCH,paqueteCatchSinID,sizePaquete);
+     		     void *paqueteCATCH = insertarIDEnPaquete(ID_CATCH,paqueteCatchSinID,sizePaquete,1);
      		     paquete = paqueteCATCH;
      		     enviarMensajeRecibidoASuscriptores(suscriptores_CATCH_POKEMON,enviarMensajeA);
 
@@ -281,7 +294,7 @@ void procesar_solicitud(Header header,int cliente_fd){
 
      			//Saco el ID para armar el MENSAJE / Armar el Mensaje / Guardarlo en COLA
      			void *paqueteCaughtSinID = quitarIDPaquete(paquete,sizePaquete);
-     			mensaje = crearMensaje(paqueteCaughtSinID,ID_CAUGHT,sizePaquete - sizeof(uint32_t));
+     			mensaje = crearMensaje(paqueteCaughtSinID,ID_CAUGHT,-1,sizePaquete - sizeof(uint32_t));
      			agregarMensajeACola(mensaje,CAUGHT_POKEMON,"CAUGHT_POKEMON");
 
      			//Empaqueto Mensaje con ID asignado para Enviar / Enviar a Suscriptores
@@ -329,25 +342,65 @@ void *quitarIDPaquete(void *paquete,uint32_t tamanioPaquete){
 	return paqueteNuevo;
 }
 
-void *insertarIDEnPaquete(uint32_t ID,void *paquete,uint32_t tamanioPaquete){
-	void *paqueteAEnviar = malloc(tamanioPaquete);
-	memcpy(paqueteAEnviar,&ID,sizeof(uint32_t));
-	memcpy(paqueteAEnviar+sizeof(uint32_t),paquete,tamanioPaquete - sizeof(uint32_t));
+void *insertarIDEnPaquete(uint32_t ID,void *paquete,uint32_t tamanioPaquete,t_FLAG flag){
+	if(flag == DOUBLE_ID){
+		void *paqueteAEnviar = malloc(tamanioPaquete+sizeof(uint32_t));
+		memcpy(paqueteAEnviar,&ID,sizeof(uint32_t));
+		memcpy(paqueteAEnviar+sizeof(uint32_t),paquete,tamanioPaquete);
 
-	return paqueteAEnviar;
+		return paqueteAEnviar;
+	}
+	else{
 
+		void *paqueteAEnviar = malloc(tamanioPaquete);
+		memcpy(paqueteAEnviar,&ID,sizeof(uint32_t));
+		memcpy(paqueteAEnviar+sizeof(uint32_t),paquete,tamanioPaquete - sizeof(uint32_t));
+
+		return paqueteAEnviar;
+
+	}
 }
 
-t_mensaje *obtenerMensaje(uint32_t ID_mensaje_a_modificar,t_list *colaDeMensajes){
+//Esta función permite determinar si la respuesta a un mensaje ya fue agregado a la cola de mensajes.
+bool existeMensajeEnCola(uint32_t ID_Correlativo,t_list *colaDeMensajes){
+		t_list *IDs_Correlativos = list_map(colaDeMensajes,(void *)obtenerIDCorrelativo);
+
+		return existeID(&ID_Correlativo,IDs_Correlativos,intComparator);
+}
+
+uint32_t *obtenerIDCorrelativo(t_mensaje *mensaje){
+	return &(mensaje->ID_correlativo);
+}
+
+uint32_t *obtenerIDMensaje(t_mensaje *mensaje){
+	return &(mensaje->ID_mensaje);
+}
+
+t_mensaje *obtenerMensaje(uint32_t ID,t_list *colaDeMensajes,t_FLAG flag){
 	t_mensaje *mensaje;
+
+	if(flag == BROKER_ID){
+		mensaje = obtenerMensajeDeCola(ID,colaDeMensajes,obtenerIDMensaje);
+	}else{
+		mensaje = obtenerMensajeDeCola(ID,colaDeMensajes,obtenerIDCorrelativo);
+	}
+
+	return mensaje;
+}
+
+t_mensaje *obtenerMensajeDeCola(uint32_t ID,t_list *colaDeMensajes,uint32_t *(*funcionObtencionID)(t_mensaje *)){
+	t_mensaje *mensaje;
+
 	for(int i = 0;i < list_size(colaDeMensajes);i++){
 		mensaje = list_get(colaDeMensajes,i);
-		uint32_t ID_mensaje = mensaje->ID_mensaje;
-		if(intComparator(&ID_mensaje_a_modificar,&(ID_mensaje))){
+		uint32_t *IDMensaje = funcionObtencionID(mensaje);
+		if(intComparator(&ID,IDMensaje)){
 			break;
 		}
 	}
+
 	return mensaje;
+
 }
 
 void validarRecepcionMensaje(uint32_t ID_mensaje,t_operacion nombreCola,char *ID_proceso){
@@ -355,42 +408,42 @@ void validarRecepcionMensaje(uint32_t ID_mensaje,t_operacion nombreCola,char *ID
 
 	switch (nombreCola) {
 	         	case t_NEW:;
-                    mensaje = obtenerMensaje(ID_mensaje,NEW_POKEMON);
+                    mensaje = obtenerMensaje(ID_mensaje,NEW_POKEMON,BROKER_ID);
                     list_add(mensaje->suscriptoresQueRecibieronMensaje,ID_proceso);
                     log_info(logger,"%s recibió satisfactoriamente el mensaje con ID %d",ID_proceso,ID_mensaje);
 
 	     			break;
 
 	         	case t_LOCALIZED:;
-                    mensaje = obtenerMensaje(ID_mensaje,LOCALIZED_POKEMON);
+                    mensaje = obtenerMensaje(ID_mensaje,LOCALIZED_POKEMON,BROKER_ID);
                     list_add(mensaje->suscriptoresQueRecibieronMensaje,ID_proceso);
                     log_info(logger,"%s recibió satisfactoriamente el mensaje con ID %d",ID_proceso,ID_mensaje);
 
 	     			break;
 
 	         	case t_GET:;
-                    mensaje = obtenerMensaje(ID_mensaje,GET_POKEMON);
+                    mensaje = obtenerMensaje(ID_mensaje,GET_POKEMON,BROKER_ID);
                     list_add(mensaje->suscriptoresQueRecibieronMensaje,ID_proceso);
                     log_info(logger,"%s recibió satisfactoriamente el mensaje con ID %d",ID_proceso,ID_mensaje);
 
 	     			break;
 
 	         	case t_APPEARED:;
-                    mensaje = obtenerMensaje(ID_mensaje,APPEARED_POKEMON);
+                    mensaje = obtenerMensaje(ID_mensaje,APPEARED_POKEMON,BROKER_ID);
                     list_add(mensaje->suscriptoresQueRecibieronMensaje,ID_proceso);
                     log_info(logger,"%s recibió satisfactoriamente el mensaje con ID %d",ID_proceso,ID_mensaje);
 
 	     			break;
 
 	         	case t_CATCH:;
-                    mensaje = obtenerMensaje(ID_mensaje,CATCH_POKEMON);
+                    mensaje = obtenerMensaje(ID_mensaje,CATCH_POKEMON,BROKER_ID);
                     list_add(mensaje->suscriptoresQueRecibieronMensaje,ID_proceso);
                     log_info(logger,"%s recibió satisfactoriamente el mensaje con ID %d",ID_proceso,ID_mensaje);
 
 	     			break;
 
 	         	case t_CAUGHT:;
-                    mensaje = obtenerMensaje(ID_mensaje,CAUGHT_POKEMON);
+                    mensaje = obtenerMensaje(ID_mensaje,CAUGHT_POKEMON,BROKER_ID);
                     list_add(mensaje->suscriptoresQueRecibieronMensaje,ID_proceso);
                     log_info(logger,"%s recibió satisfactoriamente el mensaje con ID %d",ID_proceso,ID_mensaje);
 
@@ -464,11 +517,12 @@ uint32_t asignarIDMensaje(){
 }
 
 
-t_mensaje *crearMensaje(void *paquete,uint32_t ID,uint32_t tamanioPaquete){
+t_mensaje *crearMensaje(void *paquete,uint32_t ID,uint32_t ID_correlativo,uint32_t tamanioPaquete){
 	t_mensaje *mensaje = malloc(sizeof(t_mensaje));
 	mensaje->paquete = paquete;
 	mensaje->tamanioPaquete = tamanioPaquete;
 	mensaje->ID_mensaje = ID;
+	mensaje->ID_correlativo = ID_correlativo;
 	mensaje->suscriptoresQueRecibieronMensaje = list_create();
 
 	return mensaje;

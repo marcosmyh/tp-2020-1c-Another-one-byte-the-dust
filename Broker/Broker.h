@@ -15,6 +15,12 @@
 #include <string.h>
 #include <pthread.h>
 
+typedef enum{
+	CORRELATIVE_ID = 1,
+	DOUBLE_ID,
+	BROKER_ID
+} t_FLAG;
+
 typedef struct
 {
     int socket_suscriptor;
@@ -25,6 +31,7 @@ typedef struct
 typedef struct
 {
 	uint32_t ID_mensaje;
+	uint32_t ID_correlativo;
 	void *paquete;
 	uint32_t tamanioPaquete;
 	t_list *suscriptoresQueRecibieronMensaje;
@@ -78,7 +85,7 @@ void agregarMensajeACola(t_mensaje *,t_list *,char *);
 void inicializarColas();
 void destruirColas();
 void suscribirProceso(char *,int ,t_operacion);
-t_mensaje *crearMensaje(void *,uint32_t,uint32_t);
+t_mensaje *crearMensaje(void *,uint32_t,uint32_t,uint32_t);
 uint32_t asignarIDMensaje();
 void inicializarListasSuscriptores();
 void destruirListasSuscriptores();
@@ -89,8 +96,12 @@ char *asignarIDProceso(char *);
 bool existeID(void *, t_list *,bool(*)(void *,void *));
 bool intComparator(void *,void *);
 bool stringComparator(void *, void *);
-t_mensaje *obtenerMensaje(uint32_t,t_list *);
 void *quitarIDPaquete(void *,uint32_t);
-void *insertarIDEnPaquete(uint32_t,void *,uint32_t);
+void *insertarIDEnPaquete(uint32_t,void *,uint32_t,t_FLAG);
+bool existeMensajeEnCola(uint32_t,t_list *);
+uint32_t *obtenerIDCorrelativo(t_mensaje *);
+uint32_t *obtenerIDMensaje(t_mensaje *);
+t_mensaje *obtenerMensaje(uint32_t,t_list *,t_FLAG);
+t_mensaje *obtenerMensajeDeCola(uint32_t,t_list *,uint32_t *(*)(t_mensaje *));
 
 #endif
