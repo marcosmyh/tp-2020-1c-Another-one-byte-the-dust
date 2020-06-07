@@ -131,7 +131,7 @@ void agregarBloqueAPokemon(char* nombrePokemon,int numeroDeBloque);
 
 // PROCEDIMIENTOS
 void procedimientoNEW(uint32_t idMensaje,char* pokemon,uint32_t posx,uint32_t posy,uint32_t cantidad);
-
+void procedimientoGET(uint32_t idMensaje,char* pokemon);
 
 // ENVIO DE MENSAJES
 int envioDeMensajeCaught(uint32_t id,uint32_t resultado);
@@ -139,3 +139,14 @@ int envioDeMensajeGet(char* pokemon,uint32_t idmensaje);
 int envioDeMensajeAppeared(char* pokemon, uint32_t posx, uint32_t posy, uint32_t idmensaje);
 int crear_conexion(char *ip, char* puerto);
 #endif /* GAMECARD_GAMECARD_H_ */
+
+
+char *getToken(char *,char);
+char *getCoordenadaX(char *);
+char *getCoordenadaY(char *);
+char ** guardarCoordenadasSeparadas(char** ,int);
+uint32_t generarArrayDeCoordenadas(char** coordenadasSeparadas);
+t_list* guardarCoordenadas(char** posiciones);
+void mostrarCoordenadas(t_list* lista);
+void insertarCoordenadas(t_list *lista,uint32_t* vector);
+void imprimirContenido(uint32_t *vector,uint32_t size);
