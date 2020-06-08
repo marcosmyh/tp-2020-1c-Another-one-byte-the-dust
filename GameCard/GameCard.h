@@ -23,8 +23,10 @@
 #include<string.h>
 #include<pthread.h>
 #include "../Serializacion/Serializacion.h"
-
+#include <semaphore.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 //VARIABLES
 
@@ -42,9 +44,9 @@ int tiempo_de_reconexion;
 int tiempo_de_reintento_operacion;
 int tiempo_de_retardo;
 char* path_de_tallgrass;
-//int bloquesLibres;   --- en proxima actualizacion
+int bloquesLibres; 
 
-//sem_t semDeBloquesLibres; --- en proxima actualizacion
+sem_t semDeBloques;
 
 void crearLogger(void);
 void crearLoggerObligatorio();
@@ -88,8 +90,7 @@ void actualizarBitmap();
 // Utilidades varias
 
 void mostrarRutas(void);
-char* obtener_nombre_de_archivo(char *path);
-char* obtener_direccion_metadata(char *path);
+char* agregar_metadata_a_path(char *path);
 t_config* obtener_metadata_de_ruta(char *path);
 void limpiarPunteroAPuntero(char** puntero);
 void mostrarBitmap();
@@ -105,19 +106,28 @@ int bloqueAfectado(int desplazamiento);
 int desplazamientoEnBloque(int desplazamiento);
 int obtenerCantidad(char* lineaPokemon);
 void sobreescribirUnCaracter(char* nombreDeBloque,int desplazamiento,char* caracterAEscribir);
+int bloquesNecesariosParaEscribir(char* datos);
 
 // Manipulacion de archivos
 int esDirectorio(char* ruta);
-char* obtenerArrayDebloques(char* pokemon);
-char* obtener_contenido_de_archivo(char* nroDeArchivo);
+char* obtener_contenido_de_bloque(char* nroDeBloque);
 bool contieneEstaPosicion(char* lineas,char* arrayPosicion);
 int escribirBloquePosicionandoPuntero(char* nombreDeBloque,char* stringAEscribir,int desplazamiento);
+void crearDirectorio(char* pathDeDirectorio);
+
+int espacioLibreDeBloque(char* nombreDeBloque);
+int tamanioBloque(char* nombreDeBloque);
+char* obtenerContenidoDeArchivo(char* bloques);
 
 // cositar para new
 void escribirEnArchivo(FILE *bloque, char* contenidoAagregar,int caracteresAEscribir,char* nombrePokemon);
-void agregarNuevaPosicion(char* contenidoAagregar,char* bloques,char* nombrePokemon);
-void actualizacionDeBloques(char** bloques,int desplazamientoDeCambio,char* posiciones,char* pokemon);
+int agregarNuevaPosicion(char* contenidoAagregar,char* bloques,char* nombrePokemon);
+void actualizacionDeBloques(int desplazamientoDeCambio,char* posiciones,char* pokemon);
 int anadirCantidad(char* posiciones,char* posicionBuscada,int cantidadASumar,char* bloquesString,char* pokemon);
+
+//Cosas para Catch
+void disminuirCantidad(char* posiciones,char* posicionBuscada,char* bloquesString,char* pokemon);
+
 
 // Utilidades para pokemon
 t_config* obtener_metadata_de_pokemon(char *nombrePokemon);
@@ -128,9 +138,12 @@ void abrirArchivo(char* nombrePokemon);
 void cerrarArchivo(char* nombrePokemon);
 void editarTamanioPokemon(char* nombrePokemon,int cantidad);
 void agregarBloqueAPokemon(char* nombrePokemon,int numeroDeBloque);
+char* obtenerArrayDebloques(char* pokemon);
+int obtenerTamanioDePokemon(char* pokemon);
 
 // PROCEDIMIENTOS
-void procedimientoNEW(uint32_t idMensaje,char* pokemon,uint32_t posx,uint32_t posy,uint32_t cantidad);
+int procedimientoNEW(char* pokemon,uint32_t posx,uint32_t posy,uint32_t cantidad);
+int procedimientoCATCH(char* pokemon,uint32_t posx,uint32_t posy);
 void procedimientoGET(uint32_t idMensaje,char* pokemon);
 
 // ENVIO DE MENSAJES
