@@ -120,7 +120,6 @@ int tamanioBloque(char* nombreDeBloque);
 char* obtenerContenidoDeArchivo(char* bloques);
 
 // cositar para new
-void escribirEnArchivo(FILE *bloque, char* contenidoAagregar,int caracteresAEscribir,char* nombrePokemon);
 int agregarNuevaPosicion(char* contenidoAagregar,char* bloques,char* nombrePokemon);
 void actualizacionDeBloques(int desplazamientoDeCambio,char* posiciones,char* pokemon);
 int anadirCantidad(char* posiciones,char* posicionBuscada,int cantidadASumar,char* bloquesString,char* pokemon);

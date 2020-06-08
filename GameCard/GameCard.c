@@ -15,7 +15,6 @@ int main(void){
 
 	iniciar_punto_de_montaje(path_de_tallgrass);
 	mostrarBitmap(); // ---------- SACAR
-	printf("Cantidad de bloques libres: %d\n",bloquesLibres);
 	while(1){
 	int cliente = esperar_cliente(socket_servidor,logger);
 	if(pthread_create(&thread,NULL,(void*)atender_cliente,&cliente) == 0){
@@ -645,21 +644,22 @@ char* eliminarPosicion(char** posicionesSeparadas,int nroDeLinea){
 // Escribe un bloque, le debemos decir el nombre/numero de bloque, lo que deseamos escribir y
 // el desplazamiento dentro de ese bloque(pisa los datos que se encuentren en esa posicion y las que siguen).
 // Si es 0, empieza a escribir como si estuviera vacio. (Va a pisar lo que haya dentro)
+// Retorna la cantidad de bytes
 int escribirBloquePosicionandoPuntero(char* nombreDeBloque,char* stringAEscribir,int desplazamiento){
+
+	if(strlen(stringAEscribir) == 0) return 0;
 
 	char* rutaBloque = crearPathDeBloque(nombreDeBloque);
 
-	FILE* bloque = fopen(rutaBloque,"r+w");
+	FILE* bloque = fopen(rutaBloque,"rw+");
 	//fseek(bloque,0,SEEK_END);
 	//int tamanioBloque = ftell(bloque);
-
 
 	int bytesAEscribir = TAMANIO_DE_BLOQUE - desplazamiento;
 
 	if(strlen(stringAEscribir) < bytesAEscribir){
 		bytesAEscribir = strlen(stringAEscribir);
 	}
-
 	fseek(bloque,desplazamiento,SEEK_CUR);
 
 	fwrite(stringAEscribir,bytesAEscribir,1,bloque);
@@ -752,9 +752,6 @@ int obtenerCantidad(char* lineaPokemon){
 
 			int numeroBuscado = atoi(posicionYCantidad[1]);
 
-
-
-			printf("Cantidad: %d\n",numeroBuscado);
 			limpiarPunteroAPuntero(posicionYCantidad);
 			return numeroBuscado;
 }
@@ -786,8 +783,9 @@ int bloquesNecesariosParaEscribir(char* datos){
 	int  cantidadDeBytes = strlen(datos);
 	if(cantidadDeBytes == 0) return 0;
 
-	int bloquesNecesarios = (cantidadDeBytes/TAMANIO_DE_BLOQUE) + 1;
+	int bloquesNecesarios = (cantidadDeBytes/TAMANIO_DE_BLOQUE);
 
+	if(cantidadDeBytes%TAMANIO_DE_BLOQUE != 0) bloquesNecesarios++;
 	return bloquesNecesarios;
 }
 
@@ -797,13 +795,13 @@ int bloquesNecesariosParaEscribir(char* datos){
 int solicitarBloquesParaPokemon(char* pokemon,int cantidadDeBloques){
 		int i;
 		int resultado;
-
+	//	printf("Blques libres: %d\n",bloquesLibres);
 		sem_wait(&semDeBloques);
 		if(cantidadDeBloques <= bloquesLibres){
 
 			for(i = 0; i < cantidadDeBloques ; i++){
 		int numeroDeBloqueVacio = solicitarBloqueVacio();
-		printf("Voy a agregar el nuevo bloque\n");
+	//	printf("Voy a agregar el nuevo bloque\n");
 		agregarBloqueAPokemon(pokemon,numeroDeBloqueVacio);
 			}
 			resultado = 0;
@@ -883,10 +881,8 @@ int existePokemon(char* nombrePokemon){
 	t_config* config_pokemon = obtener_metadata_de_pokemon(nombrePokemon);
 
 	if(config_pokemon == NULL){
-		printf("No existe el pokemon %s\n",nombrePokemon);
 		return 0;
 	}
-	printf("Existe el pokemon %s\n",nombrePokemon);
 	config_destroy(config_pokemon);
 	return 1;
 }
@@ -948,10 +944,10 @@ void *reintentoAbrir(void* argumentos){
 
 	while(1){
 	if(!archivoAbierto(valores->nombrePokemon)){
-		printf("El Archivo se puede abrir! \n");
+		log_info(logger,"El Archivo se puede abrir!");
 		pthread_exit(NULL);
 		}
-	printf("Esperando .... %d segundos \n",valores->tiempo);
+	log_error(logger,"Esperando %d segundos para el reintento",valores->tiempo);
 	sleep(valores->tiempo);
 	}
 
@@ -1082,6 +1078,7 @@ void agregarBloqueAPokemon(char* nombrePokemon,int numeroDeBloque){
 	}
 	string_append(&cargaDeBloques,string_itoa(numeroDeBloque));
 	bitarray_set_bit(bitmap,numeroDeBloque -1);
+	bloquesLibres--;
 	char* bloquesActualizados = string_from_format("[%s]",cargaDeBloques);
 
 	config_set_value(pokemon,"BLOCKS",bloquesActualizados);
@@ -1096,69 +1093,13 @@ void editarTamanioPokemon(char* nombrePokemon,int cantidad){
 	t_config* pokemon = obtener_metadata_de_pokemon(nombrePokemon);
 	int tamanioViejo = config_get_int_value(pokemon,"SIZE");
 	tamanioViejo += cantidad;
+	if(tamanioViejo < 0) tamanioViejo = 0;
+
 	config_set_value(pokemon,"SIZE",string_itoa(tamanioViejo));
 	config_save(pokemon);
 
 	config_destroy(pokemon);
 }
-
-
-// Recibe un fd, el contenido que va a ser agregado, su longitud y el nombre del pokemon
-// Escribe en el ultimo bloque y su última linea. Funcion auxiliar de agregarNuevaPosicion
-void escribirEnArchivo(FILE *bloque, char* contenidoAagregar,int caracteresAEscribir,char* nombrePokemon){
-
-	fseek(bloque,0,SEEK_END);
-	int tamanioDeArchivo = ftell(bloque);
-	int cantidadQueSePuedeEscribir = TAMANIO_DE_BLOQUE - tamanioDeArchivo;
-	int nuevaCantidad = caracteresAEscribir;
-	printf("Tamaño del archivo: %d\nCantidad que se puede escribir: %d\n",tamanioDeArchivo,cantidadQueSePuedeEscribir);
-	printf("Apunto de escribir \n");
-
-	printf("La cantidad que quiero escribir: %d\n",caracteresAEscribir);
-	if(caracteresAEscribir == 0) return;
-
-	if(tamanioDeArchivo <= TAMANIO_DE_BLOQUE){
-
-		printf("Escribiendo y mi tamaño es menor al bloque\n");
-			if(caracteresAEscribir <= cantidadQueSePuedeEscribir){
-				fwrite(contenidoAagregar,caracteresAEscribir,1,bloque);
-				editarTamanioPokemon(nombrePokemon,caracteresAEscribir);
-			}	else {
-			fwrite(contenidoAagregar,cantidadQueSePuedeEscribir,1,bloque);
-			editarTamanioPokemon(nombrePokemon,cantidadQueSePuedeEscribir);
-			}
-		nuevaCantidad = caracteresAEscribir - cantidadQueSePuedeEscribir;
-		}
-
-	printf("Cantidad que me queda por escribir: %d\n",nuevaCantidad);
-	if(nuevaCantidad > 0){
-		printf("Solicito nuevo bloque para escribir \n");
-		FILE* nuevoBloque;
-		char* rutaNuevoBloque = string_new();
-		int numeroDeBloque = solicitarBloqueVacio();
-		string_append(&rutaNuevoBloque,RUTA_DE_BLOQUES);
-		string_append(&rutaNuevoBloque,"/");
-		string_append(&rutaNuevoBloque,string_itoa(numeroDeBloque));
-		string_append(&rutaNuevoBloque,".bin");
-		nuevoBloque = fopen(rutaNuevoBloque,"a");
-
-		char* string_nuevo = string_substring_from(contenidoAagregar,cantidadQueSePuedeEscribir);
-		//printf("Nuevo string %s\n",string_nuevo);
-		escribirEnArchivo(nuevoBloque,string_nuevo,strlen(string_nuevo),nombrePokemon);
-
-		printf("Numero de bloque: %d\n",numeroDeBloque);
-
-		//t_config* pokemon = obtener_metadata_de_pokemon(nombrePokemon);
-		agregarBloqueAPokemon(nombrePokemon,numeroDeBloque);
-
-		free(string_nuevo);
-		free(rutaNuevoBloque);
-		fclose(nuevoBloque);
-	}
-
-}
-
-
 
 // Se debe asegurar previamente que existe la cantidad necesaria de bloques para escribir los datos a agregar
 void escribirEnFinDeArchivo(char* nombrePokemon,char* datos){
@@ -1204,7 +1145,7 @@ int agregarNuevaPosicion(char* contenidoAagregar,char* bloques,char* nombrePokem
 	int ultimaPosicion = length_punteroAPuntero(bloquesSeparados);
 
 	if(ultimaPosicion == 0){
-		printf("No tengo bloques asignados\n");
+//		printf("No tengo bloques asignados\n");
 			int cantidadNecesaria = bloquesNecesariosParaEscribir(contenidoAagregar);
 
 			if(solicitarBloquesParaPokemon(nombrePokemon,cantidadNecesaria) == -1){
@@ -1215,18 +1156,32 @@ int agregarNuevaPosicion(char* contenidoAagregar,char* bloques,char* nombrePokem
 			escribirEnFinDeArchivo(nombrePokemon,contenidoAagregar);
 			return 0;
 	}
-
+	char* ultimaEscritura = string_from_format("\n%s",contenidoAagregar);
 	char* ultimoBloque = bloquesSeparados[ultimaPosicion-1];
-	printf("Tengo bloques asignamos\n");
+
 	int espacioLibre = espacioLibreDeBloque(ultimoBloque);
-	int bloquesNecesarios = bloquesNecesariosParaEscribir(string_substring_from(contenidoAagregar,espacioLibre));
+//	printf("Espacio libre: %d \n",espacioLibre);
+
+	int bloquesNecesarios;
+
+	if(strlen(ultimaEscritura) > espacioLibre){
+
+	char* stringAcotado = string_substring_from(ultimaEscritura,espacioLibre);
+
+	bloquesNecesarios = bloquesNecesariosParaEscribir(stringAcotado);
+
+	}else{
+		bloquesNecesarios = 0;
+	}
+
 
 	if(solicitarBloquesParaPokemon(nombrePokemon,bloquesNecesarios) == -1) {
-		printf("No tengo espacio en disco\n");
+		log_error(logger,"No tengo espacio en disco");
 		return -1;
 	}
 
-	escribirEnFinDeArchivo(nombrePokemon,contenidoAagregar);
+	escribirEnFinDeArchivo(nombrePokemon,ultimaEscritura);
+	//printf("Escrito\n");
 	limpiarPunteroAPuntero(bloquesSeparados);
 	return 0;
 }
@@ -1248,11 +1203,12 @@ void actualizacionDeBloques(int desplazamientoDeCambio,char* posiciones,char* po
 	int desplazamiento = desplazamientoEnBloque(desplazamientoDeCambio);
 	char* stringParaEscribir = string_substring_from(posiciones,desplazamientoDeCambio);
 // TIRA SEGMENTATION FAULT DESPUES DE ACÁ
+
 	/////	Deberia crear una funcion para verificar si existe la cantidad necesaria de bloques antes
 	/// de empezar a escribir para que no haya inconsistencia de datos
 
 	int bytesEscritos = escribirBloquePosicionandoPuntero(bloqueAfectado,stringParaEscribir,desplazamiento);
-
+	// Y ANTES QUE ACÄ
 	stringParaEscribir = string_substring_from(stringParaEscribir,bytesEscritos);
 
 	posicionBloque++;
@@ -1264,7 +1220,7 @@ void actualizacionDeBloques(int desplazamientoDeCambio,char* posiciones,char* po
 
 		posicionBloque++;
 	}
-// Y ANTES QUE ACÄ
+
 	free(bloquesArray);
 	limpiarPunteroAPuntero(bloques);
 	free(stringParaEscribir);
@@ -1286,7 +1242,7 @@ int anadirCantidad(char* posiciones,char* posicionBuscada,int cantidadASumar,cha
 
 	// sumo la cantidad con esta funcion. Me retorna la linea actualizada.
 	char* nuevaLineaPokemon = sumarCantidadPokemon(posicionesSeparadas[posContenida],cantidadASumar);
-	printf("La nueva linea pokemon a  agregar es: %s\n",nuevaLineaPokemon);
+	//printf("La nueva linea pokemon a  agregar es: %s\n",nuevaLineaPokemon);
 
 	int tamanioAntiguo = strlen(posicionesSeparadas[posContenida]);
 	int tamanioNuevo = strlen(nuevaLineaPokemon);
@@ -1309,7 +1265,7 @@ int anadirCantidad(char* posiciones,char* posicionBuscada,int cantidadASumar,cha
 	int cantidadDeBytesQueCrece = tamanioNuevo - tamanioAntiguo;
 
 	char* posicionActualizada = actualizarPosicion(posicionesSeparadas,nuevaLineaPokemon,posContenida);
-	printf("Hay que aumentar en bytes %d \n",cantidadDeBytesQueCrece);
+	log_info(logger,"Hay que aumentar en bytes %d \n",cantidadDeBytesQueCrece);
 
 	int cantidadDeBloques = length_punteroAPuntero(bloques);
 	int bloquesNecesarios = bloquesNecesariosParaEscribir(posicionActualizada);
@@ -1318,17 +1274,20 @@ int anadirCantidad(char* posiciones,char* posicionBuscada,int cantidadASumar,cha
 		int resultado = solicitarBloquesParaPokemon(pokemon,bloquesNecesarios - cantidadDeBloques);
 		//printf("No tengo espacio en disco\n");
 		//return -1;
-		limpiarPunteroAPuntero(bloques);
-		limpiarPunteroAPuntero(posicionesSeparadas);
-		free(nuevaLineaPokemon);
-		if(resultado == -1)return -1;
+
+		if(resultado == -1){
+			limpiarPunteroAPuntero(bloques);
+			limpiarPunteroAPuntero(posicionesSeparadas);
+			free(nuevaLineaPokemon);
+			return -1;
+		}
 	}
 
 	//////////////////
 
 	int primeraPosicionCantPoke = desplazamientoDelArrayHastaCantPokemon(posicionesSeparadas,posicionBuscada);
 
-	printf("Preparando archivo. posicion actualizada:\n%s\n",posicionActualizada);
+	log_info(logger,"Preparando archivo para su edicion");
 	actualizacionDeBloques(primeraPosicionCantPoke,posicionActualizada,pokemon);
 
 	limpiarPunteroAPuntero(bloques);
@@ -1337,6 +1296,24 @@ int anadirCantidad(char* posiciones,char* posicionBuscada,int cantidadASumar,cha
 	free(posicionActualizada);
 
 	return 0;
+}
+
+void truncarUltimoBloque(char* nombrePokemon){
+	int tamanio = obtenerTamanioDePokemon(nombrePokemon);
+	int offset = desplazamientoEnBloque(tamanio);
+
+	t_config* pokemon = obtener_metadata_de_pokemon(nombrePokemon);
+	char** bloques = config_get_array_value(pokemon,"BLOCKS");
+	int ultimaPosicion = length_punteroAPuntero(bloques);
+
+	char* rutaArchi = crearPathDeBloque(bloques[ultimaPosicion-1]);
+
+	FILE* archi = fopen(rutaArchi,"rw+");
+	int fd = fileno(archi);
+
+	ftruncate(fd,offset);
+
+	fclose(archi);
 }
 
 // Funcion que se encarga de disminuir la cantidad de pokemon
@@ -1356,11 +1333,11 @@ void disminuirCantidad(char* posiciones,char* posicionBuscada,char* bloquesStrin
 		char* nuevaLineaPokemon = string_new();
 
 		if(cantidadDePokemones <= 1){
-			log_info(logger,"La cantidad de 1 o menos. Hay que eliminar la linea");
+			log_info(logger,"Hay que eliminar la linea");
 			string_append(&nuevaLineaPokemon,"");
 		} else{
 		nuevaLineaPokemon = sumarCantidadPokemon(posicionesSeparadas[posContenida],-1);
-		printf("La nueva linea pokemon a  agregar es: %s\n",nuevaLineaPokemon);
+		//printf("La nueva linea pokemon a  agregar es: %s\n",nuevaLineaPokemon);
 		}
 
 
@@ -1385,23 +1362,31 @@ void disminuirCantidad(char* posiciones,char* posicionBuscada,char* bloquesStrin
 		int cantidadDeBytesQueDisminuye = tamanioAntiguo -tamanioNuevo;
 
 		char* posicionActualizada = eliminarPosicion(posicionesSeparadas,posContenida);
-		printf("Hay que disminuir en bytes %d \n",cantidadDeBytesQueDisminuye);
-		printf("Posicion Actualizada %s\n",posicionActualizada);
+		log_info(logger,"El archivo debe disminuir en %d bytes",cantidadDeBytesQueDisminuye + 1);
+
 		int cantidadDeBloques = length_punteroAPuntero(bloques);
 		int bloquesNecesarios = bloquesNecesariosParaEscribir(posicionActualizada);
+
 		editarTamanioPokemon(pokemon,(-1)*cantidadDeBytesQueDisminuye - 1);
 		if(bloquesNecesarios < cantidadDeBloques) {
-			printf("Entro a liberar\n");
+			//printf("Entro a liberar\n");
 			liberarBloquesParaPokemon(pokemon,cantidadDeBloques - bloquesNecesarios);
+			if(bloquesNecesarios == 0){
+				limpiarPunteroAPuntero(bloques);
+				limpiarPunteroAPuntero(posicionesSeparadas);
+				free(nuevaLineaPokemon);
+				free(posicionActualizada);
+				return;
+			}
 		}
 
 		//////////////////
 
 		int primeraPosicionLinea = desplazamientoDelArrayHastaLineaPosicion(posicionesSeparadas,posicionBuscada);
 
-		printf("Preparando archivo. posicion actualizada:\n%s\n",posicionActualizada);
+		log_info(logger,"Preparando archivo para su edicion.");
 		actualizacionDeBloques(primeraPosicionLinea,posicionActualizada,pokemon);
-
+		truncarUltimoBloque(pokemon);
 
 		limpiarPunteroAPuntero(bloques);
 		limpiarPunteroAPuntero(posicionesSeparadas);
@@ -1415,7 +1400,7 @@ int procedimientoNEW(char* pokemon,uint32_t posx,uint32_t posy,uint32_t cantidad
 	int resultado;
 
 	if(!existePokemon(pokemon)){
-		log_info(logger,"El pokemon no existe. Procediendo a crearlo");
+		log_error(logger,"El pokemon %s no existe. Procediendo a crearlo",pokemon);
 		crearPokemon(pokemon);
 
 	}else log_info(logger,"Existe el pokemon %s",pokemon);
@@ -1446,9 +1431,9 @@ int procedimientoNEW(char* pokemon,uint32_t posx,uint32_t posy,uint32_t cantidad
 
 	if(!contieneEstaPosicion(posiciones,posicionBuscada)){
 		// agregar al final del archivos
-		log_error(logger,"No contengo la posicion %s",posicionBuscada);
+		log_error(logger,"No contengo la posicion %s..Procediendo a agregar",posicionBuscada);
 
-		char* posicionYCantidad = string_from_format("%s=%s\n",posicionBuscada,string_itoa(cantidad));
+		char* posicionYCantidad = string_from_format("%s=%s",posicionBuscada,string_itoa(cantidad));
 
 		resultado = agregarNuevaPosicion(posicionYCantidad,bloques,pokemon);
 
