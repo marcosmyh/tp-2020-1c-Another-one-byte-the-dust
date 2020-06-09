@@ -3,7 +3,7 @@
 int main(void){
 	bloquesLibres = 0;
 	sem_init(&semDeBloques,0,1);
-
+	sem_init(&aperturaDeArchivo,0,1);
 	crearLogger();
 	crearLoggerObligatorio();
 
@@ -15,6 +15,8 @@ int main(void){
 
 	iniciar_punto_de_montaje(path_de_tallgrass);
 	mostrarBitmap(); // ---------- SACAR
+
+	// Trabajar con el servidor acá
 	while(1){
 	int cliente = esperar_cliente(socket_servidor,logger);
 	if(pthread_create(&thread,NULL,(void*)atender_cliente,&cliente) == 0){
@@ -102,6 +104,7 @@ int crear_conexion(char *ip, char* puerto){
 	// Cambio. Aunque puede que tengamos que devolverlo a lo normal.
 	if(connect(socket_cliente, server_info->ai_addr, server_info->ai_addrlen) == -1){
 		log_error(loggerObligatorio,"No se pudo conectar al broker");
+		freeaddrinfo(server_info);
 		close(socket_cliente);
 		return -1;
 	}
@@ -175,7 +178,7 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 			else resultado = 1;
 
 			int seEnvioCaught = envioDeMensajeCaught(resultado,id); // Prueba
-
+			free(pokemon);
 			free(paqueteCatch);
 			break;
 		case t_NEW:
@@ -201,7 +204,7 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 			envioDeMensajeAppeared(pokemon,posX,posY,id); // Prueba
 			}else log_error(logger,"No hay espacio en disco");
 			// Preguntar que mensaje enviar en el caso que no haya espacio en disco
-
+			free(pokemon);
 			free(paqueteNew);
 			break;
 		case 0:
@@ -683,9 +686,10 @@ char* sumarCantidadPokemon(char* lineaPokemon,int cantidadASumar){
 	char** arraySeparado = string_split(lineaPokemon,"=");
 
 	char* nuevaLineaPokemon = string_from_format("%s=",arraySeparado[0]);
-	string_append(&nuevaLineaPokemon,string_itoa(cantidadPokemon));
+	char* cantidadEnString = string_itoa(cantidadPokemon);
+	string_append(&nuevaLineaPokemon,cantidadEnString);
 	limpiarPunteroAPuntero(arraySeparado);
-
+	free(cantidadEnString);
 	return nuevaLineaPokemon;
 }
 
@@ -845,6 +849,7 @@ void quitarUltimoBloqueAPokemon(char* nombrePokemon){
 	config_save(pokemon);
 
 	config_destroy(pokemon);
+	free(bloqueNuevo);
 	free(bloquesActualizados);
 	limpiarPunteroAPuntero(bloques);
 }
@@ -943,11 +948,10 @@ void *reintentoAbrir(void* argumentos){
 	struct arg_estructura* valores = argumentos;
 
 	while(1){
-	if(!archivoAbierto(valores->nombrePokemon)){
-		log_info(logger,"El Archivo se puede abrir!");
+	if(verificarYAbrirArchivo(valores->nombrePokemon) == 1){
 		pthread_exit(NULL);
 		}
-	log_error(logger,"Esperando %d segundos para el reintento",valores->tiempo);
+	log_error(logger,"Esperando %d segundos para reintentar abrir %s",valores->tiempo,valores->nombrePokemon);
 	sleep(valores->tiempo);
 	}
 
@@ -1076,7 +1080,9 @@ void agregarBloqueAPokemon(char* nombrePokemon,int numeroDeBloque){
 		string_append(&cargaDeBloques,",");
 		i++;
 	}
-	string_append(&cargaDeBloques,string_itoa(numeroDeBloque));
+
+	char* numeroDeBloqueEnString = string_itoa(numeroDeBloque);
+	string_append(&cargaDeBloques,numeroDeBloqueEnString);
 	bitarray_set_bit(bitmap,numeroDeBloque -1);
 	bloquesLibres--;
 	char* bloquesActualizados = string_from_format("[%s]",cargaDeBloques);
@@ -1085,20 +1091,26 @@ void agregarBloqueAPokemon(char* nombrePokemon,int numeroDeBloque){
 	config_save(pokemon);
 
 	config_destroy(pokemon);
+	free(bloquesActualizados);
 	free(cargaDeBloques);
 	limpiarPunteroAPuntero(bloques);
+	free(numeroDeBloqueEnString);
 }
 // Agrega la cantidad a size. Si es negativo el resta
 void editarTamanioPokemon(char* nombrePokemon,int cantidad){
 	t_config* pokemon = obtener_metadata_de_pokemon(nombrePokemon);
 	int tamanioViejo = config_get_int_value(pokemon,"SIZE");
 	tamanioViejo += cantidad;
+
 	if(tamanioViejo < 0) tamanioViejo = 0;
 
-	config_set_value(pokemon,"SIZE",string_itoa(tamanioViejo));
+	char* tamanioViejoString = string_itoa(tamanioViejo);
+
+	config_set_value(pokemon,"SIZE",tamanioViejoString);
 	config_save(pokemon);
 
 	config_destroy(pokemon);
+	free(tamanioViejoString);
 }
 
 // Se debe asegurar previamente que existe la cantidad necesaria de bloques para escribir los datos a agregar
@@ -1150,10 +1162,12 @@ int agregarNuevaPosicion(char* contenidoAagregar,char* bloques,char* nombrePokem
 
 			if(solicitarBloquesParaPokemon(nombrePokemon,cantidadNecesaria) == -1){
 				log_error(logger,"No tengo espacio en disco");
+				free(bloquesSeparados);
 				return -1;
 			}
 
 			escribirEnFinDeArchivo(nombrePokemon,contenidoAagregar);
+			free(bloquesSeparados);
 			return 0;
 	}
 	char* ultimaEscritura = string_from_format("\n%s",contenidoAagregar);
@@ -1169,7 +1183,7 @@ int agregarNuevaPosicion(char* contenidoAagregar,char* bloques,char* nombrePokem
 	char* stringAcotado = string_substring_from(ultimaEscritura,espacioLibre);
 
 	bloquesNecesarios = bloquesNecesariosParaEscribir(stringAcotado);
-
+	free(stringAcotado);
 	}else{
 		bloquesNecesarios = 0;
 	}
@@ -1177,10 +1191,13 @@ int agregarNuevaPosicion(char* contenidoAagregar,char* bloques,char* nombrePokem
 
 	if(solicitarBloquesParaPokemon(nombrePokemon,bloquesNecesarios) == -1) {
 		log_error(logger,"No tengo espacio en disco");
+		free(ultimaEscritura);
+		limpiarPunteroAPuntero(bloquesSeparados);
 		return -1;
 	}
 
 	escribirEnFinDeArchivo(nombrePokemon,ultimaEscritura);
+	free(ultimaEscritura);
 	//printf("Escrito\n");
 	limpiarPunteroAPuntero(bloquesSeparados);
 	return 0;
@@ -1254,10 +1271,12 @@ int anadirCantidad(char* posiciones,char* posicionBuscada,int cantidadASumar,cha
 		int primeraPosicionCantPoke = desplazamientoDelArrayHastaCantPokemon(posicionesSeparadas,posicionBuscada);
 		int posicionBloque = bloqueAfectado(primeraPosicionCantPoke);
 		char* bloqueAfectado = bloques[posicionBloque];
-		sobreescribirUnCaracter(bloqueAfectado,desplazamientoEnBloque(primeraPosicionCantPoke),string_itoa(obtenerCantidad(nuevaLineaPokemon)));
+		char* cantidadEnString = string_itoa(obtenerCantidad(nuevaLineaPokemon));
+		sobreescribirUnCaracter(bloqueAfectado,desplazamientoEnBloque(primeraPosicionCantPoke),cantidadEnString);
 		limpiarPunteroAPuntero(bloques);
 		limpiarPunteroAPuntero(posicionesSeparadas);
 		free(nuevaLineaPokemon);
+		free(cantidadEnString);
 		return 0;
 	}
 
@@ -1351,9 +1370,11 @@ void disminuirCantidad(char* posiciones,char* posicionBuscada,char* bloquesStrin
 			int primeraPosicionCantPoke = desplazamientoDelArrayHastaCantPokemon(posicionesSeparadas,posicionBuscada);
 			int posicionBloque = bloqueAfectado(primeraPosicionCantPoke);
 			char* bloqueAfectado = bloques[posicionBloque];
-			sobreescribirUnCaracter(bloqueAfectado,desplazamientoEnBloque(primeraPosicionCantPoke),string_itoa(obtenerCantidad(nuevaLineaPokemon)));
+			char* cantidadEnString = string_itoa(obtenerCantidad(nuevaLineaPokemon));
+			sobreescribirUnCaracter(bloqueAfectado,desplazamientoEnBloque(primeraPosicionCantPoke),cantidadEnString);
 			limpiarPunteroAPuntero(bloques);
 			limpiarPunteroAPuntero(posicionesSeparadas);
+			free(cantidadEnString);
 			free(nuevaLineaPokemon);
 			return;
 		}
@@ -1395,6 +1416,26 @@ void disminuirCantidad(char* posiciones,char* posicionBuscada,char* bloquesStrin
 		return;
 }
 
+// Retorna 1 si hubo éxito en la apertura del archivo
+// 0 si no pudo abrirlo.
+int verificarYAbrirArchivo(char* pokemon){
+	// Se pregunta no está abierto
+
+	sem_wait(&aperturaDeArchivo);
+	int resultado;
+	if(!archivoAbierto(pokemon)){
+		log_info(logger,"Se puede abrir el archivo %s.",pokemon);
+		// Si no está abierto lo abre
+		abrirArchivo(pokemon);
+		log_info(logger,"Archivo %s abierto.",pokemon);
+		resultado = 1;
+	}else resultado = 0;
+
+	sem_post(&aperturaDeArchivo);
+	return resultado;
+
+}
+
 // FINALIZADO
 int procedimientoNEW(char* pokemon,uint32_t posx,uint32_t posy,uint32_t cantidad){
 	int resultado;
@@ -1405,7 +1446,7 @@ int procedimientoNEW(char* pokemon,uint32_t posx,uint32_t posy,uint32_t cantidad
 
 	}else log_info(logger,"Existe el pokemon %s",pokemon);
 
-	if(archivoAbierto(pokemon)){
+	if(verificarYAbrirArchivo(pokemon) == 0){
 		log_error(logger,"El archivo %s no se puede abrir",pokemon);
 
 		// REINTENTAR EN X TIEMPO
@@ -1419,25 +1460,31 @@ int procedimientoNEW(char* pokemon,uint32_t posx,uint32_t posy,uint32_t cantidad
 
 			pthread_join(hiloDelReintento,NULL);
 	}
-	log_info(logger,"Se puede abrir el archivo %s",pokemon);
-	abrirArchivo(pokemon);
+
+
+	//log_info(logger,"Se puede abrir el archivo %s",pokemon);
+	//abrirArchivo(pokemon);
 
 	char* bloques = obtenerArrayDebloques(pokemon);
 
 	char* posiciones = obtenerContenidoDeArchivo(bloques);
-
-	char* posicionBuscada = string_from_format("%s-%s",string_itoa(posx),string_itoa(posy));
-
+	char* posXEnString = string_itoa(posx);
+	char* posYEnString = string_itoa(posy);
+	char* posicionBuscada = string_from_format("%s-%s",posXEnString,posYEnString);
+	free(posXEnString);
+	free(posYEnString);
 
 	if(!contieneEstaPosicion(posiciones,posicionBuscada)){
 		// agregar al final del archivos
 		log_error(logger,"No contengo la posicion %s..Procediendo a agregar",posicionBuscada);
-
-		char* posicionYCantidad = string_from_format("%s=%s",posicionBuscada,string_itoa(cantidad));
+		char* cantidadEnString = string_itoa(cantidad);
+		char* posicionYCantidad = string_from_format("%s=%s",posicionBuscada,cantidadEnString);
 
 		resultado = agregarNuevaPosicion(posicionYCantidad,bloques,pokemon);
 
+
 		free(posicionYCantidad);
+		free(cantidadEnString);
 
 	}else {
 		log_info(logger,"Contengo la posicion");
@@ -1458,7 +1505,7 @@ int procedimientoNEW(char* pokemon,uint32_t posx,uint32_t posy,uint32_t cantidad
 
 // EN FASE DE PRUEBA
 int procedimientoCATCH(char* pokemon,uint32_t posx,uint32_t posy){
-	//int resultado;
+	int resultado;
 	if(!existePokemon(pokemon)){
 		log_error(loggerObligatorio,"No existe el pokemon %s",pokemon);
 		return -1;
@@ -1467,7 +1514,7 @@ int procedimientoCATCH(char* pokemon,uint32_t posx,uint32_t posy){
 
 
 
-	if(archivoAbierto(pokemon)){
+	if(verificarYAbrirArchivo(pokemon) == 0){
 		log_error(logger,"El archivo %s no se puede abrir",pokemon);
 
 		// MATAR HILO
@@ -1482,25 +1529,30 @@ int procedimientoCATCH(char* pokemon,uint32_t posx,uint32_t posy){
 
 			pthread_join(hiloDelReintento,NULL);
 	}
-	log_info(logger,"Se puede abrir el archivo %s",pokemon);
-	abrirArchivo(pokemon);
+	//log_info(logger,"Se puede abrir el archivo %s",pokemon);
+	//abrirArchivo(pokemon);
 
 
 	char* bloques = obtenerArrayDebloques(pokemon);
 
 	char* posiciones = obtenerContenidoDeArchivo(bloques);
+	char* posXEnString = string_itoa(posx);
+	char* posYEnString = string_itoa(posy);
+	char* posicionBuscada = string_from_format("%s-%s",posXEnString,posYEnString);
+	free(posXEnString);
+	free(posYEnString);
 
-	char* posicionBuscada = string_from_format("%s-%s",string_itoa(posx),string_itoa(posy));
-
-
+	printf("Posicion buscada: %s\n",posicionBuscada);
 	if(!contieneEstaPosicion(posiciones,posicionBuscada)){
 
 		log_error(loggerObligatorio,"No existe la posicion %s del pokemon %s",posicionBuscada,pokemon);
-		return -1;
-	}
+
+		resultado = -1;
+	}else{
 		log_info(logger,"Contengo esa posicion");
 		disminuirCantidad(posiciones,posicionBuscada,bloques,pokemon);
-
+		resultado = 0;
+	}
 		log_info(logger,"Aplicando %d segundos de retardo",tiempo_de_retardo);
 		sleep(tiempo_de_retardo);
 
@@ -1510,8 +1562,7 @@ int procedimientoCATCH(char* pokemon,uint32_t posx,uint32_t posy){
 		free(posiciones);
 		free(bloques);
 
-	return 0;
-
+		return resultado;
 }
 
 void procedimientoGET(uint32_t idMensaje,char* pokemon){
