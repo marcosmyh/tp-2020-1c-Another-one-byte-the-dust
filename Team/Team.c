@@ -11,6 +11,7 @@ int main(){
 	pthread_mutex_init(&semaforoCaught,NULL);
 	pthread_mutex_init(&semaforoSuscripciones,NULL);
 	pthread_mutex_init(&semaforoLocalized,NULL);
+	sem_init(&semaforoRespuestaCatch,0,0);
 
     pthread_t hiloMensajes;
 
@@ -38,7 +39,7 @@ int main(){
 
 	*/
 
-	//DESTRUIR TODO AL FINAL
+	//DESTRUIR T0DO AL FINAL
 	pthread_mutex_destroy(&semaforoAppeared);
 	pthread_mutex_destroy(&semaforoCaught);
 	pthread_mutex_destroy(&semaforoSuscripciones);
@@ -580,7 +581,7 @@ void ejecutarEntrenador(){
 
 	t_entrenador* entrenadorAEjecutar = (t_entrenador*) list_get(colaExec,0);
 	entrenadorAEjecutar->ocupado = true;
-	t_pokemon* pokemonAAtrapar = pokemonMasCercanoA();
+	t_pokemon* pokemonAAtrapar = pokemonMasCercanoA(entrenadorAEjecutar);
 
 	//UNA VEZ QUE SE EL POKEMON TENGO QEU EJECUTAR EL HILO DEL ENTRENADOR
 
@@ -598,13 +599,22 @@ void ejecutarEntrenador(){
 		sleep(retardo_ciclo_cpu);
 		entrenadorAEjecutar->rafagasEjecutadas = distanciaAPokemon + 1; //Una rafaga por cada unidad de distancia que se mueve + una rafaga para mandar un mensaje al broker
 		atraparPokemon(entrenadorAEjecutar, pokemonAAtrapar);
-		list_remove(colaExec,0);
-		entrenadorAEjecutar->blockeado = true;
-		list_add(colaBlocked,entrenadorAEjecutar);
-		log_info(loggerObligatorio, "Se cambió un entrenador de EXEC a BLOCKED, Razon: Esta a la espera de un mensaje CAUGHT");
-
-		//TODO QUE HACER PARA SABER QUE ENTRENADOR TIENE QUE COMPLETAR SU ACCION DE ATRAPAR POKEMON
-
+		while(1){
+			if(llegoRespuesta){
+				//CUANDO LLEGA LA RESPUESTA HABILITO LA EJECUCION
+				sem_wait(&semaforoRespuestaCatch);
+				//ME TRAIGO EL ULTIMO ELEMENTO DE LA LISTA DE MENSAJES CATCH, ADD AGREGA AL FINAL DE LA LISTA
+				int sizeMensajesCatch = list_size(mensajesCATCH);
+				int index = sizeMensajesCatch-1;
+				uint32_t* IDCATCH = list_get(mensajesCATCH,index);
+				entrenadorAEjecutar->IdCatch = IDCATCH;
+				list_remove(colaExec,0);
+				entrenadorAEjecutar->blockeado = true;
+				list_add(colaBlocked,entrenadorAEjecutar);
+				log_info(loggerObligatorio, "Se cambió un entrenador de EXEC a BLOCKED, Razon: Esta a la espera de un mensaje CAUGHT");
+				break;
+			}
+		}
 	}
 }
 
@@ -621,16 +631,16 @@ void moverEntrenador(t_entrenador* entrenadorAEjecutar, t_pokemon* pokemonAAtrap
 	entrenadorAEjecutar->coordenadaY = pokemonAAtrapar->coordenadaY;
 }
 
-t_pokemon* pokemonMasCercanoA(t_entrenador unEntrenador){
+t_pokemon* pokemonMasCercanoA(t_entrenador* unEntrenador){
 	t_list* aux = list_create();
 	int cantPokemonesEnMapa = list_size(pokemonesEnMapa);
 	for(int i = 0; i < cantPokemonesEnMapa; i++){
 		t_pokemon* unPokemon = list_get(pokemonesEnMapa, i);
 		int distanciaAPokemon = (abs(unEntrenador->coordenadaX - unPokemon->coordenadaX) + abs(unEntrenador->coordenadaY - unPokemon->coordenadaY));
-		list_add(aux, distanciaAPokemon);
+		list_add(aux, &distanciaAPokemon);
 	}
 	int menorDistancia = elMenorNumeroDe(aux);
-	int posicionMenorDistancia = list_get_index(aux,menorDistancia,(void*)comparadorPosiciones);
+	int posicionMenorDistancia = list_get_index(aux,&menorDistancia,(void*)comparadorPosiciones);
 	t_pokemon* pokemonMasCercano = list_get(pokemonesEnMapa,posicionMenorDistancia);
 
 	return pokemonMasCercano;
@@ -642,13 +652,13 @@ bool comparadorPosiciones(int unaPosicion, int otraPosicion){
 
 int elMenorNumeroDe(t_list* aux){
 	int tamAux = list_size(aux);
-	int elMenor = list_get(aux,0);
+	int* elMenor = list_get(aux,0);
 	for(int i=1; i<tamAux; i++){
-		if (list_get(aux,i) < elMenor){
+		if (list_get(aux,i) < *elMenor){
 			elMenor = list_get(aux,i);
 		}
 	}
-	return elMenor;
+	return &elMenor;
 }
 
 void aplicarFIFO(){
@@ -945,6 +955,7 @@ void atenderCliente(int *socket_cliente) {
 			list_add(mensajesCATCH, &id);
 			enviarACK(ip_broker, puerto_broker, id, operacionAsociada);
 			free(paqueteID);
+			sem_post(&semaforoRespuestaCatch);
 			break;
 
 		default:

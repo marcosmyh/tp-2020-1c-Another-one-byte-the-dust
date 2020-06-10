@@ -32,6 +32,7 @@ typedef struct {
 	int rafagasEstimadas;
 	int rafagasEjecutadas;
 	int distancia;
+	uint32_t IdCatch;
 	bool ocupado;
 	bool completoObjetivo;
 	bool blockeado;
@@ -61,11 +62,13 @@ pthread_mutex_t semaforoAppeared;
 pthread_mutex_t semaforoCaught;
 pthread_mutex_t semaforoSuscripciones;
 pthread_mutex_t semaforoLocalized;
+sem_t semaforoRespuestaCatch;
 
 bool conexionAppeared = 0;
 bool conexionCaught = 0;
 bool conexionLocalized = 0;
 bool seEnvioMensajeGET = 0;
+bool llegoRespuesta = 0;
 char* identificadorProceso = NULL;
 t_log* logger;
 t_log* loggerObligatorio;
@@ -147,7 +150,8 @@ void conexionAColaCaught();
 void conexionAColaLocalized();
 void ejecutarEntrenador(); //EJECUTAR ENTRENADOR
 void moverEntrenador(t_entrenador* entrenadorAEjecutar, t_pokemon* pokemonAAtrapar);
-t_pokemon* pokemonMasCercanoA(t_entrenador unEntrenador);
+t_pokemon* pokemonMasCercanoA(t_entrenador* unEntrenador);
+void atraparPokemon(t_entrenador* entrenadorAEjecutar, t_pokemon* pokemonAAtrapar);
 bool comparadorPosiciones(int unaPosicion, int otraPosicion);
 int elMenorNumeroDe(t_list* aux);
 void atenderCliente(int *socket_cliente); //ESTA ES LA FUNCION MAGICA
