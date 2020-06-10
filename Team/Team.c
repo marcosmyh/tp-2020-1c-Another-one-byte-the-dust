@@ -6,6 +6,11 @@ int main(){
 	crearLoggerObligatorio();
 	leerArchivoDeConfiguracion();
 	socket_servidor = iniciar_servidor(ip_team, puerto_team, logger);
+	//INICIALIZO LAS COLAS
+	inicializarColas();
+	//INICIALIZO LOS ENTRENADORES
+	inicializarEntrenadores();
+
 	pthread_mutex_init(&semaforoAppeared,NULL);
 	pthread_mutex_init(&semaforoCaught,NULL);
 	pthread_mutex_init(&semaforoSuscripciones,NULL);
@@ -19,11 +24,6 @@ int main(){
 	pthread_join(hiloSuscripcionBroker,NULL);
 	pthread_join(hiloAtencionBroker,NULL);
 
-
-	//INICIALIZO LAS COLAS
-	inicializarColas();
-	//INICIALIZO LOS ENTRENADORES
-	inicializarEntrenadores();
 	//MANDO UN GET AL BROKER PARA CADA ESPECIE POKEMON QUE ESTA EN EL OBJETIVO
 	enviarPokemonesAlBroker();
 
@@ -412,6 +412,7 @@ void inicializarEntrenadores(){
 		t_entrenador* entrenadorNuevo = malloc(sizeof(t_entrenador));
 		entrenadorNuevo->idEntrenador = IDMAX;
 		IDMAX++;
+		entrenadorNuevo->pokemonAAtrapar = NULL;
 		entrenadorNuevo->completoObjetivo = false;
 		entrenadorNuevo->ocupado = false;
 		entrenadorNuevo->rafagasEstimadas = 0;
@@ -510,8 +511,7 @@ void enviarACK(char* ip, char* puerto, uint32_t ID, t_operacion operacion){
 	close(socket);
 }
 
-bool necesitaAtraparse(char* pokemon){
-	//Controlar globales y ya atrapados
+bool estaEnElObjetivo(char* pokemon){
 	int pokemonesObjetivoGlobal = list_size(objetivoTeam);
 	for(int i=0; i<pokemonesObjetivoGlobal; i++){
 		char* unPokemon = list_get(objetivoTeam,i);
@@ -519,6 +519,9 @@ bool necesitaAtraparse(char* pokemon){
 			return true;
 		}
 	}
+	return false;
+}
+bool yaFueAtrapado(char* pokemon){
 	t_list* nombresPokemonesAtrapados = list_map(pokemonesAtrapados,(void*)obtenerPokemon); //esto esta bien
 	int cantPokemonesAtrapados = list_size(nombresPokemonesAtrapados);
 	for(int j=0; j<cantPokemonesAtrapados; j++){
@@ -558,6 +561,82 @@ void planificarEntrenadores(){
 		}
 	}
 
+}
+
+void ejecutarEntrenador(){
+	log_info(logger, "Se procedera a ejecutar al entrenador seleccionado por el algoritmo");
+
+	t_entrenador* entrenadorAEjecutar = (t_entrenador*) list_get(colaExec,0);
+	entrenadorAEjecutar->ocupado = true;
+	t_pokemon* pokemonAAtrapar = pokemonMasCercanoA();
+
+	//UNA VEZ QUE SE EL POKEMON TENGO QEU EJECUTAR EL HILO DEL ENTRENADOR
+
+	int distanciaAPokemon = (abs(entrenadorAEjecutar->coordenadaX - pokemonAAtrapar->coordenadaX) + abs(entrenadorAEjecutar->coordenadaY - pokemonAAtrapar->coordenadaY));
+
+	if(strcmp(algoritmo_planificacion,"RR")==0){
+		//EJECUTAR CON QUANTUM
+	}
+
+	//REVISAR EL CASO DEL SJF CD
+
+	else{
+		//EJECUTAR SIN QUANTUM
+		moverEntrenador(entrenadorAEjecutar, pokemonAAtrapar);
+		sleep(retardo_ciclo_cpu);
+		entrenadorAEjecutar->rafagasEjecutadas = distanciaAPokemon + 1; //Una rafaga por cada unidad de distancia que se mueve + una rafaga para mandar un mensaje al broker
+		atraparPokemon(entrenadorAEjecutar, pokemonAAtrapar);
+		list_remove(colaExec,0);
+		entrenadorAEjecutar->blockeado = true;
+		list_add(colaBlocked,entrenadorAEjecutar);
+		log_info(loggerObligatorio, "Se cambió un entrenador de EXEC a BLOCKED, Razon: Esta a la espera de un mensaje CAUGHT");
+
+		//TODO QUE HACER PARA SABER QUE ENTRENADOR TIENE QUE COMPLETAR SU ACCION DE ATRAPAR POKEMON
+
+	}
+}
+
+void atraparPokemon(t_entrenador* entrenadorAEjecutar, t_pokemon* pokemonAAtrapar){
+	entrenadorAEjecutar->pokemonAAtrapar = pokemonAAtrapar;
+	enviarCATCH(ip_broker, puerto_broker, pokemonAAtrapar->nombrePokemon, pokemonAAtrapar->coordenadaX, pokemonAAtrapar->coordenadaY);
+	log_info(loggerObligatorio, "Se quiere atrapar a un pokemon. POKEMON:%s  COORDENADAS: X:%d Y:%d",pokemonAAtrapar->nombrePokemon, pokemonAAtrapar->coordenadaX, pokemonAAtrapar->coordenadaY);
+}
+
+void moverEntrenador(t_entrenador* entrenadorAEjecutar, t_pokemon* pokemonAAtrapar){
+	log_info(loggerObligatorio, "Se movera al entrenador ID:%d de la posicion X:%d  Y:%d a la posicion  X:%d  Y:%d", entrenadorAEjecutar->idEntrenador,
+			entrenadorAEjecutar->coordenadaX, entrenadorAEjecutar->coordenadaY, pokemonAAtrapar->coordenadaX, pokemonAAtrapar->coordenadaY);
+	entrenadorAEjecutar->coordenadaX = pokemonAAtrapar->coordenadaX;
+	entrenadorAEjecutar->coordenadaY = pokemonAAtrapar->coordenadaY;
+}
+
+t_pokemon* pokemonMasCercanoA(t_entrenador unEntrenador){
+	t_list* aux = list_create();
+	int cantPokemonesEnMapa = list_size(pokemonesEnMapa);
+	for(int i = 0; i < cantPokemonesEnMapa; i++){
+		t_pokemon* unPokemon = list_get(pokemonesEnMapa, i);
+		int distanciaAPokemon = (abs(unEntrenador->coordenadaX - unPokemon->coordenadaX) + abs(unEntrenador->coordenadaY - unPokemon->coordenadaY));
+		list_add(aux, distanciaAPokemon);
+	}
+	int menorDistancia = elMenorNumeroDe(aux);
+	int posicionMenorDistancia = list_get_index(aux,menorDistancia,(void*)comparadorPosiciones);
+	t_pokemon* pokemonMasCercano = list_get(pokemonesEnMapa,posicionMenorDistancia);
+
+	return pokemonMasCercano;
+}
+
+bool comparadorPosiciones(int unaPosicion, int otraPosicion){
+	return unaPosicion == otraPosicion;
+}
+
+int elMenorNumeroDe(t_list* aux){
+	int tamAux = list_size(aux);
+	int elMenor = list_get(aux,0);
+	for(int i=1; i<tamAux; i++){
+		if (list_get(aux,i) < elMenor){
+			elMenor = list_get(aux,i);
+		}
+	}
+	return elMenor;
 }
 
 void aplicarFIFO(){
@@ -646,45 +725,48 @@ bool estaEnElMapa(char* unPokemon){
 
 void planificarEntradaAReady(){
 	//ESTO PLANIFICA DE NEW A READY Y DE BLOCKED A READY
-	while(1){
-		t_list* pokemones = pokemonesEnMapa;
-		t_list* entrenadoresLibres = list_filter(colaBlocked, (void*)estaOcupado);
-		if(!list_is_empty(colaNew) || !list_is_empty(entrenadoresLibres)){
-			int entrenadoresNew = list_size(colaNew);
-			//JUNTO LAS LISTAS DE BLOCKED(POR INACTIVIDAD) Y DE NEW
-			for (int i=0; i<entrenadoresNew; i++){
-			t_entrenador* unEntrenador = (t_entrenador*) list_get(colaNew, i);
-			list_add(entrenadoresLibres,unEntrenador); //esto esta igual que en SJF, deberia estar bien
+	while (1) {
+		if (!list_is_empty(pokemonesEnMapa)) {
+			t_list* pokemones = pokemonesEnMapa;
+			t_list* entrenadoresLibres = list_filter(colaBlocked,(void*) estaOcupado);
+			if (!list_is_empty(colaNew) || !list_is_empty(entrenadoresLibres)) {
+				int entrenadoresNew = list_size(colaNew);
+				//JUNTO LAS LISTAS DE BLOCKED(POR INACTIVIDAD) Y DE NEW
+				for (int i = 0; i < entrenadoresNew; i++) {
+					t_entrenador* unEntrenador = (t_entrenador*) list_get(colaNew, i);
+					list_add(entrenadoresLibres, unEntrenador); //esto esta igual que en SJF, deberia estar bien
+				}
+
+				//SACO EL PRIMER POKEMON DE LA LISTA
+				t_pokemon* unPokemon = list_remove(pokemones, 0);
+
+				//CALCULO LA DISTANCIA DE TODOS A ESE POKEMON
+				calcularDistanciaA(entrenadoresLibres, unPokemon);
+
+				//ORDENO LA LISTA EN BASE A ESA DISTANCIA DE MENOR A MAYOR
+				list_sort(entrenadoresLibres, (void*) comparadorDeDistancia);
+
+				//SACO EL PRIMERO DE ESA LISTA ORDENADA
+				t_entrenador* entrenadorAux = list_remove(entrenadoresLibres,0);
+
+				//SI ESTA BLOCKEADO LO VOY A BUSCAR A BLOCKEADO, LO SACO Y LO MANDO A READY
+				if (entrenadorAux->blockeado) {
+					int index = list_get_index(colaBlocked, entrenadorAux,(void*) comparadorDeEntrenadores);
+					t_entrenador* entrenadorElegido =(t_entrenador*) list_remove(colaBlocked, index);
+					list_add(colaReady, entrenadorElegido); //esto esta igual que en SJF, deberia estar bien
+					log_info(loggerObligatorio,"Se pasó un entrenador de BLOCKED a READY, Razon: Elegido por el planificador de entrada a ready");
+				}
+
+				//SI NO ESTA BLOCKEADO, ESTA EN NEW Y PROCEDO IGUAL
+				int index = list_get_index(colaNew, entrenadorAux,(void*) comparadorDeEntrenadores);
+				t_entrenador* entrenadorElegido = (t_entrenador*) list_remove(colaNew, index);
+				list_add(colaReady, entrenadorElegido); //esto esta igual que en SJF, deberia estar bien
+				log_info(loggerObligatorio,"Se pasó un entrenador de NEW a READY, Razon: Elegido por el planificador de entrada a ready");
 			}
 
-		//SACO EL PRIMER POKEMON DE LA LISTA
-		t_pokemon* unPokemon = list_remove(pokemones, 0);
-
-		//CALCULO LA DISTANCIA DE TODOS A ESE POKEMON
-		calcularDistanciaA(entrenadoresLibres,unPokemon);
-
-		//ORDENO LA LISTA EN BASE A ESA DISTANCIA DE MENOR A MAYOR
-		list_sort(entrenadoresLibres, (void*)comparadorDeDistancia);
-
-		//SACO EL PRIMERO DE ESA LISTA ORDENADA
-		t_entrenador* entrenadorAux = list_remove(entrenadoresLibres, 0);
-
-		//SI ESTA BLOCKEADO LO VOY A BUSCAR A BLOCKEADO, LO SACO Y LO MANDO A READY
-		if(entrenadorAux->blockeado){
-			int index = list_get_index(colaBlocked,entrenadorAux,(void*)comparadorDeEntrenadores);
-			t_entrenador* entrenadorElegido = (t_entrenador*) list_remove(colaBlocked, index);
-			list_add(colaReady,entrenadorElegido); //esto esta igual que en SJF, deberia estar bien
-			log_info(loggerObligatorio, "Se pasó un entrenador de BLOCKED a READY, Razon: Elegido por el planificador de entrada a ready");
 		}
-
-		//SI NO ESTA BLOCKEADO, ESTA EN NEW Y PROCEDO IGUAL
-		int index = list_get_index(colaNew,entrenadorAux,(void*)comparadorDeEntrenadores);
-		t_entrenador* entrenadorElegido = (t_entrenador*) list_remove(colaNew, index);
-		list_add(colaReady,entrenadorElegido); //esto esta igual que en SJF, deberia estar bien
-		log_info(loggerObligatorio, "Se pasó un entrenador de NEW a READY, Razon: Elegido por el planificador de entrada a ready");
-		}
-
 	}
+
 }
 
 void calcularDistanciaA(t_list* listaEntrenadores, t_pokemon* unPokemon){
@@ -707,7 +789,7 @@ bool comparadorDeDistancia(t_entrenador* unEntrenador, t_entrenador* otroEntrena
 }
 
 bool estaOcupado(t_entrenador* unEntrenador){
-	return unEntrenador->ocupado;
+	return !unEntrenador->ocupado;
 }
 
 bool esSocketBroker(int socket){
@@ -762,7 +844,7 @@ void atenderCliente(int *socket_cliente) {
 		char* pokemonLocalized = unpackPokemonLocalized(paqueteLocalized);
 		uint32_t IDCorrelativo = unpackIDCorrelativo(paqueteLocalized);
 		//SI VERIFICA LAS MISMAS CONDICIONES QUE APPEARED Y ENCIMA ES DE UN ID CREADO POR UN MENSAJE GET ENTRA
-		if (!estaEnElMapa(pokemonLocalized)&& necesitaAtraparse(pokemonLocalized) && correspondeAUnIDDe(mensajesGET, IDCorrelativo)) {
+		if (!estaEnElMapa(pokemonLocalized)&& estaEnElObjetivo(pokemonLocalized) && !yaFueAtrapado(pokemonLocalized) && correspondeAUnIDDe(mensajesGET, IDCorrelativo)) {
 			uint32_t ID = unpackID(paqueteLocalized);
 			uint32_t tamanioPokemon = sizeof(pokemonLocalized);
 			uint32_t cantidadPokemones =unpackCantidadParesCoordenadas_Localized(paqueteLocalized,tamanioPokemon);
@@ -800,7 +882,7 @@ void atenderCliente(int *socket_cliente) {
 		uint32_t coordenadaY = unpackCoordenadaY_Appeared(paqueteAppeared,tamanioPokemon);
 		log_info(logger,"MENSAJE RECIBIDO. POKEMON: %s,X: %d,Y: %d",pokemonAppeared,coordenadaX,coordenadaY);
 
-		if (necesitaAtraparse(pokemonAppeared)) {
+		if (estaEnElObjetivo(pokemonLocalized) && !yaFueAtrapado(pokemonLocalized)) {
 			t_pokemon* pokemonAAtrapar = malloc(sizeof(t_pokemon));
 			pokemonAAtrapar->nombrePokemon = pokemonAppeared;
 			pokemonAAtrapar->coordenadaX = coordenadaX;
@@ -819,7 +901,7 @@ void atenderCliente(int *socket_cliente) {
 		//ESTE SE USA
 		log_info(loggerObligatorio, "Llego un mensaje de CAUGHT");
 		void* paqueteCaught = receiveAndUnpack(*socket_cliente, tamanio);
-		uint32_t ID = unpackID(paqueteCaught);
+		uint32_t ID = unpackIDCorrelativo(paqueteCaught);
 		bool resultadoCaught = unpackResultado_Caught(paqueteCaught);
 		if (correspondeAUnIDDe(mensajesCATCH, ID)) {
 			//SI CORRESPONDE LE ASIGNO EL POKEMON AL ENTRENADOR Y LO DESBLOQUEO (PASA A READY)

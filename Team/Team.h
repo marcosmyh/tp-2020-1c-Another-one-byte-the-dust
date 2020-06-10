@@ -28,6 +28,7 @@ typedef struct {
 	uint32_t coordenadaY;
 	t_list* pokemones;
 	t_list* objetivo;
+	t_pokemon* pokemonAAtrapar;
 	int rafagasEstimadas;
 	int rafagasEjecutadas;
 	int distancia;
@@ -117,7 +118,8 @@ void enviarPokemonesAlBroker();
 void enviarGET(char* ip, char* puerto, char* pokemon);
 void enviarCATCH(char* ip, char* puerto, char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY);
 void enviarACK(char* ip, char* puerto, uint32_t ID, t_operacion operacion);
-bool necesitaAtraparse(char* pokemon);
+bool estaEnElObjetivo(char* pokemon);
+bool yaFueAtrapado(char* pokemon);
 char* obtenerPokemon(t_pokemon* unPokemon);
 void planificarEntrenadores();
 void aplicarFIFO();
@@ -132,7 +134,7 @@ bool comparadorDeRafagas(t_entrenador* unEntrenador, t_entrenador* otroEntrenado
 int list_get_index(t_list* self, void* elemento, bool (*comparator) (void*,void*));
 bool estaEnElMapa(char* unPokemon);
 bool correspondeAUnIDDe(t_list* colaDeIDS, uint32_t IDCorrelativo); //LE PASAS UNA COLA DE IDS GUARDADOS Y UN ID A BUSCAR Y TE DICE SI ESTA O NO
-void planificarEntradaAReady();
+void planificarEntradaAReady(); //PLANIFICACION A READY
 void administrarSuscripcionesBroker();
 void calcularDistanciaA(t_list* listaEntrenadores, t_pokemon* unPokemon);
 bool comparadorDeDistancia(t_entrenador* unEntrenador, t_entrenador* otroEntrenador);
@@ -141,6 +143,11 @@ int conectarseAColaMensaje(int socket,char *identificador,t_operacion operacion)
 void conexionAColaAppeared();
 void conexionAColaCaught();
 void conexionAColaLocalized();
+void ejecutarEntrenador(); //EJECUTAR ENTRENADOR
+void moverEntrenador(t_entrenador* entrenadorAEjecutar, t_pokemon* pokemonAAtrapar);
+t_pokemon* pokemonMasCercanoA(t_entrenador unEntrenador);
+bool comparadorPosiciones(int unaPosicion, int otraPosicion);
+int elMenorNumeroDe(t_list* aux);
 void atenderCliente(int *socket_cliente); //ESTA ES LA FUNCION MAGICA
 bool esSocketBroker(int socket);
 
