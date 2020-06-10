@@ -47,6 +47,7 @@ char* path_de_tallgrass;
 int bloquesLibres; 
 
 sem_t semDeBloques;
+sem_t aperturaDeArchivo;
 
 void crearLogger(void);
 void crearLoggerObligatorio();

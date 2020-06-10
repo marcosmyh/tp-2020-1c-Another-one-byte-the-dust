@@ -51,7 +51,9 @@ t_list* colaBlocked;
 t_list* colaExit;
 
 //VARIABLES
-pthread_t hiloAtencionBroker;
+pthread_t hiloAtencionCaught;
+pthread_t hiloAtencionAppeared;
+pthread_t hiloAtencionLocalized;
 pthread_t hiloAtencionGameBoy;
 pthread_t hiloSuscripcionBroker;
 
@@ -63,6 +65,7 @@ pthread_mutex_t semaforoLocalized;
 bool conexionAppeared = 0;
 bool conexionCaught = 0;
 bool conexionLocalized = 0;
+bool seEnvioMensajeGET = 0;
 char* identificadorProceso = NULL;
 t_log* logger;
 t_log* loggerObligatorio;
@@ -100,7 +103,7 @@ void crearLoggerObligatorio();
 void leerArchivoDeConfiguracion();
 void setearValores(t_config* archConfiguracion);
 int iniciar_servidor(char* ip, char* puerto, t_log* log);
-void atenderGameBoy(int* socket_servidor);
+void gestionMensajesGameBoy(int* socket_servidor);
 int conectarse_a_un_servidor(char* ip, char* puerto, t_log* log);
 int conectarseAColasMensajes(char* ip, char* puerto, t_log* log);
 void enviarHandshake (int socket, char* identificador, t_operacion operacion);
@@ -127,7 +130,6 @@ void guardarID(uint32_t *,uint32_t *);
 void aplicarRR();
 void aplicarSJFConDesalojo();
 void aplicarSJF();
-void atenderBroker();
 t_entrenador* calcularEstimacion(t_entrenador* unEntrenador);
 bool comparadorDeEntrenadores(t_entrenador* unEntrenador, t_entrenador* otroEntrenador);
 bool comparadorDeRafagas(t_entrenador* unEntrenador, t_entrenador* otroEntrenador);
@@ -150,6 +152,14 @@ bool comparadorPosiciones(int unaPosicion, int otraPosicion);
 int elMenorNumeroDe(t_list* aux);
 void atenderCliente(int *socket_cliente); //ESTA ES LA FUNCION MAGICA
 bool esSocketBroker(int socket);
+void atencionCaught();
+void atencionAppeared();
+void atencionLocalized();
+void gestionMensajesCaught();
+void gestionMensajesAppeared();
+void gestionMensajesLocalized();
+void atencionLocalized();
+void iniciarGestionMensajes();
 
 #endif
 
