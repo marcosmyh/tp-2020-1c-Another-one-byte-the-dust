@@ -22,6 +22,8 @@
 
 
 //ESTRUCTURAS
+typedef struct t_pokemon t_pokemon;
+
 typedef struct {
 	int idEntrenador;
 	uint32_t coordenadaX;
@@ -38,11 +40,11 @@ typedef struct {
 	bool blockeado;
 }t_entrenador;
 
-typedef struct{
+struct t_pokemon{
 	char* nombrePokemon;
 	uint32_t coordenadaX;
 	uint32_t coordenadaY;
-}t_pokemon;
+};
 
 //COLAS
 t_list* colaNew;
@@ -62,6 +64,8 @@ pthread_mutex_t semaforoAppeared;
 pthread_mutex_t semaforoCaught;
 pthread_mutex_t semaforoSuscripciones;
 pthread_mutex_t semaforoLocalized;
+pthread_mutex_t semaforoControlGet;
+sem_t semaforoGet;
 sem_t semaforoRespuestaCatch;
 
 bool conexionAppeared = 0;
@@ -121,13 +125,19 @@ int obtenerCantidadEntrenadores();
 void inicializarEntrenadores();
 void inicializarColas();
 void enviarPokemonesAlBroker();
-void enviarGET(char* ip, char* puerto, char* pokemon);
+void enviarGET(char* pokemon);
 void enviarCATCH(char* ip, char* puerto, char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY);
 void enviarACK(char* ip, char* puerto, uint32_t ID, t_operacion operacion);
 bool estaEnElObjetivo(char* pokemon);
 bool yaFueAtrapado(char* pokemon);
 char* obtenerPokemon(t_pokemon* unPokemon);
 void planificarEntrenadores();
+void ejecutarEntrenador();
+void atraparPokemon(t_entrenador* entrenadorAEjecutar, t_pokemon* pokemonAAtrapar);
+void moverEntrenador(t_entrenador* entrenadorAEjecutar, t_pokemon* pokemonAAtrapar);
+t_pokemon* pokemonMasCercanoA(t_entrenador* unEntrenador);
+bool comparadorPosiciones(int unaPosicion, int otraPosicion);
+int elMenorNumeroDe(t_list* aux);
 void aplicarFIFO();
 void guardarID(uint32_t *,uint32_t *);
 void aplicarRR();
@@ -139,7 +149,7 @@ bool comparadorDeRafagas(t_entrenador* unEntrenador, t_entrenador* otroEntrenado
 int list_get_index(t_list* self, void* elemento, bool (*comparator) (void*,void*));
 bool estaEnElMapa(char* unPokemon);
 bool correspondeAUnIDDe(t_list* colaDeIDS, uint32_t IDCorrelativo); //LE PASAS UNA COLA DE IDS GUARDADOS Y UN ID A BUSCAR Y TE DICE SI ESTA O NO
-void planificarEntradaAReady(); //PLANIFICACION A READY
+void planificarEntradaAReady();
 void administrarSuscripcionesBroker();
 void calcularDistanciaA(t_list* listaEntrenadores, t_pokemon* unPokemon);
 bool comparadorDeDistancia(t_entrenador* unEntrenador, t_entrenador* otroEntrenador);
@@ -148,12 +158,6 @@ int conectarseAColaMensaje(int socket,char *identificador,t_operacion operacion)
 void conexionAColaAppeared();
 void conexionAColaCaught();
 void conexionAColaLocalized();
-void ejecutarEntrenador(); //EJECUTAR ENTRENADOR
-void moverEntrenador(t_entrenador* entrenadorAEjecutar, t_pokemon* pokemonAAtrapar);
-t_pokemon* pokemonMasCercanoA(t_entrenador* unEntrenador);
-void atraparPokemon(t_entrenador* entrenadorAEjecutar, t_pokemon* pokemonAAtrapar);
-bool comparadorPosiciones(int unaPosicion, int otraPosicion);
-int elMenorNumeroDe(t_list* aux);
 void atenderCliente(int *socket_cliente); //ESTA ES LA FUNCION MAGICA
 bool esSocketBroker(int socket);
 void atencionCaught();
@@ -166,4 +170,5 @@ void atencionLocalized();
 void iniciarGestionMensajes();
 
 #endif
+
 

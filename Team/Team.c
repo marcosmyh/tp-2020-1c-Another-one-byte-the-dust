@@ -6,16 +6,24 @@ int main(){
 	crearLoggerObligatorio();
 	leerArchivoDeConfiguracion();
 	socket_servidor = iniciar_servidor(ip_team, puerto_team, logger);
+	inicializarColas();
+	inicializarEntrenadores();
 
+
+	sem_init(&semaforoGet,0,0);
+	sem_init(&semaforoRespuestaCatch,0,0);
 	pthread_mutex_init(&semaforoAppeared,NULL);
 	pthread_mutex_init(&semaforoCaught,NULL);
 	pthread_mutex_init(&semaforoSuscripciones,NULL);
 	pthread_mutex_init(&semaforoLocalized,NULL);
-	sem_init(&semaforoRespuestaCatch,0,0);
+	pthread_mutex_init(&semaforoControlGet,NULL);
 
     pthread_t hiloMensajes;
 
     pthread_create(&hiloMensajes,NULL,(void *)iniciarGestionMensajes,NULL);
+
+    pthread_join(hiloMensajes,NULL);
+
 	/*
 	//CREO COLA DE PLANIFICACION A READY
 	pthread_t hiloPlanificacionReady;
@@ -39,11 +47,13 @@ int main(){
 
 	*/
 
-	//DESTRUIR T0DO AL FINAL
+	//DESTRUIR TODO AL FINAL
+
 	pthread_mutex_destroy(&semaforoAppeared);
 	pthread_mutex_destroy(&semaforoCaught);
 	pthread_mutex_destroy(&semaforoSuscripciones);
 	pthread_mutex_destroy(&semaforoLocalized);
+	sem_destroy(&semaforoGet);
 
 	return EXIT_SUCCESS;
 }
@@ -151,6 +161,7 @@ void administrarSuscripcionesBroker(){
 	pthread_mutex_lock(&semaforoSuscripciones);
 	if(conexionAppeared){
 	enviarPokemonesAlBroker();
+	pthread_mutex_lock(&semaforoSuscripciones);
 	suscripcionColaCaught();
 
 	pthread_mutex_lock(&semaforoSuscripciones);
@@ -165,8 +176,12 @@ void administrarSuscripcionesBroker(){
 		pthread_mutex_lock(&semaforoSuscripciones);
 		reconexionColaAppeared();
 
+		pthread_mutex_lock(&semaforoSuscripciones);
 		if(!seEnvioMensajeGET){
 		enviarPokemonesAlBroker();
+		}
+		else{
+			pthread_mutex_unlock(&semaforoSuscripciones);
 		}
 
 		pthread_mutex_lock(&semaforoSuscripciones);
@@ -427,7 +442,6 @@ void inicializarEntrenadores(){
 		t_entrenador* entrenadorNuevo = malloc(sizeof(t_entrenador));
 		entrenadorNuevo->idEntrenador = IDMAX;
 		IDMAX++;
-		entrenadorNuevo->pokemonAAtrapar = NULL;
 		entrenadorNuevo->completoObjetivo = false;
 		entrenadorNuevo->ocupado = false;
 		entrenadorNuevo->rafagasEstimadas = 0;
@@ -465,32 +479,27 @@ void inicializarEntrenadores(){
 
 void enviarPokemonesAlBroker(){
 	//ESTO HACE UN CONNECT AL BROKER Y POR CADA TIPO DE POKEMON QUE ESTE EN EL OBJETIVO GLOBAL SE ENVIA UN GET Y SE CIERRA LA CONEXION
-	if(conexionAppeared == 1){
 		t_list* pokemonsAPedir = list_create();
 		pokemonsAPedir = objetivoTeam;
 		int cantPokemones = list_size(pokemonsAPedir);
 		for(int i=0; i<cantPokemones; i++){
 			char* pokemonAPedir = list_get(pokemonsAPedir, i);
-			enviarGET(ip_broker, puerto_broker, pokemonAPedir);
+			enviarGET(pokemonAPedir);
 		}
 		log_info(logger, "Se han enviado los GETs necesarios al broker");
-	}
+		pthread_mutex_unlock(&semaforoSuscripciones);
 
 	seEnvioMensajeGET = true;
 }
 
-void enviarGET(char* ip, char* puerto, char* pokemon){
-	int socket = conectarse_a_un_servidor(ip, puerto, logger);
+void enviarGET(char* pokemon){
+	int socket = conectarse_a_un_servidor(ip_broker, puerto_broker, logger);
 	uint32_t id = -1;
 	void* paquete = pack_Get(id, pokemon);
 	uint32_t tamPaquete = sizeof(uint32_t) + strlen(pokemon) + 1 + sizeof(uint32_t);
-	int resultadoGet = packAndSend (socket, paquete, tamPaquete, t_GET);
-	if (resultadoGet == -1){
-		log_info(logger, "El envio del GET ha fallado");
-		log_info(loggerObligatorio, "El envio fallo por un error de conexion, se procedera a realizar la operacion por default");
-		close(socket);
-	}
+	packAndSend (socket, paquete, tamPaquete, t_GET);
 	log_info(logger, "El envio del GET se realizo con exito");
+	atenderCliente(&socket);
 	close(socket);
 }
 
@@ -499,27 +508,17 @@ void enviarCATCH(char* ip, char* puerto, char* pokemon, uint32_t coordenadaX, ui
 	uint32_t id = -1;
 	void* paquete = pack_Catch(id, pokemon, coordenadaX, coordenadaY);
 	uint32_t tamPaquete = sizeof(uint32_t)*4 + strlen(pokemon) + 1;
-	int resultadoCatch = packAndSend(socket, paquete, tamPaquete, t_CATCH);
-	if (resultadoCatch == -1){
-		log_info(logger, "El envio del CATCH ha fallado");
-		log_info(loggerObligatorio, "El envio fallo por un error de conexion, se procedera a realizar la operacion por default");
-		close(socket);
-	}
+	packAndSend(socket, paquete, tamPaquete, t_CATCH);
 	log_info(logger, "El envio del CATCH se realizo con exito");
 	close(socket);
 }
 
 void enviarACK(char* ip, char* puerto, uint32_t ID, t_operacion operacion){
 	int socket = conectarse_a_un_servidor(ip, puerto, logger);
+	log_error(logger,"ESTOY ANTES DE Crear el socket ACK");
 	void* paquete = pack_Ack(ID, operacion, identificadorProceso);
-	log_error(logger, "ID PROCESO:%s", identificadorProceso);
 	uint32_t tamPaquete = sizeof(ID) + sizeof(t_operacion) + strlen(identificadorProceso) + 1 + sizeof(uint32_t);
-	int resultadoACK = packAndSend(socket, paquete, tamPaquete, t_ACK);
-	if(resultadoACK == -1){
-		log_info(logger, "El envio del ACK ha fallado");
-		log_info(loggerObligatorio, "El envio fallo por un error de conexion"); //QUE HACER ENE ESTE CASO? HAY ACCION POR DEFAULT?
-		close(socket);
-	}
+	packAndSend(socket, paquete, tamPaquete, t_ACK);
 	log_info(logger, "El envio del ACK se realizo con exito");
 	close(socket);
 }
@@ -603,16 +602,18 @@ void ejecutarEntrenador(){
 			if(llegoRespuesta){
 				//CUANDO LLEGA LA RESPUESTA HABILITO LA EJECUCION
 				sem_wait(&semaforoRespuestaCatch);
+				llegoRespuesta = 0;
 				//ME TRAIGO EL ULTIMO ELEMENTO DE LA LISTA DE MENSAJES CATCH, ADD AGREGA AL FINAL DE LA LISTA
 				int sizeMensajesCatch = list_size(mensajesCATCH);
 				int index = sizeMensajesCatch-1;
 				uint32_t* IDCATCH = list_get(mensajesCATCH,index);
-				entrenadorAEjecutar->IdCatch = IDCATCH;
+				entrenadorAEjecutar->IdCatch = *IDCATCH;
 				list_remove(colaExec,0);
 				entrenadorAEjecutar->blockeado = true;
 				list_add(colaBlocked,entrenadorAEjecutar);
 				log_info(loggerObligatorio, "Se cambió un entrenador de EXEC a BLOCKED, Razon: Esta a la espera de un mensaje CAUGHT");
 				break;
+				//TODO: CONTINUAR ESTA FUNCION
 			}
 		}
 	}
@@ -651,6 +652,7 @@ bool comparadorPosiciones(int unaPosicion, int otraPosicion){
 }
 
 int elMenorNumeroDe(t_list* aux){
+	//TODO: REVISAR ESTA FUNCION
 	int tamAux = list_size(aux);
 	int* elMenor = list_get(aux,0);
 	for(int i=1; i<tamAux; i++){
@@ -747,48 +749,45 @@ bool estaEnElMapa(char* unPokemon){
 
 void planificarEntradaAReady(){
 	//ESTO PLANIFICA DE NEW A READY Y DE BLOCKED A READY
-	while (1) {
-		if (!list_is_empty(pokemonesEnMapa)) {
-			t_list* pokemones = pokemonesEnMapa;
-			t_list* entrenadoresLibres = list_filter(colaBlocked,(void*) estaOcupado);
-			if (!list_is_empty(colaNew) || !list_is_empty(entrenadoresLibres)) {
-				int entrenadoresNew = list_size(colaNew);
-				//JUNTO LAS LISTAS DE BLOCKED(POR INACTIVIDAD) Y DE NEW
-				for (int i = 0; i < entrenadoresNew; i++) {
-					t_entrenador* unEntrenador = (t_entrenador*) list_get(colaNew, i);
-					list_add(entrenadoresLibres, unEntrenador); //esto esta igual que en SJF, deberia estar bien
-				}
-
-				//SACO EL PRIMER POKEMON DE LA LISTA
-				t_pokemon* unPokemon = list_remove(pokemones, 0);
-
-				//CALCULO LA DISTANCIA DE TODOS A ESE POKEMON
-				calcularDistanciaA(entrenadoresLibres, unPokemon);
-
-				//ORDENO LA LISTA EN BASE A ESA DISTANCIA DE MENOR A MAYOR
-				list_sort(entrenadoresLibres, (void*) comparadorDeDistancia);
-
-				//SACO EL PRIMERO DE ESA LISTA ORDENADA
-				t_entrenador* entrenadorAux = list_remove(entrenadoresLibres,0);
-
-				//SI ESTA BLOCKEADO LO VOY A BUSCAR A BLOCKEADO, LO SACO Y LO MANDO A READY
-				if (entrenadorAux->blockeado) {
-					int index = list_get_index(colaBlocked, entrenadorAux,(void*) comparadorDeEntrenadores);
-					t_entrenador* entrenadorElegido =(t_entrenador*) list_remove(colaBlocked, index);
-					list_add(colaReady, entrenadorElegido); //esto esta igual que en SJF, deberia estar bien
-					log_info(loggerObligatorio,"Se pasó un entrenador de BLOCKED a READY, Razon: Elegido por el planificador de entrada a ready");
-				}
-
-				//SI NO ESTA BLOCKEADO, ESTA EN NEW Y PROCEDO IGUAL
-				int index = list_get_index(colaNew, entrenadorAux,(void*) comparadorDeEntrenadores);
-				t_entrenador* entrenadorElegido = (t_entrenador*) list_remove(colaNew, index);
-				list_add(colaReady, entrenadorElegido); //esto esta igual que en SJF, deberia estar bien
-				log_info(loggerObligatorio,"Se pasó un entrenador de NEW a READY, Razon: Elegido por el planificador de entrada a ready");
+	while(1){
+		t_list* pokemones = pokemonesEnMapa;
+		t_list* entrenadoresLibres = list_filter(colaBlocked, (void*)estaOcupado);
+		if(!list_is_empty(colaNew) || !list_is_empty(entrenadoresLibres)){
+			int entrenadoresNew = list_size(colaNew);
+			//JUNTO LAS LISTAS DE BLOCKED(POR INACTIVIDAD) Y DE NEW
+			for (int i=0; i<entrenadoresNew; i++){
+			t_entrenador* unEntrenador = (t_entrenador*) list_get(colaNew, i);
+			list_add(entrenadoresLibres,unEntrenador); //esto esta igual que en SJF, deberia estar bien
 			}
 
-		}
-	}
+		//SACO EL PRIMER POKEMON DE LA LISTA
+		t_pokemon* unPokemon = list_remove(pokemones, 0);
 
+		//CALCULO LA DISTANCIA DE TODOS A ESE POKEMON
+		calcularDistanciaA(entrenadoresLibres,unPokemon);
+
+		//ORDENO LA LISTA EN BASE A ESA DISTANCIA DE MENOR A MAYOR
+		list_sort(entrenadoresLibres, (void*)comparadorDeDistancia);
+
+		//SACO EL PRIMERO DE ESA LISTA ORDENADA
+		t_entrenador* entrenadorAux = list_remove(entrenadoresLibres, 0);
+
+		//SI ESTA BLOCKEADO LO VOY A BUSCAR A BLOCKEADO, LO SACO Y LO MANDO A READY
+		if(entrenadorAux->blockeado){
+			int index = list_get_index(colaBlocked,entrenadorAux,(void*)comparadorDeEntrenadores);
+			t_entrenador* entrenadorElegido = (t_entrenador*) list_remove(colaBlocked, index);
+			list_add(colaReady,entrenadorElegido); //esto esta igual que en SJF, deberia estar bien
+			log_info(loggerObligatorio, "Se pasó un entrenador de BLOCKED a READY, Razon: Elegido por el planificador de entrada a ready");
+		}
+
+		//SI NO ESTA BLOCKEADO, ESTA EN NEW Y PROCEDO IGUAL
+		int index = list_get_index(colaNew,entrenadorAux,(void*)comparadorDeEntrenadores);
+		t_entrenador* entrenadorElegido = (t_entrenador*) list_remove(colaNew, index);
+		list_add(colaReady,entrenadorElegido); //esto esta igual que en SJF, deberia estar bien
+		log_info(loggerObligatorio, "Se pasó un entrenador de NEW a READY, Razon: Elegido por el planificador de entrada a ready");
+		}
+
+	}
 }
 
 void calcularDistanciaA(t_list* listaEntrenadores, t_pokemon* unPokemon){
@@ -811,7 +810,7 @@ bool comparadorDeDistancia(t_entrenador* unEntrenador, t_entrenador* otroEntrena
 }
 
 bool estaOcupado(t_entrenador* unEntrenador){
-	return !unEntrenador->ocupado;
+	return unEntrenador->ocupado;
 }
 
 bool esSocketBroker(int socket){
@@ -895,17 +894,15 @@ void atenderCliente(int *socket_cliente) {
 		//ESTE SE USA
 		log_info(loggerObligatorio, "Llego un mensaje de APPEARED");
 		void* paqueteAppeared = receiveAndUnpack(*socket_cliente, tamanio);
-        char* pokemonAppeared = unpackPokemonAppeared(paqueteAppeared);
-
-        uint32_t ID_APPEARED= unpackID(paqueteAppeared);
-        log_error(logger,"ID MENSAJE RECIBIDO: %d",ID_APPEARED);
-        uint32_t tamanioPokemon = strlen(pokemonAppeared)+1;
+		char* pokemonAppeared = unpackPokemonAppeared(paqueteAppeared);
+		uint32_t ID_APPEARED= unpackID(paqueteAppeared);
+		log_error(logger,"ID MENSAJE RECIBIDO: %d",ID_APPEARED);
+		uint32_t tamanioPokemon = strlen(pokemonAppeared)+1;
 		uint32_t coordenadaX = unpackCoordenadaX_Appeared(paqueteAppeared,tamanioPokemon);
 		uint32_t coordenadaY = unpackCoordenadaY_Appeared(paqueteAppeared,tamanioPokemon);
 		log_info(logger,"MENSAJE RECIBIDO. POKEMON: %s,X: %d,Y: %d",pokemonAppeared,coordenadaX,coordenadaY);
 
-
-		if (estaEnElObjetivo(pokemonLocalized) && !yaFueAtrapado(pokemonLocalized)) {
+		if (estaEnElObjetivo(pokemonAppeared) && !yaFueAtrapado(pokemonAppeared)) {
 			t_pokemon* pokemonAAtrapar = malloc(sizeof(t_pokemon));
 			pokemonAAtrapar->nombrePokemon = pokemonAppeared;
 			pokemonAAtrapar->coordenadaX = coordenadaX;
@@ -920,7 +917,6 @@ void atenderCliente(int *socket_cliente) {
 		else{
 			log_info(logger,"El mensaje de appeared de este pokemon ya fue recibido o no necesita atraparse, queda descartado");
 		}
-
 		break;
 
 	case t_CAUGHT:;
@@ -942,20 +938,20 @@ void atenderCliente(int *socket_cliente) {
 		log_info(loggerObligatorio, "Llego un mensaje de ID");
 		void* paqueteID = receiveAndUnpack(*socket_cliente, tamanio);
 		uint32_t id = unpackID(paqueteID);
+		log_error(logger,"ID RECIBIDO: %d",id);
 		t_operacion operacionAsociada = unpackOperacionID(paqueteID);
 		switch (operacionAsociada) {
 
 		case t_GET:;
 			list_add(mensajesGET, &id);
-			enviarACK(ip_broker, puerto_broker, id, operacionAsociada);
 			free(paqueteID);
 			break;
 
 		case t_CATCH:;
 			list_add(mensajesCATCH, &id);
-			enviarACK(ip_broker, puerto_broker, id, operacionAsociada);
 			free(paqueteID);
 			sem_post(&semaforoRespuestaCatch);
+			llegoRespuesta = 1;
 			break;
 
 		default:
