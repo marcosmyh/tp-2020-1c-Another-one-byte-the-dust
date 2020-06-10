@@ -83,6 +83,8 @@ void enviar_mensaje_a_broker(char* tipo_de_mensaje,int cantidad_de_argumentos,ch
 
 void envioDeMensajeNew(char* pokemon, uint32_t posx, uint32_t posy,uint32_t cantidad,uint32_t idmensaje);
 void envioDeMensajeAppeared(char* pokemon, uint32_t posx, uint32_t posy, uint32_t idmensaje);
+void *paqueteAppearedTeam(char *pokemon,uint32_t posx,uint32_t posy,uint32_t idMensaje);
+void *insertarIDEnPaquete(uint32_t ID,void *paquete,uint32_t tamanioPaquete);
 void envioDeMensajeCatch(char* pokemon, uint32_t posx, uint32_t posy, uint32_t idmensaje);
 void envioDeMensajeCaught(uint32_t atrapado, uint32_t idmensaje);
 void envioDeMensajeGet(char* pokemon,uint32_t idmensaje);

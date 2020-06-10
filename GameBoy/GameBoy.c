@@ -233,6 +233,19 @@ void envioDeMensajeNew(char* pokemon, uint32_t posx, uint32_t posy,uint32_t cant
 	log_info(loggerObligatorio,"Mensaje de NEW enviado");
 }
 
+void *insertarIDEnPaquete(uint32_t ID,void *paquete,uint32_t tamanioPaquete){
+	void *paqueteAEnviar = malloc(tamanioPaquete+sizeof(uint32_t));
+	memcpy(paqueteAEnviar,&ID,sizeof(uint32_t));
+	memcpy(paqueteAEnviar+sizeof(uint32_t),paquete,tamanioPaquete);
+
+	return paqueteAEnviar;
+}
+
+void *paqueteAppearedTeam(char *pokemon,uint32_t posx,uint32_t posy,uint32_t idMensaje){
+	void *paqueteAppeared = pack_Appeared(idMensaje,pokemon,posx,posy);
+	return paqueteAppeared;
+}
+
 void envioDeMensajeAppeared(char* pokemon, uint32_t posx, uint32_t posy, uint32_t idmensaje){
 	void* paqueteAppeared = pack_Appeared(idmensaje,pokemon,posx,posy);
 	uint32_t tamPaquete =  strlen(pokemon) + 1 + 4*sizeof(uint32_t);
@@ -386,9 +399,14 @@ void enviar_mensaje_a_team(char* tipo_de_mensaje,int cantidad_de_argumentos,char
 		uint32_t posy = atoi(argumentos[5]);
 		uint32_t id = -1;
 
-    	// Envio del mensaje
-		envioDeMensajeAppeared(pokemon,posx,posy,id);
-		// Envio del mensaje
+		void *paquete = paqueteAppearedTeam(pokemon,posx,posy,id);
+		uint32_t tamPaquete = strlen(pokemon) + 1 + 4*sizeof(uint32_t);
+		void *paqueteAEnviar = insertarIDEnPaquete(-1,paquete,tamPaquete);
+
+		log_error(loggerObligatorio,"El tamaño del paquete es: %i ",tamPaquete+sizeof(uint32_t));
+		int resultado = packAndSend(conexion,paqueteAEnviar,tamPaquete+sizeof(uint32_t),t_APPEARED);
+		if(resultado == -1)log_error(loggerObligatorio,"El envio del mensaje de APPEARED falló");
+		log_info(loggerObligatorio,"Mensaje de APPEARED enviado");
 
 		printf("Aca envio el mensaje \n");
 		printf("Pokemon: %s \n",pokemon);
