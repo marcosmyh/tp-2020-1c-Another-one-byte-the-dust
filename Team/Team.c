@@ -6,26 +6,19 @@ int main(){
 	crearLoggerObligatorio();
 	leerArchivoDeConfiguracion();
 	socket_servidor = iniciar_servidor(ip_team, puerto_team, logger);
+	inicializarColas();
+	inicializarEntrenadores();
+
 	pthread_mutex_init(&semaforoAppeared,NULL);
 	pthread_mutex_init(&semaforoCaught,NULL);
 	pthread_mutex_init(&semaforoSuscripciones,NULL);
 	pthread_mutex_init(&semaforoLocalized,NULL);
 
-	pthread_create(&hiloSuscripcionBroker,NULL,(void *)administrarSuscripcionesBroker,NULL);
-    pthread_create(&hiloAtencionBroker,NULL,(void *)atenderBroker,NULL);
-	pthread_create(&hiloAtencionGameBoy,NULL,(void*)atenderGameBoy,&socket_servidor);
+    pthread_t hiloMensajes;
 
-	pthread_join(hiloAtencionGameBoy,NULL);
-	pthread_join(hiloSuscripcionBroker,NULL);
-	pthread_join(hiloAtencionBroker,NULL);
+    pthread_create(&hiloMensajes,NULL,(void *)iniciarGestionMensajes,NULL);
 
-
-	//INICIALIZO LAS COLAS
-	inicializarColas();
-	//INICIALIZO LOS ENTRENADORES
-	inicializarEntrenadores();
-	//MANDO UN GET AL BROKER PARA CADA ESPECIE POKEMON QUE ESTA EN EL OBJETIVO
-	enviarPokemonesAlBroker();
+    pthread_join(hiloMensajes,NULL);
 
 	/*
 	//CREO COLA DE PLANIFICACION A READY
@@ -60,6 +53,21 @@ int main(){
 	return EXIT_SUCCESS;
 }
 
+void iniciarGestionMensajes(){
+	pthread_create(&hiloSuscripcionBroker,NULL,(void *)administrarSuscripcionesBroker,NULL);
+    pthread_create(&hiloAtencionAppeared,NULL,(void *)gestionMensajesAppeared,NULL);
+    pthread_create(&hiloAtencionCaught,NULL,(void *)gestionMensajesCaught,NULL);
+    pthread_create(&hiloAtencionLocalized,NULL,(void *)gestionMensajesLocalized,NULL);
+	pthread_create(&hiloAtencionGameBoy,NULL,(void*)gestionMensajesGameBoy,&socket_servidor);
+
+	pthread_join(hiloAtencionGameBoy,NULL);
+	pthread_join(hiloSuscripcionBroker,NULL);
+	pthread_join(hiloAtencionAppeared,NULL);
+	pthread_join(hiloAtencionCaught,NULL);
+	pthread_join(hiloAtencionLocalized,NULL);
+}
+
+
 void suscripcionColaAppeared(){
 	conexionAColaAppeared();
 	pthread_mutex_unlock(&semaforoSuscripciones);
@@ -85,50 +93,57 @@ void suscripcionColaLocalized(){
 	}
 }
 
-void recepcionMensajesAppeared(){
+void atencionAppeared(){
 	atenderCliente(&socket_appeared);
 	pthread_mutex_unlock(&semaforoAppeared);
-	pthread_mutex_unlock(&semaforoCaught);
-	pthread_mutex_unlock(&semaforoLocalized);
 }
 
-void recepcionMensajesCaught(){
+void atencionCaught(){
 	atenderCliente(&socket_caught);
 	pthread_mutex_unlock(&semaforoCaught);
 }
 
-void recepcionMensajesLocalized(){
+void atencionLocalized(){
 	atenderCliente(&socket_localized);
 	pthread_mutex_unlock(&semaforoLocalized);
 }
 
-void atenderBroker(){
-
-	pthread_t hiloAppeared;
-	pthread_t hiloCaught;
+void gestionMensajesLocalized(){
 	pthread_t hiloLocalized;
 
 	while(1){
-		if(conexionAppeared){
-
-		pthread_mutex_lock(&semaforoAppeared);
-		pthread_create(&hiloAppeared,NULL,(void *)recepcionMensajesAppeared,NULL);
-		pthread_detach(hiloAppeared);
-		log_error(logger,"Se creo un hilo appeared");
-
-		if(conexionCaught){
-			pthread_mutex_lock(&semaforoCaught);
-			pthread_create(&hiloCaught,NULL,(void *)recepcionMensajesCaught,NULL);
-			pthread_detach(hiloCaught);
-			log_error(logger,"Se creo un hilo caught");
-		}
-
 		if(conexionLocalized){
 			pthread_mutex_lock(&semaforoLocalized);
-			pthread_create(&hiloLocalized,NULL,(void *)recepcionMensajesLocalized,NULL);
+			pthread_create(&hiloLocalized,NULL,(void *)atencionLocalized,NULL);
 			pthread_detach(hiloLocalized);
 			log_error(logger,"Se creo un hilo localized");
 		}
+	}
+}
+
+
+void gestionMensajesCaught(){
+	pthread_t hiloCaught;
+
+	while(1){
+		if(conexionCaught){
+			pthread_mutex_lock(&semaforoCaught);
+			pthread_create(&hiloCaught,NULL,(void *)atencionCaught,NULL);
+			pthread_detach(hiloCaught);
+			log_error(logger,"Se creo un hilo caught");
+		}
+	}
+}
+
+void gestionMensajesAppeared(){
+	pthread_t hiloAppeared;
+
+	while(1){
+		if(conexionAppeared){
+		pthread_mutex_lock(&semaforoAppeared);
+		pthread_create(&hiloAppeared,NULL,(void *)atencionAppeared,NULL);
+		pthread_detach(hiloAppeared);
+		log_error(logger,"Se creo un hilo appeared");
 	}
 	}
 }
@@ -140,6 +155,7 @@ void administrarSuscripcionesBroker(){
 
 	pthread_mutex_lock(&semaforoSuscripciones);
 	if(conexionAppeared){
+	enviarPokemonesAlBroker();
 	suscripcionColaCaught();
 
 	pthread_mutex_lock(&semaforoSuscripciones);
@@ -153,6 +169,10 @@ void administrarSuscripcionesBroker(){
 	if(!conexionAppeared){
 		pthread_mutex_lock(&semaforoSuscripciones);
 		reconexionColaAppeared();
+
+		if(!seEnvioMensajeGET){
+		enviarPokemonesAlBroker();
+		}
 
 		pthread_mutex_lock(&semaforoSuscripciones);
 		suscripcionColaCaught();
@@ -290,7 +310,7 @@ int iniciar_servidor(char* ip, char* puerto, t_log* log){
     return socket_servidor;
 }
 
-void atenderGameBoy(int* socket_servidor){
+void gestionMensajesGameBoy(int* socket_servidor){
 	struct sockaddr_in dir_cliente;
 
 	int tam_direccion = sizeof(struct sockaddr_in);
@@ -459,10 +479,8 @@ void enviarPokemonesAlBroker(){
 		}
 		log_info(logger, "Se han enviado los GETs necesarios al broker");
 	}
-	else{
-		log_info(loggerObligatorio, "No se esta conectado al broker, se prodece con la accion por default, no hay locaciones para los pokemones solicitados");
-	}
 
+	seEnvioMensajeGET = true;
 }
 
 void enviarGET(char* ip, char* puerto, char* pokemon){
@@ -737,7 +755,7 @@ void atenderCliente(int *socket_cliente) {
 	Header headerRecibido;
 	headerRecibido = receiveHeader(*socket_cliente);
 	if(headerRecibido.operacion == -1 && headerRecibido.tamanioMensaje == 0){
-		log_info(logger,"Se desconectó el Broker o hubo un error en el envío del mensaje");
+		//log_info(logger,"Se desconectó el Broker o hubo un error en el envío del mensaje");
 		conexionAppeared = 0;
 		conexionCaught = 0;
 		conexionLocalized = 0;
@@ -800,6 +818,7 @@ void atenderCliente(int *socket_cliente) {
 		uint32_t coordenadaY = unpackCoordenadaY_Appeared(paqueteAppeared,tamanioPokemon);
 		log_info(logger,"MENSAJE RECIBIDO. POKEMON: %s,X: %d,Y: %d",pokemonAppeared,coordenadaX,coordenadaY);
 
+
 		if (necesitaAtraparse(pokemonAppeared)) {
 			t_pokemon* pokemonAAtrapar = malloc(sizeof(t_pokemon));
 			pokemonAAtrapar->nombrePokemon = pokemonAppeared;
@@ -812,7 +831,10 @@ void atenderCliente(int *socket_cliente) {
 			}
 			free(paqueteAppeared);
 		}
-		log_info(logger,"El mensaje de appeared de este pokemon ya fue recibido o no necesita atraparse, queda descartado");
+		else{
+			log_info(logger,"El mensaje de appeared de este pokemon ya fue recibido o no necesita atraparse, queda descartado");
+		}
+
 		break;
 
 	case t_CAUGHT:;
