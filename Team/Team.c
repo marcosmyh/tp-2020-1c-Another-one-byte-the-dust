@@ -47,6 +47,9 @@ int main(){
 
 	*/
 
+    //TODO: NO OLVIDARSE DE INFORMAR T0DO LO QUE DICE EN LA PARTE DE DEADLOCK
+
+
 	//DESTRUIR TODO AL FINAL
 
 	pthread_mutex_destroy(&semaforoAppeared);
@@ -432,6 +435,7 @@ void inicializarColas(){
 	objetivoTeam = list_create();
 	mensajesGET = list_create();
 	mensajesCATCH = list_create();
+	entrenadores = list_create();
 	log_info(logger, "Se han inicializado todas las colas para la planificacion");
 }
 
@@ -470,9 +474,12 @@ void inicializarEntrenadores(){
 		}
 		//AGREGO EL HILO DE CADA ENTRENADOR A LA COLA DE NEW
 		list_add(colaNew, entrenadorNuevo);
+		list_add(entrenadores, entrenadorNuevo);
+		entrenadorNuevo->cantPokemonesPorAtrapar = list_size(entrenadorNuevo->objetivo) - list_size(entrenadorNuevo->pokemones);
 		log_info(loggerObligatorio, "Se ha pasado al entrenador %d a la cola de NEW. RAZON: Creacion de entrenador",entrenadorNuevo->idEntrenador);
 
 	}
+
 	log_info(logger, "Se han cargado todos los entrenadores");
 	log_info(logger, "Se ha definido el objetivo global del team");
 }
@@ -588,6 +595,8 @@ void ejecutarEntrenador(){
 
 	if(strcmp(algoritmo_planificacion,"RR")==0){
 		//EJECUTAR CON QUANTUM
+
+		//TODO: caso con el quantum, revisar lo que te dijieron los ayudantes
 	}
 
 	//REVISAR EL CASO DEL SJF CD
@@ -613,7 +622,6 @@ void ejecutarEntrenador(){
 				list_add(colaBlocked,entrenadorAEjecutar);
 				log_info(loggerObligatorio, "Se cambió un entrenador de EXEC a BLOCKED, Razon: Esta a la espera de un mensaje CAUGHT");
 				break;
-				//TODO: CONTINUAR ESTA FUNCION
 			}
 		}
 	}
@@ -661,6 +669,63 @@ int elMenorNumeroDe(t_list* aux){
 		}
 	}
 	return &elMenor;
+}
+
+void completarCatch(t_entrenador* unEntrenador, bool resultadoCaught){
+	if (resultadoCaught){
+		t_pokemon* pokemonAtrapado = unEntrenador->pokemonAAtrapar;
+		sacarPokemonDelMapa(pokemonAtrapado);
+		list_add(pokemonesAtrapados, pokemonAtrapado);
+		list_add(unEntrenador->pokemones, pokemonAtrapado);
+		unEntrenador->cantPokemonesPorAtrapar = unEntrenador->cantPokemonesPorAtrapar - 1;
+		log_info(logger, "El pokemon pudo ser atrapado!");
+		int index = list_get_index(colaBlocked, unEntrenador, (void*)comparadorDeEntrenadores);
+		//SI LE QUEDAN POKEMONES POR ATRAPAR VA A READY
+		if(unEntrenador->cantPokemonesPorAtrapar > 0){
+			t_entrenador* unEntrenador = list_remove(colaBlocked,index);
+			unEntrenador->blockeado = false;
+			unEntrenador->ocupado = false;
+			list_add(colaReady,unEntrenador);
+			log_info(loggerObligatorio, "Se cambió un entrenador de BLOCKED a READY, Razon: Termino de atrapar un pokemon");
+		}
+		else{
+			//SI NO LE QUEDAN POR ATRAPAR MAS VERIFICO SI CUMPLIÓ EL OBJETIVO O NO, SI CUMPLE MANDO A EXIT, SINO A BLOCKED
+
+			//TODO: Este caso en que no tiene mas pokemones que atrapar, vas a tener que crear un hilo que verifique los deadlocks despues
+			//TODO: La funcion que haga el check de si cumplió el objetivo
+
+		}
+	}
+	else{
+		//SI FALLA EL CATCH VA A READY
+		log_info(logger, "El pokemon no pudo ser atrapado");
+		int index = list_get_index(colaBlocked, unEntrenador, (void*)comparadorDeEntrenadores);
+		t_entrenador* unEntrenador = list_remove(colaBlocked,index);
+		unEntrenador->blockeado = false;
+		unEntrenador->ocupado = false;
+		list_add(colaReady,unEntrenador);
+		log_info(loggerObligatorio, "Se cambió un entrenador de BLOCKED a READY, Razon: Termino de atrapar un pokemon");
+	}
+}
+
+void sacarPokemonDelMapa(t_pokemon* unPokemon){
+	int index = list_get_index(pokemonesEnMapa, unPokemon, (void*)comparadorPokemones);
+	list_remove(pokemonesEnMapa, index);
+}
+
+bool comparadorPokemones(t_pokemon* unPokemon, t_pokemon* otroPokemon){
+	if (strcmp(unPokemon->nombrePokemon,otroPokemon->nombrePokemon)== 0){
+		if (unPokemon->coordenadaX == otroPokemon->coordenadaX && unPokemon->coordenadaY == otroPokemon->coordenadaY){
+			return true;
+		}
+		else{
+			return false;
+		}
+	}
+	else{
+		return false;
+	}
+
 }
 
 void aplicarFIFO(){
@@ -717,6 +782,10 @@ bool comparadorDeEntrenadores(t_entrenador* unEntrenador, t_entrenador* otroEntr
 
 bool comparadorDeRafagas(t_entrenador* unEntrenador, t_entrenador* otroEntrenador){
 	return unEntrenador->rafagasEstimadas <= otroEntrenador->rafagasEstimadas;
+}
+
+bool comparadorIdCatch(t_entrenador* unEntrenador, uint32_t unIdCatch){
+	return unIdCatch == unEntrenador->IdCatch;
 }
 
 int list_get_index(t_list* self, void* elemento, bool (*comparator) (void*,void*)){
@@ -887,7 +956,10 @@ void atenderCliente(int *socket_cliente) {
 			}
 			free(paqueteLocalized);
 		}
-		log_info(logger,"El mensaje de localized/appeared de este pokemon ya fue recibido o no necesita atraparse, queda descartado");
+		else{
+			free(paqueteLocalized);
+			log_info(logger,"El mensaje de localized/appeared de este pokemon ya fue recibido o no necesita atraparse, queda descartado");
+		}
 		break;
 
 	case t_APPEARED:;
@@ -915,6 +987,7 @@ void atenderCliente(int *socket_cliente) {
 			free(paqueteAppeared);
 		}
 		else{
+			free(paqueteAppeared);
 			log_info(logger,"El mensaje de appeared de este pokemon ya fue recibido o no necesita atraparse, queda descartado");
 		}
 		break;
@@ -926,11 +999,17 @@ void atenderCliente(int *socket_cliente) {
 		uint32_t ID = unpackIDCorrelativo(paqueteCaught);
 		bool resultadoCaught = unpackResultado_Caught(paqueteCaught);
 		if (correspondeAUnIDDe(mensajesCATCH, ID)) {
-			//SI CORRESPONDE LE ASIGNO EL POKEMON AL ENTRENADOR Y LO DESBLOQUEO (PASA A READY)
 			enviarACK(ip_broker, puerto_broker, ID, t_CAUGHT); // CONFIRMO LA LLEGADA DEL MENSAJE
+			//SI CORRESPONDE LE ASIGNO EL POKEMON AL ENTRENADOR Y LO DESBLOQUEO (PASA A READY)
+			int index = list_get_index(entrenadores,&ID,(void*)comparadorIdCatch);
+			t_entrenador* entrenadorQueAtrapa = list_get(entrenadores,index);
+			completarCatch(entrenadorQueAtrapa,resultadoCaught);
+			free(paqueteCaught);
 		}
-		free(paqueteCaught);
-		log_info(logger,"El mensaje enviado no se corresponde con un mensaje CATCH, queda descartado");
+		else{
+			free(paqueteCaught);
+			log_info(logger,"El mensaje enviado no se corresponde con un mensaje CATCH, queda descartado");
+		}
 		break;
 
 	case t_ID:;

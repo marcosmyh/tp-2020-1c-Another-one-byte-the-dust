@@ -34,6 +34,7 @@ typedef struct {
 	int rafagasEstimadas;
 	int rafagasEjecutadas;
 	int distancia;
+	int cantPokemonesPorAtrapar;
 	uint32_t IdCatch;
 	bool ocupado;
 	bool completoObjetivo;
@@ -82,6 +83,7 @@ t_list* pokemonesAtrapados;
 t_list* pokemonesEnMapa;
 t_list* mensajesGET;
 t_list* mensajesCATCH;
+t_list* entrenadores;
 char** posiciones_entrenadores;
 char** pokemon_entrenadores;
 char** objetivos_entrenadores;
@@ -138,6 +140,8 @@ void moverEntrenador(t_entrenador* entrenadorAEjecutar, t_pokemon* pokemonAAtrap
 t_pokemon* pokemonMasCercanoA(t_entrenador* unEntrenador);
 bool comparadorPosiciones(int unaPosicion, int otraPosicion);
 int elMenorNumeroDe(t_list* aux);
+void completarCatch(t_entrenador* unEntrenador, bool resultadoCaught);
+void sacarPokemonDelMapa(t_pokemon* unPokemon);
 void aplicarFIFO();
 void guardarID(uint32_t *,uint32_t *);
 void aplicarRR();
@@ -146,6 +150,8 @@ void aplicarSJF();
 t_entrenador* calcularEstimacion(t_entrenador* unEntrenador);
 bool comparadorDeEntrenadores(t_entrenador* unEntrenador, t_entrenador* otroEntrenador);
 bool comparadorDeRafagas(t_entrenador* unEntrenador, t_entrenador* otroEntrenador);
+bool comparadorIdCatch(t_entrenador* unEntrenador, uint32_t unIdCatch);
+bool comparadorPokemones(t_pokemon* unPokemon, t_pokemon* otroPokemon);
 int list_get_index(t_list* self, void* elemento, bool (*comparator) (void*,void*));
 bool estaEnElMapa(char* unPokemon);
 bool correspondeAUnIDDe(t_list* colaDeIDS, uint32_t IDCorrelativo); //LE PASAS UNA COLA DE IDS GUARDADOS Y UN ID A BUSCAR Y TE DICE SI ESTA O NO
