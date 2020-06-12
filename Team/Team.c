@@ -292,6 +292,9 @@ void procedimientoMensajeAppeared(t_infoPaquete *infoAppeared){
     			destruirInfoPaquete(infoAppeared);
     }
     else{
+    	        if(esSocketBroker(socket)){
+    	        	enviarACK(ID_APPEARED,t_APPEARED);
+    	        }
     	        destruirInfoPaquete(infoAppeared);
     			log_info(logger,"El mensaje de appeared del pokemon %s ya fue recibido o no necesita atraparse, queda descartado",pokemonAppeared);
     }
