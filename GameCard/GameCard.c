@@ -4,6 +4,7 @@ int main(void){
 	bloquesLibres = 0;
 	sem_init(&semDeBloques,0,1);
 	sem_init(&aperturaDeArchivo,0,1);
+	sem_init(&reconexion,0,1);
 	crearLogger();
 	crearLoggerObligatorio();
 
@@ -14,23 +15,378 @@ int main(void){
 	log_info(logger,"Server ready for action!");
 
 	iniciar_punto_de_montaje(path_de_tallgrass);
-	mostrarBitmap(); // ---------- SACAR
+	//mostrarBitmap(); // ---------- SACAR
+
+    pthread_t hiloMensajes;
+
+    pthread_create(&hiloMensajes,NULL,(void *)iniciarGestionMensajesGC,NULL);
+
+    pthread_join(hiloMensajes,NULL);
 
 	// Trabajar con el servidor acá
-	while(1){
-	int cliente = esperar_cliente(socket_servidor,logger);
-	if(pthread_create(&thread,NULL,(void*)atender_cliente,&cliente) == 0){
-		pthread_detach(thread);
-		}
+	//while(1){
+	//int cliente = esperar_cliente(socket_servidor,logger);
+	//if(pthread_create(&thread,NULL,(void*)atender_cliente,&cliente) == 0){
+	//	pthread_detach(thread);
+	//	}
 
-	}
-	config_destroy(archivoConfig);
-	log_destroy(logger);
+	//}
+	//config_destroy(archivoConfig);
+	//log_destroy(logger);
+    sem_destroy(&semDeBloques);
+    sem_destroy(&aperturaDeArchivo);
+    sem_destroy(&reconexion);
 	return 0;
 }
 
+t_infoPack *crearInfoDePaquete(int socket,void *paquete){
+	t_infoPack *mensaje = malloc(sizeof(t_infoPack));
+	mensaje->socket = socket;
+	mensaje->paquete = paquete;
+	return mensaje;
+}
+
+void destruirInfoPaquete(t_infoPack *infoPaquete){
+	void *paquete = infoPaquete->paquete;
+	free(paquete);
+	free(infoPaquete);
+}
 
 
+void iniciarGestionMensajesGC(){
+	pthread_create(&hiloSuscripcionABroker,NULL,(void *)administrarSuscripcionesBroker,NULL);
+    pthread_create(&hiloAtencionNew,NULL,(void *)gestionMensajesNew,NULL);
+    pthread_create(&hiloAtencionCatch,NULL,(void *)gestionMensajesCatch,NULL);
+    pthread_create(&hiloAtencionGet,NULL,(void *)gestionMensajesGet,NULL);
+	pthread_create(&hiloAtencionGB,NULL,(void*)gestionMensajesGB,&socket_servidor);
+
+	pthread_join(hiloAtencionGB,NULL);
+	pthread_join(hiloSuscripcionABroker,NULL);
+	pthread_join(hiloAtencionNew,NULL);
+	pthread_join(hiloAtencionCatch,NULL);
+	pthread_join(hiloAtencionGet,NULL);
+}
+
+void suscripcionColaNew(){
+	conexionAColaNew();
+	if(conexionNew) sem_wait(&reconexion);
+}
+
+void suscripcionColaCatch(){
+
+	while(1){
+		if(conexionNew && identificadorProcesoGC != NULL){;
+			conexionAColaCatch();
+			break;
+		}
+	}
+}
+
+void suscripcionColaGet(){
+	while(1){
+		if(conexionNew && conexionCatch && identificadorProcesoGC){
+			conexionAColaGet();
+			break;
+		}
+	}
+}
+
+void gestionMensajesGet(){
+	pthread_t hiloGet;
+
+	while(1){
+		if(conexionGet){
+			Header headerRecibido;
+			headerRecibido = receiveHeader(socket_get);
+			if(headerRecibido.operacion != -1 && headerRecibido.tamanioMensaje != 0){
+				uint32_t tamanio = headerRecibido.tamanioMensaje;
+				switch(headerRecibido.operacion){
+				case t_HANDSHAKE:
+					log_info(loggerObligatorio,"Llego un HANDSHAKE del BROKER a través del socket Get!");
+					recibirHandshake(socket_get,tamanio);
+					break;
+
+				case t_GET:
+					log_info(loggerObligatorio,"Llego un mensaje GET del BROKER");
+					void *paqueteGet = receiveAndUnpack(socket_catch,tamanio);
+					t_infoPack *infoGet = crearInfoDePaquete(socket_get,paqueteGet);
+					pthread_create(&hiloGet,NULL,(void *)procedimientoMensajeGet,infoGet);
+					pthread_detach(hiloGet);
+					break;
+
+				default:
+					log_error(loggerObligatorio,"No es un codigo de operacion conocido: %i",headerRecibido.operacion);
+					break;
+				}
+			}
+		}
+	}
+}
+
+void gestionMensajesCatch(){
+	pthread_t hiloCatch;
+
+	while(1){
+		if(conexionCatch){
+			Header headerRecibido;
+			headerRecibido = receiveHeader(socket_catch);
+			if(headerRecibido.operacion != -1 && headerRecibido.tamanioMensaje != 0){
+				uint32_t tamanio = headerRecibido.tamanioMensaje;
+				switch(headerRecibido.operacion){
+				case t_HANDSHAKE:
+					log_info(loggerObligatorio,"Llego un HANDSHAKE del BROKER a través del socket Catch!");
+					recibirHandshake(socket_catch,tamanio);
+					break;
+
+				case t_CATCH:
+					log_info(loggerObligatorio,"Llego un mensaje CATCH del BROKER");
+					void *paqueteCatch = receiveAndUnpack(socket_catch,tamanio);
+					t_infoPack *infoCatch = crearInfoDePaquete(socket_catch,paqueteCatch);
+					pthread_create(&hiloCatch,NULL,(void *)procedimientoMensajeCatch,infoCatch);
+					pthread_detach(hiloCatch);
+					break;
+
+				default:
+					log_error(loggerObligatorio,"No es un codigo de operacion conocido: %i",headerRecibido.operacion);
+					break;
+				}
+			}
+		}
+	}
+}
+
+void gestionMensajesNew(){
+	pthread_t hiloNew;
+
+	while(1){
+			if(conexionNew){
+				Header headerRecibido;
+			    headerRecibido = receiveHeader(socket_new);
+			    if(headerRecibido.operacion != -1 && headerRecibido.tamanioMensaje != 0){
+			    uint32_t tamanio = headerRecibido.tamanioMensaje;
+			    switch(headerRecibido.operacion){
+			    case t_HANDSHAKE:
+			                log_info(loggerObligatorio, "Llego un HANDSHAKE del BROKER a través del socket NEW!");
+			    			recibirHandshake(socket_new,tamanio);
+			    			break;
+
+			    case t_NEW:
+		    	  log_info(loggerObligatorio, "Llego un mensaje NEW del BROKER!");
+		    	  void* paqueteNew = receiveAndUnpack(socket_new, tamanio);
+		    	  t_infoPack *infoNew = crearInfoDePaquete(socket_new,paqueteNew);
+		    	  pthread_create(&hiloNew,NULL,(void *)procedimientoMensajeNew,infoNew);
+		    	  pthread_detach(hiloNew);
+
+		    	  break;
+
+			    default:
+			        log_error(loggerObligatorio,"No es un codigo de operacion conocido: %i",headerRecibido.operacion);
+			    	break;
+			    }
+			    }
+			    else{
+			    	conexionNew= 0;
+			    	sem_post(&reconexion);
+			    	conexionCatch = 0;
+			    	conexionGet = 0;
+			    }
+		}
+		}
+}
+
+void recibirHandshake(int socket,uint32_t tamanioPaquete){
+	void *paqueteBroker = receiveAndUnpack(socket,tamanioPaquete);
+	identificadorProcesoGC = unpackProceso(paqueteBroker);
+	free(paqueteBroker);
+	log_info(logger,"ID RECIBIDO: %s",identificadorProcesoGC);
+}
+
+void administrarSuscripcionesBroker(){
+
+	suscripcionColaNew();
+	if(conexionNew){
+	suscripcionColaCatch();
+	suscripcionColaGet();
+	}
+
+	while(1){
+		sem_wait(&reconexion);
+		reconexionColaNew();
+		suscripcionColaCatch();
+		suscripcionColaGet();
+		printf("Suscrito a todo bro\n");
+
+	}
+}
+
+void procedimientoMensajeNew(t_infoPack *infoNew){
+	void *paqueteNew = infoNew->paquete;
+	int socket = infoNew->socket;
+
+	char* pokemon = unpackPokemonNew(paqueteNew);
+	int tamanioPokemon = strlen(pokemon) + 1;
+
+
+	uint32_t id = unpackID(paqueteNew);
+	uint32_t posX = unpackCoordenadaX_New(paqueteNew, tamanioPokemon);
+	uint32_t posY = unpackCoordenadaY_New(paqueteNew, tamanioPokemon);
+	uint32_t cantPokemon = unpackCantidadPokemons_New(paqueteNew, tamanioPokemon);
+
+		if(esSocketDeBroker(socket)){
+	    envioDeACK(id, t_NEW);
+		}
+
+	int resultadoNew = procedimientoNEW(pokemon,posX,posY,cantPokemon);
+	log_info(logger,"Pokemon: %s posX: %d posY: %d cantidad: %d id: %d",pokemon,posX,posY,cantPokemon, id);
+	//mostrarBitmap();
+	//
+	// Procedimiento NEW casi terminado
+	//
+	if(resultadoNew == 0){
+	envioDeMensajeAppeared(pokemon,posX,posY,id); // Prueba
+	}else log_error(logger,"No hay espacio en disco");
+	// Preguntar que mensaje enviar en el caso que no haya espacio en disco
+	destruirInfoPaquete(infoNew);
+	free(pokemon);
+
+}
+
+void procedimientoMensajeGet(t_infoPack *infoGet){
+	void *paqueteGet= infoGet->paquete;
+	char* pokemon = unpackPokemonGet(paqueteGet);
+	uint32_t tamanioPokemon = strlen(pokemon) + 1;
+	uint32_t id = unpackID(paqueteGet);
+
+	log_info(logger,"Pokemon: %s id: %d",pokemon,id);
+
+
+	procedimientoGET(id,pokemon);
+	//
+	// EL ENVIO DE MENSAJE QUEDA EN VERSION DE PRUEBA
+	// TODAVIA NO FUNCIONA int seEnvioGet = envioDeMensajeLocalize(pokemon,id); // Prueba
+	destruirInfoPaquete(infoGet);
+	free(pokemon);
+}
+
+void procedimientoMensajeCatch(t_infoPack *infoCatch){
+	void *paqueteCatch= infoCatch->paquete;
+	int socket = infoCatch->socket;
+	char* pokemon = unpackPokemonCatch(paqueteCatch);
+	uint32_t tamanioPokemon = strlen(pokemon) + 1;
+	uint32_t id = unpackID(paqueteCatch);
+	uint32_t posX = unpackCoordenadaX_Catch(paqueteCatch, tamanioPokemon);
+	uint32_t posY = unpackCoordenadaY_Catch(paqueteCatch, tamanioPokemon);
+
+	if(esSocketDeBroker(socket)){
+    envioDeACK(id, t_CATCH);
+	}
+
+	int resultadoCatch = procedimientoCATCH(pokemon,posX,posY);
+	log_info(logger,"Pokemon: %s posX: %d posY: %d id: %d",pokemon,posX,posY,id);
+
+//
+	//
+	// ACA DEBERIA IR LO QUE DEBE HACERSE CON CATCH Y PASAR LAS VARIABLES A ESA FUNCION
+	//
+	uint32_t resultado; // Prueba
+
+	if(resultadoCatch == -1) resultado = 0;
+	else resultado = 1;
+
+	int seEnvioCaught = envioDeMensajeCaught(resultado,id); // Prueba
+	free(pokemon);
+	destruirInfoPaquete(infoCatch);
+}
+
+void conexionAColaNew(){
+	socket_new = crear_conexion(ip_broker,puerto_broker);
+	if(socket_new != -1){
+	if (identificadorProcesoGC == NULL){
+	conectarseAColaMensajes(socket_new,"Gamecard",t_NEW);
+	conexionNew = 1;
+	}
+	else{
+		conectarseAColaMensajes(socket_new,identificadorProcesoGC,t_NEW);
+		conexionNew = 1;
+		log_info(logger,"ME RECONECTE AL BROKER. LE MANDE EL ID: %s",identificadorProcesoGC);
+	}
+	}
+}
+
+void conexionAColaCatch(){
+	//printf("Anterior socket %d\n",socket_catch);
+	socket_catch = crear_conexion(ip_broker,puerto_broker);
+	//printf("Socket que voy a enviar: %d\n",socket_catch);
+	if(socket_catch != -1){
+		conectarseAColaMensajes(socket_catch,identificadorProcesoGC,t_CATCH);
+		conexionCatch = 1;
+	}
+
+}
+
+void conexionAColaGet(){
+	socket_get = crear_conexion(ip_broker,puerto_broker);
+	if(socket_get != -1){
+		conectarseAColaMensajes(socket_get,identificadorProcesoGC,t_GET);
+		conexionGet = 1;
+	}
+
+}
+
+void reconexionColaNew(){
+	log_info(logger,"Conexion caida, se reintentara en %d segundos",tiempo_de_reconexion);
+	while (1){
+		sleep(tiempo_de_reconexion);
+		conexionAColaNew();
+		if(conexionNew){
+			log_info(loggerObligatorio, "La reconexion al Broker se realizo con exito");
+			conexionNew = 1;
+			break;
+		}
+
+		log_info(loggerObligatorio, "Fallo la reconexion, se volvera a intentar en %d segundos",tiempo_de_reconexion);
+		}
+}
+
+int conectarseAColaMensajes(int socket,char *identificador,t_operacion operacion){
+	void *paquete = pack_Handshake(identificador,operacion);
+	uint32_t tamPaquete = strlen(identificador) + 1 + sizeof(uint32_t) + sizeof(t_operacion);
+	int resultado = packAndSend(socket,paquete,tamPaquete,t_HANDSHAKE);
+	return resultado;
+
+}
+
+void gestionMensajesGB(int* socket_servidor){
+	struct sockaddr_in dir_cliente;
+
+	int tam_direccion = sizeof(struct sockaddr_in);
+	log_info(logger, "Esperando al GameBoy..");
+
+	while(1){
+	pthread_t hiloAtencionCliente;
+
+	int socket = accept(*socket_servidor, (void*) &dir_cliente, &tam_direccion);
+
+	log_info(logger, "Se conectó el GameBoy!");
+
+	if(socket != -1){
+		if(pthread_create(&hiloAtencionCliente,NULL,(void*)atender_cliente,&socket) == 0){
+					 pthread_detach(hiloAtencionCliente);
+	    }
+	}
+
+	}
+}
+
+void envioDeACK(uint32_t id, t_operacion operacion){
+	int socket = crear_conexion(ip_broker, puerto_broker);
+	void* paquete = pack_Ack(id, operacion, identificadorProcesoGC);
+	uint32_t tamPaquete = sizeof(id) + sizeof(t_operacion) + strlen(identificadorProcesoGC) + 1 + sizeof(uint32_t);
+	packAndSend(socket, paquete, tamPaquete, t_ACK);
+	log_info(logger, "El envio del ACK del mensaje con ID [%d] se realizo con exito",id);
+	close(socket);
+	free(paquete);
+}
 
 void crearLogger(){
 	char *path = "/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/GameCard/GameCardInformal.log";
@@ -115,8 +471,18 @@ int crear_conexion(char *ip, char* puerto){
 	return socket_cliente;
 }
 
+bool esSocketDeBroker(int socket){
+	return socket == socket_new || socket == socket_catch || socket == socket_get;
+}
 
 void atender_cliente(int* socket){
+	if(esSocketDeBroker(*socket)){
+		log_info(logger, "Atendiendo al Broker...");
+	}
+	else{
+		log_info(logger, "Atendiendo al Gameboy...");
+	}
+
 	Header headerRecibido;
 	headerRecibido = receiveHeader(*socket);
 
@@ -126,6 +492,15 @@ void atender_cliente(int* socket){
 void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 	//int size;
 	//void* msg;
+	if(headerRecibido.operacion == -1 && headerRecibido.tamanioMensaje == 0){
+		//log_info(logger,"Se desconectó el Broker o hubo un error en el envío del mensaje");
+		conexionNew = 0;
+		sem_post(&reconexion);
+		conexionCatch = 0;
+		conexionGet = 0;
+		return;
+	}
+
 	uint32_t id;
 	uint32_t tamanio = headerRecibido.tamanioMensaje;
 	uint32_t tamanioPokemon;
@@ -135,6 +510,7 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 	char* pokemon;
 
 		switch (headerRecibido.operacion) {
+
 		case t_GET:
 			log_info(logger,"Me llegaron mensajes de Suscriber get");
 
@@ -181,6 +557,8 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 			free(pokemon);
 			free(paqueteCatch);
 			break;
+
+
 		case t_NEW:
 			log_info(logger,"Me llegaron mensajes de Suscriber New");
 			void* paqueteNew = receiveAndUnpack(cliente_fd, tamanio);
@@ -196,7 +574,7 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 
 			int resultadoNew = procedimientoNEW(pokemon,posX,posY,cantPokemon);
 			log_info(logger,"Pokemon: %s posX: %d posY: %d cantidad: %d id: %d",pokemon,posX,posY,cantPokemon, id);
-			mostrarBitmap();
+			//mostrarBitmap();
 			//
 			// Procedimiento NEW casi terminado
 			//
@@ -207,10 +585,6 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 			free(pokemon);
 			free(paqueteNew);
 			break;
-		case 0:
-			printf("Se desconecto.");
-			pthread_exit(NULL);
-
 
 		default:
 			pthread_exit(NULL);
@@ -325,8 +699,8 @@ void inicio_default(char* puntoDeMontaje){
 	// cantidad de bloques 5192
 	// Numero mágico TALL_GRASS
 	config_fs = config_create(auxMetadata);
-	config_set_value(config_fs, "BLOCK_SIZE", "10");
-	config_set_value(config_fs, "BLOCKS", "5");
+	config_set_value(config_fs, "BLOCK_SIZE", "64");
+	config_set_value(config_fs, "BLOCKS", "4096");
 	config_set_value(config_fs, "MAGIC_NUMBER", "TALL_GRASS");
 	config_save(config_fs);
 
@@ -610,14 +984,14 @@ char* actualizarPosicion(char** posicionesSeparadas,char* lineaAActualizar,int n
 		if(i != nroDeLinea) {
 
 			string_append(&posicionActualizada,posicionesSeparadas[i]);
-
+			string_append(&posicionActualizada,"\n");
 		}else{
 			string_append(&posicionActualizada,lineaAActualizar);
 		}
 
-		if(posicionesSeparadas[i+1] != NULL){
-			string_append(&posicionActualizada,"\n");
-		}
+		//if(posicionesSeparadas[i+1] != NULL){
+
+		//}
 
 
 		i++;
@@ -638,7 +1012,7 @@ char* eliminarPosicion(char** posicionesSeparadas,int nroDeLinea){
 		}
 		i++;
 	}
-
+	printf("Pos separada:\n%s\n",posicionActualizada);
 	return posicionActualizada;
 
 
@@ -684,10 +1058,10 @@ char* sumarCantidadPokemon(char* lineaPokemon,int cantidadASumar){
 	cantidadPokemon += cantidadASumar;
 
 	char** arraySeparado = string_split(lineaPokemon,"=");
-
-	char* nuevaLineaPokemon = string_from_format("%s=",arraySeparado[0]);
 	char* cantidadEnString = string_itoa(cantidadPokemon);
-	string_append(&nuevaLineaPokemon,cantidadEnString);
+	char* nuevaLineaPokemon = string_from_format("%s=%s\n",arraySeparado[0],cantidadEnString);
+
+	//string_append(&nuevaLineaPokemon,cantidadEnString);
 	limpiarPunteroAPuntero(arraySeparado);
 	free(cantidadEnString);
 	return nuevaLineaPokemon;
@@ -702,12 +1076,12 @@ int desplazamientoDelArrayHastaLineaPosicion(char** posicionesSeparadas,char* po
 		//Vemos si esa posicion coincide con nuestra posicion objetivo
 		if(string_contains(posicionesSeparadas[i],posObjetivo))break;
 		//Si no sumamos al desplazamiento la cantidad de caracteres de esa posicion
-		offset += strlen(posicionesSeparadas[i]);
+		offset += strlen(posicionesSeparadas[i]) + 1;
 		//Avanzamos de linea
 		i++;
 	}
 
-	offset = offset + i;
+	//offset = offset + i;
 
 	return offset;
 }
@@ -725,14 +1099,14 @@ int desplazamientoDelArrayHastaCantPokemon(char** posicionesSeparadas,char* posO
 		//Vemos si esa posicion coincide con nuestra posicion objetivo
 		if(string_contains(posicionesSeparadas[i],posObjetivo))break;
 		//Si no sumamos al desplazamiento la cantidad de caracteres de esa posicion
-		offset += strlen(posicionesSeparadas[i]);
+		offset = strlen(posicionesSeparadas[i]) + 1;
 		//Avanzamos de linea
 		i++;
 	}
 	// suma el offset, numero de linea(ya que hay que sumar 1 caracter por cada linea saltada ya que en el posicionesSeparadas no esta
 	// contemplado el \n) ,la posicion del caracter "=" en la linea y el +1 porque avanzamos un caracter más despues del "="
 
-	offset = offset + i + 1 + buscarPosicionDeCaracter(posicionesSeparadas[i],'=');
+	offset = offset + 1 + buscarPosicionDeCaracter(posicionesSeparadas[i],'=');
 
 	return offset;
 }
@@ -769,7 +1143,7 @@ void sobreescribirUnCaracter(char* nombreDeBloque,int desplazamiento,char* carac
 
 	char* rutaBloque = crearPathDeBloque(nombreDeBloque);
 
-	printf("Ruta de bloque %s\n",rutaBloque);
+	//printf("Ruta de bloque %s\n",rutaBloque);
 	FILE* bloque = fopen(rutaBloque,"r+w");
 
 	fseek(bloque,desplazamiento,SEEK_CUR);
@@ -1170,7 +1544,7 @@ int agregarNuevaPosicion(char* contenidoAagregar,char* bloques,char* nombrePokem
 			free(bloquesSeparados);
 			return 0;
 	}
-	char* ultimaEscritura = string_from_format("\n%s",contenidoAagregar);
+	char* ultimaEscritura = string_from_format("%s",contenidoAagregar);
 	char* ultimoBloque = bloquesSeparados[ultimaPosicion-1];
 
 	int espacioLibre = espacioLibreDeBloque(ultimoBloque);
@@ -1261,7 +1635,9 @@ int anadirCantidad(char* posiciones,char* posicionBuscada,int cantidadASumar,cha
 	char* nuevaLineaPokemon = sumarCantidadPokemon(posicionesSeparadas[posContenida],cantidadASumar);
 	//printf("La nueva linea pokemon a  agregar es: %s\n",nuevaLineaPokemon);
 
-	int tamanioAntiguo = strlen(posicionesSeparadas[posContenida]);
+
+	// Sumo 1 porque la posicion antigua no cuenta el \n
+	int tamanioAntiguo = strlen(posicionesSeparadas[posContenida]) + 1;
 	int tamanioNuevo = strlen(nuevaLineaPokemon);
 
 // Verifico si me ocupa lo mismo. Si ocupa lo mismo entonces no hace falta reescribir todos. SIno solo cambiar en el byte
@@ -1284,8 +1660,7 @@ int anadirCantidad(char* posiciones,char* posicionBuscada,int cantidadASumar,cha
 	int cantidadDeBytesQueCrece = tamanioNuevo - tamanioAntiguo;
 
 	char* posicionActualizada = actualizarPosicion(posicionesSeparadas,nuevaLineaPokemon,posContenida);
-	log_info(logger,"Hay que aumentar en bytes %d \n",cantidadDeBytesQueCrece);
-
+	log_info(logger,"Hay que aumentar en bytes %d ",cantidadDeBytesQueCrece);
 	int cantidadDeBloques = length_punteroAPuntero(bloques);
 	int bloquesNecesarios = bloquesNecesariosParaEscribir(posicionActualizada);
 
@@ -1308,7 +1683,7 @@ int anadirCantidad(char* posiciones,char* posicionBuscada,int cantidadASumar,cha
 
 	log_info(logger,"Preparando archivo para su edicion");
 	actualizacionDeBloques(primeraPosicionCantPoke,posicionActualizada,pokemon);
-
+	editarTamanioPokemon(pokemon,cantidadDeBytesQueCrece);
 	limpiarPunteroAPuntero(bloques);
 	limpiarPunteroAPuntero(posicionesSeparadas);
 	free(nuevaLineaPokemon);
@@ -1359,8 +1734,8 @@ void disminuirCantidad(char* posiciones,char* posicionBuscada,char* bloquesStrin
 		//printf("La nueva linea pokemon a  agregar es: %s\n",nuevaLineaPokemon);
 		}
 
-
-		int tamanioAntiguo = strlen(posicionesSeparadas[posContenida]);
+			// Hay que sumar 1 porque en posiciones Separadas se separa por el \n y no cuenta en el strlen
+		int tamanioAntiguo = strlen(posicionesSeparadas[posContenida]) + 1;
 		int tamanioNuevo = strlen(nuevaLineaPokemon);
 
 	// Verifico si me ocupa lo mismo. Si ocupa lo mismo entonces no hace falta reescribir todos. SIno solo cambiar en el byte
@@ -1381,14 +1756,16 @@ void disminuirCantidad(char* posiciones,char* posicionBuscada,char* bloquesStrin
 
 		// Sino debo reescribir a partir del bloque necesitado.
 		int cantidadDeBytesQueDisminuye = tamanioAntiguo -tamanioNuevo;
+		log_info(logger,"El archivo debe disminuir en %d bytes",cantidadDeBytesQueDisminuye);
 
-		char* posicionActualizada = eliminarPosicion(posicionesSeparadas,posContenida);
-		log_info(logger,"El archivo debe disminuir en %d bytes",cantidadDeBytesQueDisminuye + 1);
+		char* posicionActualizada = actualizarPosicion(posicionesSeparadas,nuevaLineaPokemon,posContenida);
 
+		//printf("posicion actualziada: %s \n",posicionActualizada);
 		int cantidadDeBloques = length_punteroAPuntero(bloques);
 		int bloquesNecesarios = bloquesNecesariosParaEscribir(posicionActualizada);
 
-		editarTamanioPokemon(pokemon,(-1)*cantidadDeBytesQueDisminuye - 1);
+		// Disminuye
+		editarTamanioPokemon(pokemon,(-1)*cantidadDeBytesQueDisminuye);
 		if(bloquesNecesarios < cantidadDeBloques) {
 			//printf("Entro a liberar\n");
 			liberarBloquesParaPokemon(pokemon,cantidadDeBloques - bloquesNecesarios);
@@ -1401,7 +1778,7 @@ void disminuirCantidad(char* posiciones,char* posicionBuscada,char* bloquesStrin
 			}
 		}
 
-		//////////////////
+		////////////////// REESCRIBE SIN LA LINEA
 
 		int primeraPosicionLinea = desplazamientoDelArrayHastaLineaPosicion(posicionesSeparadas,posicionBuscada);
 
@@ -1478,7 +1855,7 @@ int procedimientoNEW(char* pokemon,uint32_t posx,uint32_t posy,uint32_t cantidad
 		// agregar al final del archivos
 		log_error(logger,"No contengo la posicion %s..Procediendo a agregar",posicionBuscada);
 		char* cantidadEnString = string_itoa(cantidad);
-		char* posicionYCantidad = string_from_format("%s=%s",posicionBuscada,cantidadEnString);
+		char* posicionYCantidad = string_from_format("%s=%s\n",posicionBuscada,cantidadEnString);
 
 		resultado = agregarNuevaPosicion(posicionYCantidad,bloques,pokemon);
 
@@ -1542,7 +1919,7 @@ int procedimientoCATCH(char* pokemon,uint32_t posx,uint32_t posy){
 	free(posXEnString);
 	free(posYEnString);
 
-	printf("Posicion buscada: %s\n",posicionBuscada);
+	//printf("Posicion buscada: %s\n",posicionBuscada);
 	if(!contieneEstaPosicion(posiciones,posicionBuscada)){
 
 		log_error(loggerObligatorio,"No existe la posicion %s del pokemon %s",posicionBuscada,pokemon);

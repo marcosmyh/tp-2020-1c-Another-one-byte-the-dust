@@ -34,7 +34,6 @@
 pthread_t thread;
 t_log *logger; // ALGO QUE NO ESTA TAN BIEN CREO CREER
 t_log *loggerObligatorio;
-int socket_servidor;
 t_config *archivoConfig;
 char* ip_gc;
 char* puerto_gc;
@@ -46,7 +45,26 @@ int tiempo_de_retardo;
 char* path_de_tallgrass;
 int bloquesLibres; 
 
+
+int socket_new;
+int socket_catch;
+int socket_get;
+int socket_servidor;
+
+
+bool conexionNew = 0;
+bool conexionCatch = 0;
+bool conexionGet = 0;
+char* identificadorProcesoGC = NULL;
+
+pthread_t hiloAtencionCatch;
+pthread_t hiloAtencionNew;
+pthread_t hiloAtencionGet;
+pthread_t hiloAtencionGB;
+pthread_t hiloSuscripcionABroker;
+
 sem_t semDeBloques;
+sem_t reconexion;
 sem_t aperturaDeArchivo;
 
 void crearLogger(void);
@@ -64,6 +82,10 @@ struct arg_estructura {
     int tiempo;
 };
 
+typedef struct{
+	int socket;
+	void *paquete;
+}t_infoPack;
 
 ////////////
 // Sobre el FS
@@ -151,6 +173,28 @@ int envioDeMensajeCaught(uint32_t id,uint32_t resultado);
 int envioDeMensajeGet(char* pokemon,uint32_t idmensaje);
 int envioDeMensajeAppeared(char* pokemon, uint32_t posx, uint32_t posy, uint32_t idmensaje);
 int crear_conexion(char *ip, char* puerto);
+
+void iniciarGestionMensajesGC();
+void suscripcionColaNew();
+void suscripcionColaCatch();
+void suscripcionColaGet();
+void gestionMensajesGet();
+void gestionMensajesCatch();
+void gestionMensajesNew();
+void administrarSuscripcionesBroker();
+void conexionAColaNew();
+void conexionAColaCatch();
+void conexionAColaGet();
+void reconexionColaNew();
+int conectarseAColaMensajes(int socket,char *identificador,t_operacion operacion);
+void gestionMensajesGB(int* socket_servidor);
+bool esSocketDeBroker(int socket);
+void procedimientoMensajeCatch(t_infoPack *infoNew);
+void procedimientoMensajeGet(t_infoPack *infoNew);
+void procedimientoMensajeNew(t_infoPack *infoNew);
+t_infoPack *crearInfoDePaquete(int socket,void *paquete);
+void envioDeACK(uint32_t id, t_operacion operacion);
+void recibirHandshake(int socket,uint32_t tamanioPaquete);
 #endif /* GAMECARD_GAMECARD_H_ */
 
 
