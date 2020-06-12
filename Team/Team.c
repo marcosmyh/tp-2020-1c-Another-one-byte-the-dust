@@ -9,14 +9,8 @@ int main(){
 	inicializarColas();
 	inicializarEntrenadores();
 
-
-	sem_init(&semaforoGet,0,0);
+	sem_init(&semaforoReconexion,0,1);
 	sem_init(&semaforoRespuestaCatch,0,0);
-	pthread_mutex_init(&semaforoAppeared,NULL);
-	pthread_mutex_init(&semaforoCaught,NULL);
-	pthread_mutex_init(&semaforoSuscripciones,NULL);
-	pthread_mutex_init(&semaforoLocalized,NULL);
-	pthread_mutex_init(&semaforoControlGet,NULL);
 
     pthread_t hiloMensajes;
 
@@ -49,16 +43,24 @@ int main(){
 
     //TODO: NO OLVIDARSE DE INFORMAR T0DO LO QUE DICE EN LA PARTE DE DEADLOCK
 
-
 	//DESTRUIR TODO AL FINAL
-
-	pthread_mutex_destroy(&semaforoAppeared);
-	pthread_mutex_destroy(&semaforoCaught);
-	pthread_mutex_destroy(&semaforoSuscripciones);
-	pthread_mutex_destroy(&semaforoLocalized);
-	sem_destroy(&semaforoGet);
+	sem_destroy(&semaforoReconexion);
+	sem_destroy(&semaforoRespuestaCatch);
 
 	return EXIT_SUCCESS;
+}
+
+t_infoPaquete *crearInfoPaquete(int socket,void *paquete){
+	t_infoPaquete *mensaje = malloc(sizeof(t_infoPaquete));
+	mensaje->socket = socket;
+	mensaje->paquete = paquete;
+	return mensaje;
+}
+
+void destruirInfoPaquete(t_infoPaquete *infoPaquete){
+	void *paquete = infoPaquete->paquete;
+	free(paquete);
+	free(infoPaquete);
 }
 
 void iniciarGestionMensajes(){
@@ -75,17 +77,17 @@ void iniciarGestionMensajes(){
 	pthread_join(hiloAtencionLocalized,NULL);
 }
 
-
 void suscripcionColaAppeared(){
 	conexionAColaAppeared();
-	pthread_mutex_unlock(&semaforoSuscripciones);
+	if(conexionAppeared){
+		sem_wait(&semaforoReconexion);
+	}
 }
 
 void suscripcionColaCaught(){
 	while(1){
 		if(conexionAppeared && identificadorProceso != NULL){
 			conexionAColaCaught();
-			pthread_mutex_unlock(&semaforoSuscripciones);
 			break;
 		}
 	}
@@ -95,25 +97,9 @@ void suscripcionColaLocalized(){
 	while(1){
 		if(conexionCaught){
 			conexionAColaLocalized();
-			pthread_mutex_unlock(&semaforoSuscripciones);
 			break;
 		}
 	}
-}
-
-void atencionAppeared(){
-	atenderCliente(&socket_appeared);
-	pthread_mutex_unlock(&semaforoAppeared);
-}
-
-void atencionCaught(){
-	atenderCliente(&socket_caught);
-	pthread_mutex_unlock(&semaforoCaught);
-}
-
-void atencionLocalized(){
-	atenderCliente(&socket_localized);
-	pthread_mutex_unlock(&semaforoLocalized);
 }
 
 void gestionMensajesLocalized(){
@@ -121,24 +107,91 @@ void gestionMensajesLocalized(){
 
 	while(1){
 		if(conexionLocalized){
-			pthread_mutex_lock(&semaforoLocalized);
-			pthread_create(&hiloLocalized,NULL,(void *)atencionLocalized,NULL);
-			pthread_detach(hiloLocalized);
-			log_error(logger,"Se creo un hilo localized");
+			Header headerRecibido;
+			headerRecibido = receiveHeader(socket_localized);
+			if(headerRecibido.operacion != -1 && headerRecibido.tamanioMensaje != 0){
+				uint32_t tamanio = headerRecibido.tamanioMensaje;
+				switch(headerRecibido.operacion){
+				case t_HANDSHAKE:
+					log_info(loggerObligatorio,"Llego un HANDSHAKE del BROKER a través del socket localized!");
+					recibirHandshake(socket_localized,tamanio);
+					break;
+
+				case t_LOCALIZED:
+					log_info(loggerObligatorio,"Llego un mensaje LOCALIZED del BROKER");
+					void *paqueteLocalized = receiveAndUnpack(socket_localized,tamanio);
+					t_infoPaquete *infoLocalized = crearInfoPaquete(socket_localized,paqueteLocalized);
+					pthread_create(&hiloLocalized,NULL,(void *)procedimientoMensajeLocalized,infoLocalized);
+					pthread_detach(hiloLocalized);
+					break;
+
+				default:
+					log_error(loggerObligatorio,"No es un codigo de operacion conocido: %i",headerRecibido.operacion);
+					break;
+				}
+			}
 		}
 	}
 }
 
+void procedimientoMensajeID(int socket){
+	Header headerRecibido;
+	headerRecibido = receiveHeader(socket);
+	uint32_t tamanio = headerRecibido.tamanioMensaje;
+
+	void* paqueteID = receiveAndUnpack(socket, tamanio);
+	uint32_t id = unpackID(paqueteID);
+	log_error(logger,"Llego un ID [%d]",id);
+	t_operacion operacionAsociada = unpackOperacionID(paqueteID);
+	switch (operacionAsociada) {
+
+			case t_GET:;
+				list_add(mensajesGET, &id);
+				free(paqueteID);
+				break;
+
+			case t_CATCH:;
+				list_add(mensajesCATCH, &id);
+				free(paqueteID);
+				sem_post(&semaforoRespuestaCatch);
+				llegoRespuesta = 1;
+				break;
+
+			default:
+				log_error(loggerObligatorio,"No se reciben IDs del codigo de operacion: %i",headerRecibido.operacion);
+				free(paqueteID);
+				break;
+			}
+}
 
 void gestionMensajesCaught(){
 	pthread_t hiloCaught;
 
 	while(1){
 		if(conexionCaught){
-			pthread_mutex_lock(&semaforoCaught);
-			pthread_create(&hiloCaught,NULL,(void *)atencionCaught,NULL);
-			pthread_detach(hiloCaught);
-			log_error(logger,"Se creo un hilo caught");
+			Header headerRecibido;
+			headerRecibido = receiveHeader(socket_caught);
+			if(headerRecibido.operacion != -1 && headerRecibido.tamanioMensaje != 0){
+				uint32_t tamanio = headerRecibido.tamanioMensaje;
+				switch(headerRecibido.operacion){
+				case t_HANDSHAKE:
+					log_info(loggerObligatorio,"Llego un HANDSHAKE del BROKER a través del socket caught!");
+					recibirHandshake(socket_caught,tamanio);
+					break;
+
+				case t_CAUGHT:
+					log_info(loggerObligatorio,"Llego un mensaje CAUGHT del BROKER");
+					void *paqueteCaught = receiveAndUnpack(socket_caught,tamanio);
+					t_infoPaquete *infoCaught = crearInfoPaquete(socket_caught,paqueteCaught);
+					pthread_create(&hiloCaught,NULL,(void *)procedimientoMensajeCaught,infoCaught);
+					pthread_detach(hiloCaught);
+					break;
+
+				default:
+					log_error(loggerObligatorio,"No es un codigo de operacion conocido: %i",headerRecibido.operacion);
+					break;
+				}
+			}
 		}
 	}
 }
@@ -148,55 +201,153 @@ void gestionMensajesAppeared(){
 
 	while(1){
 		if(conexionAppeared){
-		pthread_mutex_lock(&semaforoAppeared);
-		pthread_create(&hiloAppeared,NULL,(void *)atencionAppeared,NULL);
-		pthread_detach(hiloAppeared);
-		log_error(logger,"Se creo un hilo appeared");
+			Header headerRecibido;
+		    headerRecibido = receiveHeader(socket_appeared);
+		    if(headerRecibido.operacion != -1 && headerRecibido.tamanioMensaje != 0){
+		    uint32_t tamanio = headerRecibido.tamanioMensaje;
+		    switch(headerRecibido.operacion){
+		    case t_HANDSHAKE:;
+		                log_info(loggerObligatorio, "Llego un HANDSHAKE del BROKER a través del socket appeared!");
+		    			recibirHandshake(socket_appeared,tamanio);
+		    			break;
+
+		    case t_APPEARED:;
+	    	  log_info(loggerObligatorio, "Llego un mensaje APPEARED del BROKER!");
+	    	  void* paqueteAppeared = receiveAndUnpack(socket_appeared, tamanio);
+	    	  t_infoPaquete *infoAppeared = crearInfoPaquete(socket_appeared,paqueteAppeared);
+	    	  pthread_create(&hiloAppeared,NULL,(void *)procedimientoMensajeAppeared,infoAppeared);
+	    	  pthread_detach(hiloAppeared);
+
+	    	  break;
+
+		    default:;
+		        log_error(loggerObligatorio,"No es un codigo de operacion conocido: %i",headerRecibido.operacion);
+		    	break;
+		    }
+		    }
+		    else{
+		    	conexionAppeared = 0;
+		    	sem_post(&semaforoReconexion);
+		    	conexionCaught = 0;
+		    	conexionLocalized = 0;
+		    }
 	}
 	}
 }
 
+void recibirHandshake(int socket,uint32_t tamanioPaquete){
+	void *paqueteBroker = receiveAndUnpack(socket,tamanioPaquete);
+	identificadorProceso = unpackProceso(paqueteBroker);
+	log_info(logger,"ID RECIBIDO: %s",identificadorProceso);
+}
+
 void administrarSuscripcionesBroker(){
 
-	pthread_mutex_lock(&semaforoSuscripciones);
 	suscripcionColaAppeared();
 
-	pthread_mutex_lock(&semaforoSuscripciones);
 	if(conexionAppeared){
 	enviarPokemonesAlBroker();
-	pthread_mutex_lock(&semaforoSuscripciones);
 	suscripcionColaCaught();
-
-	pthread_mutex_lock(&semaforoSuscripciones);
 	suscripcionColaLocalized();
-	}
-	else{
-		pthread_mutex_unlock(&semaforoSuscripciones);
 	}
 
 	while(1){
 	if(!conexionAppeared){
-		pthread_mutex_lock(&semaforoSuscripciones);
+		sem_wait(&semaforoReconexion);
 		reconexionColaAppeared();
 
-		pthread_mutex_lock(&semaforoSuscripciones);
 		if(!seEnvioMensajeGET){
 		enviarPokemonesAlBroker();
 		}
-		else{
-			pthread_mutex_unlock(&semaforoSuscripciones);
-		}
 
-		pthread_mutex_lock(&semaforoSuscripciones);
 		suscripcionColaCaught();
 
-		pthread_mutex_lock(&semaforoSuscripciones);
 		suscripcionColaLocalized();
 	}
 	}
 }
 
+void procedimientoMensajeAppeared(t_infoPaquete *infoAppeared){
+	void *paqueteAppeared = infoAppeared->paquete;
+	int socket = infoAppeared->socket;
+    char* pokemonAppeared = unpackPokemonAppeared(paqueteAppeared);
+    uint32_t ID_APPEARED= unpackID(paqueteAppeared);
+    uint32_t tamanioPokemon = strlen(pokemonAppeared)+1;
+    uint32_t coordenadaX = unpackCoordenadaX_Appeared(paqueteAppeared,tamanioPokemon);
+    uint32_t coordenadaY = unpackCoordenadaY_Appeared(paqueteAppeared,tamanioPokemon);
+    log_info(logger,"MENSAJE RECIBIDO. POKEMON: %s,X: %d,Y: %d",pokemonAppeared,coordenadaX,coordenadaY);
 
+    if (estaEnElObjetivo(pokemonAppeared) && !yaFueAtrapado(pokemonAppeared)) {
+    			t_pokemon* pokemonAAtrapar = malloc(sizeof(t_pokemon));
+    			pokemonAAtrapar->nombrePokemon = pokemonAppeared;
+    			pokemonAAtrapar->coordenadaX = coordenadaX;
+    			pokemonAAtrapar->coordenadaY = coordenadaY;
+    			log_info(loggerObligatorio,"Pokemon agregado: %s, ubicado en X:%d  Y:%d",pokemonAppeared, coordenadaX, coordenadaY);
+    			list_add(pokemonesEnMapa, pokemonAAtrapar);
+
+    			if(esSocketBroker(socket)){
+    		    enviarACK(ID_APPEARED, t_APPEARED);
+    			}
+
+    			destruirInfoPaquete(infoAppeared);
+    }
+    else{
+    	        destruirInfoPaquete(infoAppeared);
+    			log_info(logger,"El mensaje de appeared del pokemon %s ya fue recibido o no necesita atraparse, queda descartado",pokemonAppeared);
+    }
+
+}
+
+void procedimientoMensajeLocalized(t_infoPaquete *infoLocalized){
+	void *paqueteLocalized = infoLocalized->paquete;
+
+	char* pokemonLocalized = unpackPokemonLocalized(paqueteLocalized);
+	uint32_t IDCorrelativo = unpackIDCorrelativo(paqueteLocalized);
+	//SI VERIFICA LAS MISMAS CONDICIONES QUE APPEARED Y ENCIMA ES DE UN ID CREADO POR UN MENSAJE GET ENTRA
+	if (!estaEnElMapa(pokemonLocalized)&& estaEnElObjetivo(pokemonLocalized) && !yaFueAtrapado(pokemonLocalized) && correspondeAUnIDDe(mensajesGET, IDCorrelativo)) {
+		uint32_t ID = unpackID(paqueteLocalized);
+		uint32_t tamanioPokemon = sizeof(pokemonLocalized);
+		uint32_t cantidadPokemones =unpackCantidadParesCoordenadas_Localized(paqueteLocalized,tamanioPokemon);
+		uint32_t desplazamiento = tamanioPokemon + 2*sizeof(uint32_t);
+		for (int i = 0; i < cantidadPokemones; i++) {
+			t_pokemon* pokemonAAtrapar = malloc(sizeof(t_pokemon));
+			pokemonAAtrapar->nombrePokemon = pokemonLocalized;
+			uint32_t coordenadaX = unpackCoordenadaX_Localized(paqueteLocalized, desplazamiento);
+			pokemonAAtrapar->coordenadaX = coordenadaX;
+			desplazamiento += sizeof(uint32_t);
+			uint32_t coordenadaY = unpackCoordenadaY_Localized(paqueteLocalized, desplazamiento);
+			pokemonAAtrapar->coordenadaY = coordenadaY;
+			desplazamiento += sizeof(uint32_t);
+			log_info(loggerObligatorio,"Pokemon agregado: %s, ubicado en X:%d  Y:%d",pokemonLocalized, coordenadaX, coordenadaY);
+			list_add(pokemonesEnMapa, pokemonAAtrapar);
+			enviarACK(ID, t_LOCALIZED);
+
+		}
+		destruirInfoPaquete(infoLocalized);
+	}
+	else{
+	log_info(logger,"El mensaje de localized/appeared del pokemon %s ya fue recibido o no necesita atraparse, queda descartado",pokemonLocalized);
+	destruirInfoPaquete(infoLocalized);
+	}
+}
+
+void procedimientoMensajeCaught(t_infoPaquete *infoCaught){
+	void *paqueteCaught = infoCaught->paquete;
+	uint32_t ID = unpackIDCorrelativo(paqueteCaught);
+	bool resultadoCaught = unpackResultado_Caught(paqueteCaught);
+	if (correspondeAUnIDDe(mensajesCATCH, ID)) {
+		 enviarACK(ID,t_CAUGHT); //CONFIRMO LA LLEGADA DEL MENSAJE
+		 //SI CORRESPONDE LE ASIGNO EL POKEMON AL ENTRENADOR Y LO DESBLOQUEO (PASA A READY)
+		 int index = list_get_index(entrenadores,&ID,(void*)comparadorIdCatch);
+		 t_entrenador* entrenadorQueAtrapa = list_get(entrenadores,index);
+		 completarCatch(entrenadorQueAtrapa,resultadoCaught);
+		 destruirInfoPaquete(infoCaught);
+	}
+	else{
+	destruirInfoPaquete(infoCaught);
+	log_info(logger,"El mensaje recibido no se corresponde con un mensaje CATCH, queda descartado");
+	}
+}
 
 void conexionAColaAppeared(){
 	socket_appeared = conectarse_a_un_servidor(ip_broker,puerto_broker,logger);
@@ -336,12 +487,18 @@ void gestionMensajesGameBoy(int* socket_servidor){
 
 	log_info(logger, "Se conectó el GameBoy!");
 
+	Header headerRecibido;
+    headerRecibido = receiveHeader(socket);
+    uint32_t tamanio = headerRecibido.tamanioMensaje;
+    log_info(loggerObligatorio, "Llego un mensaje del GAMEBOY!");
+	void* paqueteAppeared = receiveAndUnpack(socket, tamanio);
+	t_infoPaquete *infoAppeared = crearInfoPaquete(socket,paqueteAppeared);
+
 	if(socket != -1){
-		if(pthread_create(&hiloAtencionCliente,NULL,(void*)atenderCliente,&socket) == 0){
-					 pthread_detach(hiloAtencionCliente);
+		if(pthread_create(&hiloAtencionCliente,NULL,(void*)procedimientoMensajeAppeared,infoAppeared) == 0){
+		   pthread_detach(hiloAtencionCliente);
 	    }
 	}
-
 	}
 }
 
@@ -352,9 +509,6 @@ void reconexionColaAppeared(){
 		if(conexionAppeared){
 			log_info(loggerObligatorio, "La reconexion al Broker se realizo con exito");
 			conexionAppeared = 1;
-
-			pthread_mutex_unlock(&semaforoSuscripciones);
-
 			break;
 		}
 
@@ -494,7 +648,6 @@ void enviarPokemonesAlBroker(){
 			enviarGET(pokemonAPedir);
 		}
 		log_info(logger, "Se han enviado los GETs necesarios al broker");
-		pthread_mutex_unlock(&semaforoSuscripciones);
 
 	seEnvioMensajeGET = true;
 }
@@ -505,13 +658,13 @@ void enviarGET(char* pokemon){
 	void* paquete = pack_Get(id, pokemon);
 	uint32_t tamPaquete = sizeof(uint32_t) + strlen(pokemon) + 1 + sizeof(uint32_t);
 	packAndSend (socket, paquete, tamPaquete, t_GET);
-	log_info(logger, "El envio del GET se realizo con exito");
-	atenderCliente(&socket);
+	log_info(logger, "El envio del mensaje GET para el pokemon %s se realizo con exito",pokemon);
+	procedimientoMensajeID(socket);
 	close(socket);
 }
 
-void enviarCATCH(char* ip, char* puerto, char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY){
-	int socket = conectarse_a_un_servidor(ip, puerto, logger);
+void enviarCATCH(char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY){
+	int socket = conectarse_a_un_servidor(ip_broker, puerto_broker, logger);
 	uint32_t id = -1;
 	void* paquete = pack_Catch(id, pokemon, coordenadaX, coordenadaY);
 	uint32_t tamPaquete = sizeof(uint32_t)*4 + strlen(pokemon) + 1;
@@ -520,13 +673,12 @@ void enviarCATCH(char* ip, char* puerto, char* pokemon, uint32_t coordenadaX, ui
 	close(socket);
 }
 
-void enviarACK(char* ip, char* puerto, uint32_t ID, t_operacion operacion){
-	int socket = conectarse_a_un_servidor(ip, puerto, logger);
-	log_error(logger,"ESTOY ANTES DE Crear el socket ACK");
+void enviarACK(uint32_t ID, t_operacion operacion){
+	int socket = conectarse_a_un_servidor(ip_broker, puerto_broker, logger);
 	void* paquete = pack_Ack(ID, operacion, identificadorProceso);
 	uint32_t tamPaquete = sizeof(ID) + sizeof(t_operacion) + strlen(identificadorProceso) + 1 + sizeof(uint32_t);
 	packAndSend(socket, paquete, tamPaquete, t_ACK);
-	log_info(logger, "El envio del ACK se realizo con exito");
+	log_info(logger, "El envio del ACK del mensaje con ID [%d] se realizo con exito",ID);
 	close(socket);
 }
 
@@ -629,7 +781,7 @@ void ejecutarEntrenador(){
 
 void atraparPokemon(t_entrenador* entrenadorAEjecutar, t_pokemon* pokemonAAtrapar){
 	entrenadorAEjecutar->pokemonAAtrapar = pokemonAAtrapar;
-	enviarCATCH(ip_broker, puerto_broker, pokemonAAtrapar->nombrePokemon, pokemonAAtrapar->coordenadaX, pokemonAAtrapar->coordenadaY);
+	enviarCATCH(pokemonAAtrapar->nombrePokemon, pokemonAAtrapar->coordenadaX, pokemonAAtrapar->coordenadaY);
 	log_info(loggerObligatorio, "Se quiere atrapar a un pokemon. POKEMON:%s  COORDENADAS: X:%d Y:%d",pokemonAAtrapar->nombrePokemon, pokemonAAtrapar->coordenadaX, pokemonAAtrapar->coordenadaY);
 }
 
@@ -674,11 +826,12 @@ int elMenorNumeroDe(t_list* aux){
 void completarCatch(t_entrenador* unEntrenador, bool resultadoCaught){
 	if (resultadoCaught){
 		t_pokemon* pokemonAtrapado = unEntrenador->pokemonAAtrapar;
+		char *nombrePokemon = pokemonAtrapado->nombrePokemon;
 		sacarPokemonDelMapa(pokemonAtrapado);
 		list_add(pokemonesAtrapados, pokemonAtrapado);
 		list_add(unEntrenador->pokemones, pokemonAtrapado);
 		unEntrenador->cantPokemonesPorAtrapar = unEntrenador->cantPokemonesPorAtrapar - 1;
-		log_info(logger, "El pokemon pudo ser atrapado!");
+		log_info(logger, "El pokemon %s pudo ser atrapado!",nombrePokemon);
 		int index = list_get_index(colaBlocked, unEntrenador, (void*)comparadorDeEntrenadores);
 		//SI LE QUEDAN POKEMONES POR ATRAPAR VA A READY
 		if(unEntrenador->cantPokemonesPorAtrapar > 0){
@@ -897,153 +1050,3 @@ bool correspondeAUnIDDe(t_list* colaDeIDS, uint32_t IDCorrelativo){
 	}
 	return false;
 }
-
-void atenderCliente(int *socket_cliente) {
-	if(esSocketBroker(*socket_cliente)){
-		log_info(logger, "Atendiendo al Broker...");
-	}
-	else{
-		log_info(logger, "Atendiendo al Gameboy...");
-	}
-	//log_info(logger, "Atendiendo a cliente, socket:%d", *socket_cliente);
-	Header headerRecibido;
-	headerRecibido = receiveHeader(*socket_cliente);
-	if(headerRecibido.operacion == -1 && headerRecibido.tamanioMensaje == 0){
-		//log_info(logger,"Se desconectó el Broker o hubo un error en el envío del mensaje");
-		conexionAppeared = 0;
-		conexionCaught = 0;
-		conexionLocalized = 0;
-	}
-	else{
-	log_info(logger, "Codigo de operacion:%i", headerRecibido.operacion);
-	log_info(logger, "Tamanio:%i", headerRecibido.tamanioMensaje);
-	uint32_t tamanio = headerRecibido.tamanioMensaje;
-	switch (headerRecibido.operacion) {
-
-	case t_HANDSHAKE:;
-			log_info(loggerObligatorio, "Llego un mensaje de HANDSHAKE");
-			void *paqueteBroker = receiveAndUnpack(*socket_cliente,tamanio);
-			identificadorProceso = unpackProceso(paqueteBroker);
-			log_info(logger,"ID RECIBIDO: %s",identificadorProceso);
-			break;
-
-	case t_LOCALIZED:;
-		//ESTE SE USA
-		log_info(loggerObligatorio, "Llego un mensaje de LOCALIZED");
-		void* paqueteLocalized = receiveAndUnpack(*socket_cliente, tamanio);
-		char* pokemonLocalized = unpackPokemonLocalized(paqueteLocalized);
-		uint32_t IDCorrelativo = unpackIDCorrelativo(paqueteLocalized);
-		//SI VERIFICA LAS MISMAS CONDICIONES QUE APPEARED Y ENCIMA ES DE UN ID CREADO POR UN MENSAJE GET ENTRA
-		if (!estaEnElMapa(pokemonLocalized)&& estaEnElObjetivo(pokemonLocalized) && !yaFueAtrapado(pokemonLocalized) && correspondeAUnIDDe(mensajesGET, IDCorrelativo)) {
-			uint32_t ID = unpackID(paqueteLocalized);
-			uint32_t tamanioPokemon = sizeof(pokemonLocalized);
-			uint32_t cantidadPokemones =unpackCantidadParesCoordenadas_Localized(paqueteLocalized,tamanioPokemon);
-			uint32_t desplazamiento = tamanioPokemon + 2*sizeof(uint32_t);
-			for (int i = 0; i < cantidadPokemones; i++) {
-				t_pokemon* pokemonAAtrapar = malloc(sizeof(t_pokemon));
-				pokemonAAtrapar->nombrePokemon = pokemonLocalized;
-				uint32_t coordenadaX = unpackCoordenadaX_Localized(paqueteLocalized, desplazamiento);
-				pokemonAAtrapar->coordenadaX = coordenadaX;
-				desplazamiento += sizeof(uint32_t);
-				uint32_t coordenadaY = unpackCoordenadaY_Localized(paqueteLocalized, desplazamiento);
-				pokemonAAtrapar->coordenadaY = coordenadaY;
-				desplazamiento += sizeof(uint32_t);
-				log_info(loggerObligatorio,"Pokemon agregado: %s, ubicado en X:%d  Y:%d",pokemonLocalized, coordenadaX, coordenadaY);
-				list_add(pokemonesEnMapa, pokemonAAtrapar);
-				if(esSocketBroker(*socket_cliente)){
-					enviarACK(ip_broker, puerto_broker, ID, t_LOCALIZED);
-				}
-			}
-			free(paqueteLocalized);
-		}
-		else{
-			free(paqueteLocalized);
-			log_info(logger,"El mensaje de localized/appeared de este pokemon ya fue recibido o no necesita atraparse, queda descartado");
-		}
-		break;
-
-	case t_APPEARED:;
-		//ESTE SE USA
-		log_info(loggerObligatorio, "Llego un mensaje de APPEARED");
-		void* paqueteAppeared = receiveAndUnpack(*socket_cliente, tamanio);
-		char* pokemonAppeared = unpackPokemonAppeared(paqueteAppeared);
-		uint32_t ID_APPEARED= unpackID(paqueteAppeared);
-		log_error(logger,"ID MENSAJE RECIBIDO: %d",ID_APPEARED);
-		uint32_t tamanioPokemon = strlen(pokemonAppeared)+1;
-		uint32_t coordenadaX = unpackCoordenadaX_Appeared(paqueteAppeared,tamanioPokemon);
-		uint32_t coordenadaY = unpackCoordenadaY_Appeared(paqueteAppeared,tamanioPokemon);
-		log_info(logger,"MENSAJE RECIBIDO. POKEMON: %s,X: %d,Y: %d",pokemonAppeared,coordenadaX,coordenadaY);
-
-		if (estaEnElObjetivo(pokemonAppeared) && !yaFueAtrapado(pokemonAppeared)) {
-			t_pokemon* pokemonAAtrapar = malloc(sizeof(t_pokemon));
-			pokemonAAtrapar->nombrePokemon = pokemonAppeared;
-			pokemonAAtrapar->coordenadaX = coordenadaX;
-			pokemonAAtrapar->coordenadaY = coordenadaY;
-			log_info(loggerObligatorio,"Pokemon agregado: %s, ubicado en X:%d  Y:%d",pokemonAppeared, coordenadaX, coordenadaY);
-			list_add(pokemonesEnMapa, pokemonAAtrapar);
-			if(esSocketBroker(*socket_cliente)){
-				enviarACK(ip_broker, puerto_broker, ID_APPEARED, t_APPEARED);
-			}
-			free(paqueteAppeared);
-		}
-		else{
-			free(paqueteAppeared);
-			log_info(logger,"El mensaje de appeared de este pokemon ya fue recibido o no necesita atraparse, queda descartado");
-		}
-		break;
-
-	case t_CAUGHT:;
-		//ESTE SE USA
-		log_info(loggerObligatorio, "Llego un mensaje de CAUGHT");
-		void* paqueteCaught = receiveAndUnpack(*socket_cliente, tamanio);
-		uint32_t ID = unpackIDCorrelativo(paqueteCaught);
-		bool resultadoCaught = unpackResultado_Caught(paqueteCaught);
-		if (correspondeAUnIDDe(mensajesCATCH, ID)) {
-			enviarACK(ip_broker, puerto_broker, ID, t_CAUGHT); // CONFIRMO LA LLEGADA DEL MENSAJE
-			//SI CORRESPONDE LE ASIGNO EL POKEMON AL ENTRENADOR Y LO DESBLOQUEO (PASA A READY)
-			int index = list_get_index(entrenadores,&ID,(void*)comparadorIdCatch);
-			t_entrenador* entrenadorQueAtrapa = list_get(entrenadores,index);
-			completarCatch(entrenadorQueAtrapa,resultadoCaught);
-			free(paqueteCaught);
-		}
-		else{
-			free(paqueteCaught);
-			log_info(logger,"El mensaje enviado no se corresponde con un mensaje CATCH, queda descartado");
-		}
-		break;
-
-	case t_ID:;
-		//ESTE SE USA
-		log_info(loggerObligatorio, "Llego un mensaje de ID");
-		void* paqueteID = receiveAndUnpack(*socket_cliente, tamanio);
-		uint32_t id = unpackID(paqueteID);
-		log_error(logger,"ID RECIBIDO: %d",id);
-		t_operacion operacionAsociada = unpackOperacionID(paqueteID);
-		switch (operacionAsociada) {
-
-		case t_GET:;
-			list_add(mensajesGET, &id);
-			free(paqueteID);
-			break;
-
-		case t_CATCH:;
-			list_add(mensajesCATCH, &id);
-			free(paqueteID);
-			sem_post(&semaforoRespuestaCatch);
-			llegoRespuesta = 1;
-			break;
-
-		default:
-			log_error(loggerObligatorio,"No se reciben IDs del codigo de operacion: %i",headerRecibido.operacion);
-			free(paqueteID);
-			break;
-		}
-		break;
-
-	default:;
-		log_error(loggerObligatorio,"No es un codigo de operacion conocido: %i",headerRecibido.operacion);
-		break;
-	}
-}
-}
-

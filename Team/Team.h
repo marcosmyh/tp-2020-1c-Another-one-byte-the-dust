@@ -24,6 +24,12 @@
 //ESTRUCTURAS
 typedef struct t_pokemon t_pokemon;
 
+typedef struct{
+	int socket;
+	void *paquete;
+}t_infoPaquete;
+
+
 typedef struct {
 	int idEntrenador;
 	uint32_t coordenadaX;
@@ -61,12 +67,7 @@ pthread_t hiloAtencionLocalized;
 pthread_t hiloAtencionGameBoy;
 pthread_t hiloSuscripcionBroker;
 
-pthread_mutex_t semaforoAppeared;
-pthread_mutex_t semaforoCaught;
-pthread_mutex_t semaforoSuscripciones;
-pthread_mutex_t semaforoLocalized;
-pthread_mutex_t semaforoControlGet;
-sem_t semaforoGet;
+sem_t semaforoReconexion;
 sem_t semaforoRespuestaCatch;
 
 bool conexionAppeared = 0;
@@ -114,7 +115,6 @@ void setearValores(t_config* archConfiguracion);
 int iniciar_servidor(char* ip, char* puerto, t_log* log);
 void gestionMensajesGameBoy(int* socket_servidor);
 int conectarse_a_un_servidor(char* ip, char* puerto, t_log* log);
-int conectarseAColasMensajes(char* ip, char* puerto, t_log* log);
 void enviarHandshake (int socket, char* identificador, t_operacion operacion);
 void recepcionMensajesAppeared();
 void recepcionMensajesCaught();
@@ -128,8 +128,8 @@ void inicializarEntrenadores();
 void inicializarColas();
 void enviarPokemonesAlBroker();
 void enviarGET(char* pokemon);
-void enviarCATCH(char* ip, char* puerto, char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY);
-void enviarACK(char* ip, char* puerto, uint32_t ID, t_operacion operacion);
+void enviarCATCH(char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY);
+void enviarACK(uint32_t ID, t_operacion operacion);
 bool estaEnElObjetivo(char* pokemon);
 bool yaFueAtrapado(char* pokemon);
 char* obtenerPokemon(t_pokemon* unPokemon);
@@ -164,17 +164,17 @@ int conectarseAColaMensaje(int socket,char *identificador,t_operacion operacion)
 void conexionAColaAppeared();
 void conexionAColaCaught();
 void conexionAColaLocalized();
-void atenderCliente(int *socket_cliente); //ESTA ES LA FUNCION MAGICA
 bool esSocketBroker(int socket);
-void atencionCaught();
-void atencionAppeared();
-void atencionLocalized();
 void gestionMensajesCaught();
 void gestionMensajesAppeared();
 void gestionMensajesLocalized();
-void atencionLocalized();
 void iniciarGestionMensajes();
+t_infoPaquete *crearInfoPaquete(int socket,void *paquete);
+void destruirInfoMensaje(t_infoPaquete *info);
+void procedimientoMensajeAppeared(t_infoPaquete *info);
+void procedimientoMensajeCaught(t_infoPaquete *info);
+void procedimientoMensajeLocalized(t_infoPaquete *info);
+void procedimientoMensajeID(int socket);
+void recibirHandshake(int socket,uint32_t tamanioPaquete);
 
 #endif
-
-
