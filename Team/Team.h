@@ -41,6 +41,7 @@ typedef struct {
 	int rafagasEjecutadas;
 	int distancia;
 	int cantPokemonesPorAtrapar;
+	int contadorRR;
 	uint32_t IdCatch;
 	bool ocupado;
 	bool completoObjetivo;
@@ -141,6 +142,7 @@ t_pokemon* pokemonMasCercanoA(t_entrenador* unEntrenador);
 bool comparadorPosiciones(int unaPosicion, int otraPosicion);
 int elMenorNumeroDe(t_list* aux);
 void completarCatch(t_entrenador* unEntrenador, bool resultadoCaught);
+bool cumplioObjetivo(t_entrenador* unEntrenador); //USAR ESTA PARA CHEQUEAR SI EL TEAM CUMPLIÓ EL OBJETIVO
 void sacarPokemonDelMapa(t_pokemon* unPokemon);
 void aplicarFIFO();
 void guardarID(uint32_t *,uint32_t *);
