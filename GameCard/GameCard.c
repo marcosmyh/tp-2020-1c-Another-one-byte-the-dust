@@ -1,6 +1,7 @@
 #include "GameCard.h"
 
-int main(void){
+int main(int argc,char* argv[]){
+	setearValoresDefaultfs(argc,argv);
 	bloquesLibres = 0;
 	sem_init(&semDeBloques,0,1);
 	sem_init(&aperturaDeArchivo,0,1);
@@ -37,6 +38,14 @@ int main(void){
     sem_destroy(&aperturaDeArchivo);
     sem_destroy(&reconexion);
 	return 0;
+}
+
+void setearValoresDefaultfs(int cantidadDeArgumentos,char* argumentos[]){
+	if(cantidadDeArgumentos == 3){
+		// Primero nos van a enviar la cantidad de bloques y luego el tamaño
+		blocksdefault = argumentos[1];
+		blocksizedefault = argumentos[2];
+	}
 }
 
 t_infoPack *crearInfoDePaquete(int socket,void *paquete){
@@ -699,8 +708,8 @@ void inicio_default(char* puntoDeMontaje){
 	// cantidad de bloques 5192
 	// Numero mágico TALL_GRASS
 	config_fs = config_create(auxMetadata);
-	config_set_value(config_fs, "BLOCK_SIZE", "64");
-	config_set_value(config_fs, "BLOCKS", "4096");
+	config_set_value(config_fs, "BLOCK_SIZE", blocksizedefault);
+	config_set_value(config_fs, "BLOCKS", blocksdefault);
 	config_set_value(config_fs, "MAGIC_NUMBER", "TALL_GRASS");
 	config_save(config_fs);
 
@@ -954,7 +963,7 @@ int obtenerLinea(char** lineas,char* array){
 
 // Recibe un array y un caracter
 // Busca la posicion de un caracter de un array y retorna su posicion
-int buscarPosicionDeCaracter(char* array,char *caracter){
+int buscarPosicionDeCaracter(char* array,char caracter){
 	int i;
 	int tamanio = strlen(array);
 	for(i = 0; i < tamanio; i++){

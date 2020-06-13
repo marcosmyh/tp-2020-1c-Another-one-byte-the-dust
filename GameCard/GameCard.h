@@ -88,6 +88,13 @@ typedef struct{
 }t_infoPack;
 
 ////////////
+// Carga default del FS
+////////////
+char* blocksizedefault = "64";
+char* blocksdefault =  "4096";
+
+
+////////////
 // Sobre el FS
 ////////////
 
@@ -109,7 +116,7 @@ void carga_config_fs();
 void bloques_iniciar();
 void iniciarBitmap();
 void actualizarBitmap();
-
+void setearValoresDefaultfs(int cantidadDeArgumentos,char* argumentos[]);
 // Utilidades varias
 
 void mostrarRutas(void);
@@ -121,7 +128,7 @@ int solicitarBloqueVacio();
 int length_punteroAPuntero(char** punteroAPuntero);
 char* crearPathDeBloque(char* nroDeBloque);
 int obtenerLinea(char** lineas,char* array);
-int buscarPosicionDeCaracter(char* array,char *caracter);
+int buscarPosicionDeCaracter(char* array,char caracter);
 char* actualizarPosicion(char** posicionesSeparadas,char* lineaAActualizar,int nroDeLinea);
 char* sumarCantidadPokemon(char* lineaPokemon,int cantidadASumar);
 int desplazamientoDelArrayHastaCantPokemon(char** posicionesSeparadas,char* posObjetivo);
@@ -137,7 +144,7 @@ char* obtener_contenido_de_bloque(char* nroDeBloque);
 bool contieneEstaPosicion(char* lineas,char* arrayPosicion);
 int escribirBloquePosicionandoPuntero(char* nombreDeBloque,char* stringAEscribir,int desplazamiento);
 void crearDirectorio(char* pathDeDirectorio);
-
+int verificarYAbrirArchivo(char* pokemon);
 int espacioLibreDeBloque(char* nombreDeBloque);
 int tamanioBloque(char* nombreDeBloque);
 char* obtenerContenidoDeArchivo(char* bloques);
