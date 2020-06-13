@@ -90,6 +90,7 @@ pthread_mutex_t semaforoIDMensaje;
 pthread_mutex_t semaforoIDTeam;
 pthread_mutex_t semaforoIDGameCard;
 pthread_mutex_t semaforoParticiones;
+pthread_mutex_t semaforoSuscripcionProceso;
 
 //Funciones
 t_log *crearLogger();
@@ -150,5 +151,8 @@ bool hayParticionesLibres();
 t_particion *obtenerParticionLibreParaCachear(uint32_t);
 bool existeParticionLibreConTamanio(uint32_t);
 void destruirParticion(t_particion *);
+void setearOffset(uint32_t,t_particion *);
+void inicializarSemaforos();
+void destruirSemaforos();
 
 #endif

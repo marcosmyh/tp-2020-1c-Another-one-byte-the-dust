@@ -6,15 +6,11 @@ int main(void) {
     setearValoresConfig();
     inicializarColas();
     inicializarListasSuscriptores();
+    inicializarSemaforos();
     IDs_mensajes = list_create();
     IDs_procesos = list_create();
 
     iniciarMemoria();
-
-    pthread_mutex_init(&semaforoIDMensaje,NULL);
-    pthread_mutex_init(&semaforoIDTeam,NULL);
-    pthread_mutex_init(&semaforoIDGameCard,NULL);
-    pthread_mutex_init(&semaforoParticiones,NULL);
 
     socket_servidor = iniciar_servidor(ip,puerto);
 
@@ -28,10 +24,8 @@ int main(void) {
         pthread_detach(hiloAtencionCliente);
     }
 
-    pthread_mutex_destroy(&semaforoIDMensaje);
-    pthread_mutex_destroy(&semaforoIDTeam);
-    pthread_mutex_destroy(&semaforoIDGameCard);
-    pthread_mutex_destroy(&semaforoParticiones);
+
+    destruirSemaforos();
     list_destroy(IDs_mensajes);
     list_destroy(IDs_procesos);
     list_destroy(particionesLibres);
@@ -109,19 +103,16 @@ void procesar_solicitud(Header header,int cliente_fd){
 
      void *paquete;
 
+     //Determinar cuando doy de de baja a un suscriptor
+
      void enviarMensajeA(t_suscriptor *suscriptor){
     	 int socket = suscriptor->socket_suscriptor;
     	 char *identificadorProceso = suscriptor->identificadorProceso;
-    	 int resultado = packAndSend(socket,paquete,sizePaquete,codigo_operacion);
+    	 packAndSend(socket,paquete,sizePaquete,codigo_operacion);
 
     	 list_add(mensaje->suscriptoresALosQueMandeMensaje,suscriptor);
 
-    	 if(resultado != -1){
     	 log_info(logger,"Le mande un mensaje a %s",identificadorProceso);
-    	 }
-    	 else{
-    		 log_info(logger,"No le pude mandar un mensaje a %s",identificadorProceso);
-    	 }
      }
 
      switch (codigo_operacion) {
@@ -301,7 +292,7 @@ void procesar_solicitud(Header header,int cliente_fd){
      			uint32_t ID_CAUGHT_Correlativo = unpackID(paquete);
 
      			if(existeRespuestaEnCola(ID_CAUGHT_Correlativo,CAUGHT_POKEMON)){
-     				log_error(logger,"El mensaje con ID_Correlativo [%d] ya existeen la cola CAUGHT POKEMON",ID_CAUGHT_Correlativo);
+     				log_error(logger,"El mensaje con ID_Correlativo [%d] ya existe en la cola CAUGHT POKEMON",ID_CAUGHT_Correlativo);
      				free(paquete);
      			}
      			else{
@@ -354,14 +345,13 @@ void procesar_solicitud(Header header,int cliente_fd){
 
 
 void agregarMensajeACola(t_mensaje *mensaje,t_list *colaDeMensajes,char *nombreCola){
+	pthread_mutex_lock(&semaforoParticiones);
 	list_add(colaDeMensajes,mensaje);
 	log_info(logger,"Un nuevo mensaje fue agregado a la cola %s",nombreCola);
 	log_info(logger,"La cola %s tiene %d mensajes",nombreCola,list_size(colaDeMensajes));
 
-	//pthread_mutex_lock(&semaforoParticiones);
-    //cachearMensaje(mensaje,nombreCola);
-    //pthread_mutex_unlock(&semaforoParticiones);
-
+    cachearMensaje(mensaje,nombreCola);
+    pthread_mutex_unlock(&semaforoParticiones);
 }
 
 void eliminarPaqueteDeMemoria(uint32_t offset){
@@ -531,8 +521,32 @@ t_particion *obtenerParticion(uint32_t elem,t_FLAG flag){
 }
 
 void *descachearPaquete(t_mensaje *mensaje,char *colaDePokemon){
-	//TODO
-	return NULL;
+	    uint32_t IDMensaje = mensaje->ID_mensaje;
+		uint32_t tamPaquete = mensaje->tamanioPaquete;
+		t_particion *particionMensaje = obtenerParticion(IDMensaje,BROKER_ID);
+		uint32_t offset = particionMensaje->offset;
+
+		FILE *arch = fopen("/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/Broker/Cache","r");
+
+		fseek(arch,offset,SEEK_CUR);
+
+		void *paquete = malloc(tamPaquete);
+
+		fread(paquete,tamPaquete,1,arch);
+
+		fclose(arch);
+
+		if(tienenIDCorrelativoLosMensajes(colaDePokemon)){
+			uint32_t IDCorrelativo = mensaje->ID_correlativo;
+			void *paqueteConUnID = insertarIDEnPaquete(IDCorrelativo,paquete,tamPaquete+sizeof(uint32_t),0);
+			void *paqueteConDosID = insertarIDEnPaquete(IDMensaje,paqueteConUnID,tamPaquete + sizeof(uint32_t),DOUBLE_ID);
+			return paqueteConDosID;
+		}
+		else{
+			log_error(logger,"ESTOY ACA!");
+			void *paqueteConUnID = insertarIDEnPaquete(IDMensaje,paquete,tamPaquete+sizeof(uint32_t),0);
+			return paqueteConUnID;
+		}
 }
 
 bool tienenIDCorrelativoLosMensajes(char *nombreCola){
@@ -576,7 +590,32 @@ t_particion *obtenerParticionLibreParaCachear(uint32_t cantCachear){
 }
 
 void cachearMensaje(t_mensaje *mensaje,char *colaDeMensajes){
-	//TODO
+
+	void *paqueteACachear = mensaje->paquete;
+
+	uint32_t tamPaquete = mensaje->tamanioPaquete;
+
+	uint32_t IDMensaje = mensaje->ID_mensaje;
+
+	t_particion *nuevaParticion = crearParticion(tamPaquete,IDMensaje,colaDeMensajes);
+
+	log_error(logger,"Se creo una nueva particion para el mensaje con ID [%d] de la cola %s",IDMensaje,colaDeMensajes);
+
+    list_add(particiones,nuevaParticion);
+
+	FILE *arch = fopen("/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/Broker/Cache","rw+");
+
+	fseek(arch,offsetCache,SEEK_CUR);
+
+	log_error(logger,"Posición de inicio de la partición creada: %d",offsetCache);
+
+	setearOffset(offsetCache,nuevaParticion);
+
+	fwrite(paqueteACachear,tamPaquete,1,arch);
+
+	offsetCache += tamPaquete;
+
+	fclose(arch);
 }
 
 void enviarMensajeRecibidoASuscriptores(t_list *listaSuscriptores,void(*funcionDeEnvio)(t_suscriptor *)){
@@ -593,9 +632,6 @@ void *quitarIDPaquete(void *paquete,uint32_t tamanioPaquete){
 
 void *insertarIDEnPaquete(uint32_t ID,void *paquete,uint32_t tamanioPaquete,t_FLAG flag){
 	if(flag == DOUBLE_ID){
-		log_error(logger,"ESTOY EN DOUBLE ID");
-		log_error(logger,"TAMANIOPAQUETE: %d",tamanioPaquete);
-		log_error(logger,"TAMANIOPAQUETEAENVIAR: %d",tamanioPaquete + sizeof(uint32_t));
 		void *paqueteAEnviar = malloc(tamanioPaquete+sizeof(uint32_t));
 		memcpy(paqueteAEnviar,&ID,sizeof(uint32_t));
 		memcpy(paqueteAEnviar+sizeof(uint32_t),paquete,tamanioPaquete);
@@ -865,6 +901,22 @@ void destruirListasSuscriptores(){
 	list_destroy(suscriptores_LOCALIZED_POKEMON);
 }
 
+void inicializarSemaforos(){
+    pthread_mutex_init(&semaforoIDMensaje,NULL);
+    pthread_mutex_init(&semaforoIDTeam,NULL);
+    pthread_mutex_init(&semaforoIDGameCard,NULL);
+    pthread_mutex_init(&semaforoParticiones,NULL);
+    pthread_mutex_init(&semaforoSuscripcionProceso,NULL);
+}
+
+void destruirSemaforos(){
+    pthread_mutex_destroy(&semaforoIDMensaje);
+    pthread_mutex_destroy(&semaforoIDTeam);
+    pthread_mutex_destroy(&semaforoIDGameCard);
+    pthread_mutex_destroy(&semaforoParticiones);
+    pthread_mutex_destroy(&semaforoSuscripcionProceso);
+}
+
 void destruirColas(){
 	list_destroy(NEW_POKEMON);
 	list_destroy(APPEARED_POKEMON);
@@ -884,6 +936,7 @@ void suscribirProceso(char *identificadorProceso,int cliente_fd,t_operacion oper
 	t_suscriptor *nuevoSuscriptor;
 	nuevoSuscriptor = crearSuscriptor(identificadorProceso,cliente_fd);
 
+	pthread_mutex_lock(&semaforoSuscripcionProceso);
 	switch (operacionSuscripcion) {
 	         	case t_NEW:;
 	         		list_add(suscriptores_NEW_POKEMON,nuevoSuscriptor);
@@ -921,4 +974,5 @@ void suscribirProceso(char *identificadorProceso,int cliente_fd,t_operacion oper
 	     		default:
 	     			break;
 	     		}
+	pthread_mutex_unlock(&semaforoSuscripcionProceso);
 }
