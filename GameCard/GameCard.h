@@ -209,6 +209,7 @@ void recibirHandshake(int socket,uint32_t tamanioPaquete);
 char *getToken(char *,char);
 char *getCoordenadaX(char *);
 char *getCoordenadaY(char *);
+t_list *guardarCoordenadas(char**,int);
 uint32_t generarArrayDeCoordenadas(char** coordenadasSeparadas);
 void mostrarCoordenadas(t_list* lista);
 void insertarCoordenadas(t_list *lista,uint32_t* vector);
