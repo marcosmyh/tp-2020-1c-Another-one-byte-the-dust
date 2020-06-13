@@ -543,7 +543,6 @@ void *descachearPaquete(t_mensaje *mensaje,char *colaDePokemon){
 			return paqueteConDosID;
 		}
 		else{
-			log_error(logger,"ESTOY ACA!");
 			void *paqueteConUnID = insertarIDEnPaquete(IDMensaje,paquete,tamPaquete+sizeof(uint32_t),0);
 			return paqueteConUnID;
 		}
