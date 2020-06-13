@@ -47,7 +47,7 @@ bool packAndSend(int socketCliente, const void* paquete, uint32_t tamPaquete, t_
 	if (desplazamiento != tamMensaje){
 		return (-1);
 	}
-	int resultado = send(socketCliente, buffer, tamMensaje,0);
+	int resultado = send(socketCliente, buffer, tamMensaje,MSG_NOSIGNAL);
 	free(buffer);
 	return resultado;
 }
