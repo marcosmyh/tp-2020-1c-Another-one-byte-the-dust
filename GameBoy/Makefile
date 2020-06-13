@@ -1,4 +1,4 @@
-TARGET = GameBoy
+TARGET = gameboy
 LIBS = -lcommons -lpthread -lSerializacion
 CC = gcc
 CFLAGS = -g -Wall -L$(Serializacion_PATH) -Wl,-rpath=$(Serializacion_PATH)

@@ -358,7 +358,15 @@ void enviar_mensaje_a_broker(char* tipo_de_mensaje,int cantidad_de_argumentos,ch
 			case CAUGHT://if(string_contains("GBS",primerLetraDeProceso)) valor = 1;
 				if(cantidad_de_argumentos == 5){
 								uint32_t idmensaje = atoi(argumentos[3]);
-								uint32_t atrapado = atoi(argumentos[4]);
+								char *resultado = argumentos[4];
+								uint32_t atrapado;
+
+								if(string_equals_ignore_case(resultado,"OK")){
+									atrapado = 1;
+								}
+								else if(string_equals_ignore_case(resultado,"FAIL")){
+									atrapado = 0;
+								}
 
 								// envio de mensaje
 								envioDeMensajeCaught(atrapado,idmensaje);

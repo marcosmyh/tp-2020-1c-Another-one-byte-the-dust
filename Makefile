@@ -1,4 +1,4 @@
-.PHONY: default all clean Team Broker GameBoy GameCard
+.PHONY: default all clean Team Broker gameboy GameCard
 
 include Paths.Makefile
 
@@ -34,7 +34,7 @@ Broker:
 	@echo 
 	@cd $(Broker_PATH) && $(MAKE)
 	
-GameBoy:
+gameboy:
 	@echo 
 	@echo "##################################################"
 	@echo "#                                                #"
@@ -54,7 +54,7 @@ GameCard:
 	@echo 
 	@cd $(GameCard_PATH) && $(MAKE)
 
-main: Serializacion Team Broker GameBoy GameCard
+main: Serializacion Team Broker gameboy GameCard
 
 all: main
 
