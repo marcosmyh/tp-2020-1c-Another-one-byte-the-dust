@@ -308,9 +308,9 @@ void procedimientoMensajeLocalized(t_infoPaquete *infoLocalized){
 
 	char* pokemonLocalized = unpackPokemonLocalized(paqueteLocalized);
 	uint32_t IDCorrelativo = unpackIDCorrelativo(paqueteLocalized);
+	uint32_t ID = unpackID(paqueteLocalized);
 	//SI VERIFICA LAS MISMAS CONDICIONES QUE APPEARED Y ENCIMA ES DE UN ID CREADO POR UN MENSAJE GET ENTRA
 	if (!estaEnElMapa(pokemonLocalized)&& estaEnElObjetivo(pokemonLocalized) && !yaFueAtrapado(pokemonLocalized) && correspondeAUnIDDe(mensajesGET, IDCorrelativo)) {
-		uint32_t ID = unpackID(paqueteLocalized);
 		uint32_t tamanioPokemon = sizeof(pokemonLocalized);
 		uint32_t cantidadPokemones =unpackCantidadParesCoordenadas_Localized(paqueteLocalized,tamanioPokemon);
 		uint32_t desplazamiento = tamanioPokemon + 2*sizeof(uint32_t);
@@ -325,12 +325,12 @@ void procedimientoMensajeLocalized(t_infoPaquete *infoLocalized){
 			desplazamiento += sizeof(uint32_t);
 			log_info(loggerObligatorio,"Pokemon agregado: %s, ubicado en X:%d  Y:%d",pokemonLocalized, coordenadaX, coordenadaY);
 			list_add(pokemonesEnMapa, pokemonAAtrapar);
-			enviarACK(ID, t_LOCALIZED);
-
 		}
+		enviarACK(ID, t_LOCALIZED);
 		destruirInfoPaquete(infoLocalized);
 	}
 	else{
+	enviarACK(ID, t_LOCALIZED);
 	log_info(logger,"El mensaje de localized/appeared del pokemon %s ya fue recibido o no necesita atraparse, queda descartado",pokemonLocalized);
 	destruirInfoPaquete(infoLocalized);
 	}
@@ -338,17 +338,19 @@ void procedimientoMensajeLocalized(t_infoPaquete *infoLocalized){
 
 void procedimientoMensajeCaught(t_infoPaquete *infoCaught){
 	void *paqueteCaught = infoCaught->paquete;
-	uint32_t ID = unpackIDCorrelativo(paqueteCaught);
+	uint32_t IDCorrelativo = unpackIDCorrelativo(paqueteCaught);
+	uint32_t ID = unpackID(paqueteCaught);
 	bool resultadoCaught = unpackResultado_Caught(paqueteCaught);
-	if (correspondeAUnIDDe(mensajesCATCH, ID)) {
+	if (correspondeAUnIDDe(mensajesCATCH, IDCorrelativo)) {
 		 enviarACK(ID,t_CAUGHT); //CONFIRMO LA LLEGADA DEL MENSAJE
 		 //SI CORRESPONDE LE ASIGNO EL POKEMON AL ENTRENADOR Y LO DESBLOQUEO (PASA A READY)
-		 int index = list_get_index(entrenadores,&ID,(void*)comparadorIdCatch);
+		 int index = list_get_index(entrenadores,&IDCorrelativo,(void*)comparadorIdCatch);
 		 t_entrenador* entrenadorQueAtrapa = list_get(entrenadores,index);
 		 completarCatch(entrenadorQueAtrapa,resultadoCaught);
 		 destruirInfoPaquete(infoCaught);
 	}
 	else{
+	enviarACK(ID,t_CAUGHT);
 	destruirInfoPaquete(infoCaught);
 	log_info(logger,"El mensaje recibido no se corresponde con un mensaje CATCH, queda descartado");
 	}
