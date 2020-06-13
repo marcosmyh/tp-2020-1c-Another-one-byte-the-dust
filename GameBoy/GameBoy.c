@@ -226,7 +226,7 @@ void terminar_programa()
 void envioDeMensajeNew(char* pokemon, uint32_t posx, uint32_t posy,uint32_t cantidad,uint32_t idmensaje){
 
 	void* paqueteNew = pack_New(idmensaje,pokemon,cantidad,posx,posy);
-	uint32_t tamPaquete =  strlen(pokemon) + 1 + 5*sizeof(uint32_t);
+	uint32_t tamPaquete =  strlen(pokemon) + 5*sizeof(uint32_t);
 	int resultado = packAndSend(conexion,paqueteNew,tamPaquete,t_NEW);
 	  	// packAndSend_Appeared(conexion,-1,pokemon,posx,posy);
 	if(resultado == -1)log_error(loggerObligatorio,"El envio del mensaje de NEW falló");
@@ -248,7 +248,7 @@ void *paqueteAppearedTeam(char *pokemon,uint32_t posx,uint32_t posy,uint32_t idM
 
 void envioDeMensajeAppeared(char* pokemon, uint32_t posx, uint32_t posy, uint32_t idmensaje){
 	void* paqueteAppeared = pack_Appeared(idmensaje,pokemon,posx,posy);
-	uint32_t tamPaquete =  strlen(pokemon) + 1 + 4*sizeof(uint32_t);
+	uint32_t tamPaquete =  strlen(pokemon) + 4*sizeof(uint32_t);
 	log_error(loggerObligatorio,"El tamaño del paquete es: %i ",tamPaquete);
 	int resultado = packAndSend(conexion,paqueteAppeared,tamPaquete,t_APPEARED);
   	// packAndSend_Appeared(conexion,-1,pokemon,posx,posy);
@@ -258,7 +258,7 @@ void envioDeMensajeAppeared(char* pokemon, uint32_t posx, uint32_t posy, uint32_
 
 void envioDeMensajeCatch(char* pokemon, uint32_t posx, uint32_t posy, uint32_t idmensaje){
 	void* paqueteCatch = pack_Catch(idmensaje,pokemon,posx,posy);
-		uint32_t tamPaquete =  strlen(pokemon) + 1 + 4*sizeof(uint32_t);
+		uint32_t tamPaquete =  strlen(pokemon) + 4*sizeof(uint32_t);
 		log_error(loggerObligatorio,"El tamaño del paquete es: %i ",tamPaquete);
 		int resultado = packAndSend(conexion,paqueteCatch,tamPaquete,t_CATCH);
 	  	// packAndSend_Appeared(conexion,-1,pokemon,posx,posy);
@@ -278,7 +278,7 @@ void envioDeMensajeCaught(uint32_t atrapado, uint32_t idmensaje){
 
 void envioDeMensajeGet(char* pokemon,uint32_t idmensaje){
 	void* paqueteGet = pack_Get(idmensaje,pokemon);
-			uint32_t tamPaquete = strlen(pokemon) + 1 + 2*sizeof(uint32_t);
+			uint32_t tamPaquete = strlen(pokemon) + 2*sizeof(uint32_t);
 			log_error(loggerObligatorio,"El tamaño del paquete es: %i ",tamPaquete);
 			int resultado = packAndSend(conexion,paqueteGet,tamPaquete,t_GET);
 		  	// packAndSend_Appeared(conexion,-1,pokemon,posx,posy);
@@ -408,7 +408,7 @@ void enviar_mensaje_a_team(char* tipo_de_mensaje,int cantidad_de_argumentos,char
 		uint32_t id = -1;
 
 		void *paquete = paqueteAppearedTeam(pokemon,posx,posy,id);
-		uint32_t tamPaquete = strlen(pokemon) + 1 + 4*sizeof(uint32_t);
+		uint32_t tamPaquete = strlen(pokemon) + 4*sizeof(uint32_t);
 		void *paqueteAEnviar = insertarIDEnPaquete(-1,paquete,tamPaquete);
 
 		log_error(loggerObligatorio,"El tamaño del paquete es: %i ",tamPaquete+sizeof(uint32_t));
@@ -575,14 +575,11 @@ void discriminarMensaje(){
 						case t_CAUGHT:
 							log_info(logger,"Me llegaron mensajes de Suscriber CAUGHT");
 							void* paqueteCaught = receiveAndUnpack(conexion, tamanio);
-							pokemon = unpackPokemonCaught(paqueteCaught);
-							tamanioPokemon = strlen(pokemon) + 1;
-
 
 							id = unpackID(paqueteCaught);
 							int resultado = unpackResultado_Caught(paqueteCaught);
 
-							log_info(logger,"Pokemon: %s resultado Caught: %d id: %d",pokemon,resultado, id);
+							log_info(logger,"Resultado Caught: %d id: %d",resultado, id);
 
 							free(paqueteCaught);
 							break;

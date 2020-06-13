@@ -44,7 +44,6 @@ char *unpackPokemonNew(void *pack);
 char *unpackPokemonCatch(void *pack);
 char *unpackPokemonAppeared(void *pack);
 char *unpackPokemonLocalized(void *pack);
-char *unpackPokemonCaught(void *pack);
 
 uint32_t unpackID(void* pack); //DESEMPAQUETA EL ID DEL MENSAJE, ES IGUAL PARA TODOS, SI NO MANDAS UN ID EMPAQUETALE UN -1
 

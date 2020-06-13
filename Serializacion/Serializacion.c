@@ -66,8 +66,8 @@ void* pack_Handshake(char* proceso, t_operacion operacion){
 }
 
 void* pack_New(uint32_t id, char* pokemon, uint32_t cantidad, uint32_t coordenadaX, uint32_t coordenadaY){
-	uint32_t tamMensaje = sizeof(id) + strlen(pokemon) + 1 + sizeof(uint32_t) + sizeof(cantidad) + sizeof(coordenadaX) + sizeof(coordenadaY);
-	uint32_t tamPokemon = strlen(pokemon) + 1;
+	uint32_t tamMensaje = sizeof(id) + strlen(pokemon) + sizeof(uint32_t) + sizeof(cantidad) + sizeof(coordenadaX) + sizeof(coordenadaY);
+	uint32_t tamPokemon = strlen(pokemon);
 	void* buffer = malloc(tamMensaje);
 	uint32_t desplazamiento = 0;
 	memcpy(buffer, &id, sizeof(uint32_t));
@@ -86,8 +86,8 @@ void* pack_New(uint32_t id, char* pokemon, uint32_t cantidad, uint32_t coordenad
 
 void* pack_Localized(uint32_t idCorrelativo, char* pokemon, uint32_t cantidadParesCoordenadas, uint32_t arrayCoordenadas[]){
 	//REVISAR EL FUNCIONAMIENTO DEL LOCALIZED
-	uint32_t tamMensaje = sizeof(idCorrelativo) + strlen(pokemon) + 1 + sizeof(uint32_t) + sizeof(cantidadParesCoordenadas) + cantidadParesCoordenadas*2*sizeof(uint32_t);
-	uint32_t tamPokemon = strlen(pokemon) + 1;
+	uint32_t tamMensaje = sizeof(idCorrelativo) + strlen(pokemon) + sizeof(uint32_t) + sizeof(cantidadParesCoordenadas) + cantidadParesCoordenadas*2*sizeof(uint32_t);
+	uint32_t tamPokemon = strlen(pokemon);
 	void* buffer = malloc(tamMensaje);
 	uint32_t desplazamiento = 0;
 	memcpy(buffer, &idCorrelativo, sizeof(uint32_t));
@@ -110,8 +110,8 @@ void packCoordenada_Localized(void* buffer, uint32_t desplazamiento, uint32_t co
 }
 
 void* pack_Get(uint32_t id, char* pokemon){
-	uint32_t tamMensaje = sizeof(id) + strlen(pokemon) + 1 + sizeof(uint32_t);
-	uint32_t tamPokemon = strlen(pokemon) + 1;
+	uint32_t tamMensaje = sizeof(id) + strlen(pokemon) + sizeof(uint32_t);
+	uint32_t tamPokemon = strlen(pokemon);
 	void* buffer = malloc(tamMensaje);
 	uint32_t desplazamiento = 0;
 	memcpy(buffer, &id, sizeof(uint32_t));
@@ -124,8 +124,8 @@ void* pack_Get(uint32_t id, char* pokemon){
 
 
 void* pack_Appeared(uint32_t idCorrelativo, char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY){
-	uint32_t tamMensaje = sizeof(uint32_t) + strlen(pokemon) + 1 + sizeof(uint32_t) + sizeof(coordenadaX) + sizeof(coordenadaY);
-	uint32_t tamPokemon = strlen(pokemon) + 1;
+	uint32_t tamMensaje = sizeof(uint32_t) + strlen(pokemon) + sizeof(uint32_t) + sizeof(coordenadaX) + sizeof(coordenadaY);
+	uint32_t tamPokemon = strlen(pokemon);
 	void* buffer = malloc(tamMensaje);
 	uint32_t desplazamiento = 0;
 	memcpy(buffer+desplazamiento, &idCorrelativo, sizeof(uint32_t));
@@ -141,8 +141,8 @@ void* pack_Appeared(uint32_t idCorrelativo, char* pokemon, uint32_t coordenadaX,
 }
 
 void* pack_Catch(uint32_t id, char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY){
-	uint32_t tamMensaje = sizeof(id) + strlen(pokemon) + 1 + sizeof(uint32_t) + sizeof(coordenadaX) + sizeof(coordenadaY);
-	uint32_t tamPokemon = strlen(pokemon) + 1;
+	uint32_t tamMensaje = sizeof(id) + strlen(pokemon) + sizeof(uint32_t) + sizeof(coordenadaX) + sizeof(coordenadaY);
+	uint32_t tamPokemon = strlen(pokemon);
 	void* buffer = malloc(tamMensaje);
 	uint32_t desplazamiento = 0;
 	memcpy(buffer, &id, sizeof(uint32_t));
@@ -197,14 +197,11 @@ char *unpackPokemonAppeared(void *pack){
 	uint32_t desplazamiento = 2*sizeof(uint32_t);
 
 	memcpy(&tamanioPokemon, pack+desplazamiento, sizeof(uint32_t));
-	char* pokemon = malloc(tamanioPokemon);
+	char* pokemon = malloc(tamanioPokemon+1);
 	desplazamiento += sizeof(uint32_t);
 	memcpy(pokemon, pack+desplazamiento,tamanioPokemon);
+	pokemon[tamanioPokemon] = '\0';
 	return pokemon;
-}
-
-char *unpackPokemonCaught(void *pack){
-	return unpackPokemonAppeared(pack);
 }
 
 char *unpackPokemonLocalized(void *pack){
@@ -215,9 +212,10 @@ char* unpackPokemonGet(void* pack){
 	uint32_t tamanioPokemon = 0;
 	uint32_t desplazamiento = sizeof(uint32_t);
 	memcpy(&tamanioPokemon, pack+desplazamiento, sizeof(uint32_t));
-	char* pokemon = malloc(tamanioPokemon);
+	char* pokemon = malloc(tamanioPokemon+1);
 	desplazamiento += sizeof(uint32_t);
 	memcpy(pokemon, pack+desplazamiento,tamanioPokemon);
+	pokemon[tamanioPokemon] = '\0';
 	return pokemon;
 }
 

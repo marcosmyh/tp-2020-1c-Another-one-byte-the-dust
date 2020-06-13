@@ -233,7 +233,7 @@ void procedimientoMensajeNew(t_infoPack *infoNew){
 	int socket = infoNew->socket;
 
 	char* pokemon = unpackPokemonNew(paqueteNew);
-	int tamanioPokemon = strlen(pokemon) + 1;
+	int tamanioPokemon = strlen(pokemon);
 
 
 	uint32_t id = unpackID(paqueteNew);
@@ -280,7 +280,7 @@ void procedimientoMensajeCatch(t_infoPack *infoCatch){
 	void *paqueteCatch= infoCatch->paquete;
 	int socket = infoCatch->socket;
 	char* pokemon = unpackPokemonCatch(paqueteCatch);
-	uint32_t tamanioPokemon = strlen(pokemon) + 1;
+	uint32_t tamanioPokemon = strlen(pokemon);
 	uint32_t id = unpackID(paqueteCatch);
 	uint32_t posX = unpackCoordenadaX_Catch(paqueteCatch, tamanioPokemon);
 	uint32_t posY = unpackCoordenadaY_Catch(paqueteCatch, tamanioPokemon);
@@ -543,7 +543,7 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 			log_info(logger,"Me llegaron mensajes de Suscriber Catch");
 			void* paqueteCatch = receiveAndUnpack(cliente_fd, tamanio);
 			pokemon = unpackPokemonCatch(paqueteCatch);
-			tamanioPokemon = strlen(pokemon) + 1;
+			tamanioPokemon = strlen(pokemon);
 
 
 			id = unpackID(paqueteCatch);
@@ -571,7 +571,7 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 			log_info(logger,"Me llegaron mensajes de Suscriber New");
 			void* paqueteNew = receiveAndUnpack(cliente_fd, tamanio);
 			pokemon = unpackPokemonNew(paqueteNew);
-			tamanioPokemon = strlen(pokemon) + 1;
+			tamanioPokemon = strlen(pokemon);
 
 
 			id = unpackID(paqueteNew);
@@ -638,7 +638,7 @@ int envioDeMensajeAppeared(char* pokemon, uint32_t posx, uint32_t posy, uint32_t
 	int socket = crear_conexion(ip_broker,puerto_broker);
 	if(socket != -1){
 	void* paqueteAppeared = pack_Appeared(idmensaje,pokemon,posx,posy);
-	uint32_t tamPaquete =  strlen(pokemon) + 1 + 4*sizeof(uint32_t);
+	uint32_t tamPaquete = strlen(pokemon) + 4*sizeof(uint32_t);
 	int resultado = packAndSend(socket,paqueteAppeared,tamPaquete,t_APPEARED);
 	close(socket);
 	free(paqueteAppeared);

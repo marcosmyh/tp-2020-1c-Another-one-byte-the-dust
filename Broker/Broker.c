@@ -149,6 +149,15 @@ void procesar_solicitud(Header header,int cliente_fd){
 
      		    paquete = receiveAndUnpack(cliente_fd,sizePaquete);
 
+     		    char *pokemonNew = unpackPokemonNew(paquete);
+
+     		    uint32_t cantNew = unpackCantidadPokemons_New(paquete,strlen(pokemonNew));
+     		    uint32_t coordX = unpackCoordenadaX_New(paquete,strlen(pokemonNew));
+
+     		    log_error(logger,"POKEMON NEW: %s",pokemonNew);
+     		    log_error(logger,"CANTIDAD POKEMON: %d",cantNew);
+     		    log_error(logger,"COORDENADA X: %d",coordX);
+
      		    //Este paquete es el que se va a guardar en la cola.
      		    void *paqueteNewSinID = quitarIDPaquete(paquete,sizePaquete);
 
@@ -189,6 +198,12 @@ void procesar_solicitud(Header header,int cliente_fd){
      		case t_GET:;
 
      		    paquete = receiveAndUnpack(cliente_fd,sizePaquete);
+
+     		    char *pokemonRecibido = unpackPokemonGet(paquete);
+
+     		    log_error(logger,"TAMANIO PAQUETEe: %d",sizePaquete-sizeof(uint32_t));
+
+     		    log_error(logger,"POKEMON RECIBIDO GET: %s",pokemonRecibido);
 
      		    void *paqueteGetSinID = quitarIDPaquete(paquete,sizePaquete);
 
@@ -240,6 +255,17 @@ void procesar_solicitud(Header header,int cliente_fd){
 
                 void *paqueteAppeared = insertarIDEnPaquete(ID_APPEARED_Generado,paquete,sizePaquete,DOUBLE_ID);
 
+                char *pokemonAppeared = unpackPokemonAppeared(paqueteAppeared);
+
+                uint32_t coordenadaX = unpackCoordenadaX_Appeared(paqueteAppeared,strlen(pokemonAppeared));
+                uint32_t coordenadaY = unpackCoordenadaY_Appeared(paqueteAppeared,strlen(pokemonAppeared));
+
+                log_error(logger,"POKEMON APPEARED: %s",pokemonAppeared);
+                log_error(logger,"X: %d",coordenadaX);
+                log_error(logger,"Y: %d",coordenadaY);
+
+
+
                 paquete = paqueteAppeared;
 
                 mensaje = crearMensaje(paqueteAppearedSinID,ID_APPEARED_Generado,ID_APPEARED_Correlativo,sizePaquete - sizeof(uint32_t));
@@ -263,6 +289,16 @@ void procesar_solicitud(Header header,int cliente_fd){
      			// Recibo el Paquete
      		     paquete = receiveAndUnpack(cliente_fd,sizePaquete);
      		     //Sacarle el ID_Basura con el que llega al BROKER / <<< Esto se usara para guardarlo en la cola >>>
+
+     		    char *pokemonRecibidoCatch = unpackPokemonCatch(paquete);
+
+     		    uint32_t coordx = unpackCoordenadaX_Catch(paquete,strlen(pokemonRecibidoCatch));
+
+     	        log_error(logger,"TAMANIO PAQUETEe: %d",sizePaquete-sizeof(uint32_t));
+
+     	        log_error(logger,"POKEMON RECIBIDO CATCH: %s",pokemonRecibidoCatch);
+
+     	        log_error(logger,"COORDENADA X: %d",coordx);
 
      		     //Generar una ID nueva / lo empaco / se lo envio al productor
      		     uint32_t ID_CATCH = asignarIDMensaje();

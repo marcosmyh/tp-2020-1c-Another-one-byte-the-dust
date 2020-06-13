@@ -274,7 +274,7 @@ void procedimientoMensajeAppeared(t_infoPaquete *infoAppeared){
 	int socket = infoAppeared->socket;
     char* pokemonAppeared = unpackPokemonAppeared(paqueteAppeared);
     uint32_t ID_APPEARED= unpackID(paqueteAppeared);
-    uint32_t tamanioPokemon = strlen(pokemonAppeared)+1;
+    uint32_t tamanioPokemon = strlen(pokemonAppeared);
     uint32_t coordenadaX = unpackCoordenadaX_Appeared(paqueteAppeared,tamanioPokemon);
     uint32_t coordenadaY = unpackCoordenadaY_Appeared(paqueteAppeared,tamanioPokemon);
     log_info(logger,"MENSAJE RECIBIDO. POKEMON: %s,X: %d,Y: %d",pokemonAppeared,coordenadaX,coordenadaY);
@@ -664,7 +664,7 @@ void enviarGET(char* pokemon){
 	int socket = conectarse_a_un_servidor(ip_broker, puerto_broker, logger);
 	uint32_t id = -1;
 	void* paquete = pack_Get(id, pokemon);
-	uint32_t tamPaquete = sizeof(uint32_t) + strlen(pokemon) + 1 + sizeof(uint32_t);
+	uint32_t tamPaquete = sizeof(uint32_t) + strlen(pokemon) + sizeof(uint32_t);
 	packAndSend (socket, paquete, tamPaquete, t_GET);
 	log_info(logger, "El envio del mensaje GET para el pokemon %s se realizo con exito",pokemon);
 	procedimientoMensajeID(socket);
@@ -675,7 +675,7 @@ void enviarCATCH(char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY){
 	int socket = conectarse_a_un_servidor(ip_broker, puerto_broker, logger);
 	uint32_t id = -1;
 	void* paquete = pack_Catch(id, pokemon, coordenadaX, coordenadaY);
-	uint32_t tamPaquete = sizeof(uint32_t)*4 + strlen(pokemon) + 1;
+	uint32_t tamPaquete = sizeof(uint32_t)*4 + strlen(pokemon);
 	packAndSend(socket, paquete, tamPaquete, t_CATCH);
 	log_info(logger, "El envio del CATCH se realizo con exito");
 	close(socket);
