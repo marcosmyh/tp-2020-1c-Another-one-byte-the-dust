@@ -270,9 +270,8 @@ void procedimientoMensajeGet(t_infoPack *infoGet){
 
 
 	procedimientoGET(id,pokemon);
-	//
-	// EL ENVIO DE MENSAJE QUEDA EN VERSION DE PRUEBA
-	// TODAVIA NO FUNCIONA int seEnvioGet = envioDeMensajeLocalize(pokemon,id); // Prueba
+
+	// TODAVIA NO FUNCIONA  // Prueba
 	destruirInfoPaquete(infoGet);
 	free(pokemon);
 }
@@ -532,10 +531,10 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 			log_info(logger,"Pokemon: %s id: %d",pokemon,id);
 
 
-			procedimientoGET(id,pokemon);
+			int seEnvioGet = procedimientoGET(id,pokemon);
 			//
 			// EL ENVIO DE MENSAJE QUEDA EN VERSION DE PRUEBA
-			// TODAVIA NO FUNCIONA int seEnvioGet = envioDeMensajeLocalize(pokemon,id); // Prueba
+
 
 			free(paqueteGet);
 			break;
@@ -646,8 +645,7 @@ int envioDeMensajeAppeared(char* pokemon, uint32_t posx, uint32_t posy, uint32_t
   	return resultado;
 	} return -1;
 }
-
-int envioDeMensajeLocalize(char* pokemon,uint32_t idmensaje,uint32_t cantidadParesCoordenadas,uint32_t arrayCoordenadas){
+int envioDeMensajeLocalized(char* pokemon,uint32_t idmensaje,uint32_t cantidadParesCoordenadas,uint32_t arrayCoordenadas[]){
 	void* paqueteGet = pack_Localized(idmensaje,pokemon,cantidadParesCoordenadas,arrayCoordenadas);
 	//
 	//	NO USAR. EN FASE DE PRUEBA
@@ -1951,7 +1949,7 @@ int procedimientoCATCH(char* pokemon,uint32_t posx,uint32_t posy){
 		return resultado;
 }
 
-void procedimientoGET(uint32_t idMensaje,char* pokemon){
+int procedimientoGET(uint32_t idMensaje,char* pokemon){
 
 	log_info(logger,"comienza a ejecutar GET");
 	if(!existePokemon(pokemon)){
@@ -1982,42 +1980,36 @@ void procedimientoGET(uint32_t idMensaje,char* pokemon){
 		char* arrayDeArchivo = obtenerContenidoDeArchivo(bloques);
 		char** posicionesConCantidad = string_split(arrayDeArchivo,"\n");
 
-		int longitud;
+		int longitud=0;
+		uint32_t cantidadParesCoordenadas = length_punteroAPuntero(posicionesConCantidad);
 
-		for(int i=0;i<length_punteroAPuntero(posicionesConCantidad);i++){
+		for(int i=0;i<cantidadParesCoordenadas-1;i++){
 			longitud = longitud + strlen(posicionesConCantidad[i])+1;
 
+
 		}
-
-
 		char** posicionesSeparadas = malloc(longitud);
-		int j=0;
-		while(posicionesConCantidad[j] != NULL){
 
+		for(int j=0;j<cantidadParesCoordenadas;j++){
 			posicionesSeparadas[j] = getToken(posicionesConCantidad[j],'=');
-			j++;
 		}
 
+		t_list* coordenadasSeparadas = guardarCoordenadas(posicionesSeparadas,cantidadParesCoordenadas);
 
-
-
-		uint32_t cantidadParesCoordenadas = length_punteroAPuntero(posicionesConCantidad);
-		log_info(logger,"La cantidad de pares de coordenadas es:%d",cantidadParesCoordenadas);
-
-		t_list* coordenadasSeparadas = guardarCoordenadas(posicionesSeparadas);
 		uint32_t coordenadasAEnviar[cantidadParesCoordenadas*2];
 		insertarCoordenadas(coordenadasSeparadas,coordenadasAEnviar);
 		imprimirContenido(coordenadasAEnviar,cantidadParesCoordenadas*2);
 
-		uint32_t tamanioCoordenadasAEnviar = sizeof(uint32_t)*cantidadParesCoordenadas*2;
-		log_info(logger,"tamanioCoordenadasAEnviar:%d",tamanioCoordenadasAEnviar);
-		//envioDeMensajeLocalize(pokemon,idMensaje,cantidadParesCoordenadas,coordenadasAEnviar);
+
+		int resultado = envioDeMensajeLocalized(pokemon,idMensaje,cantidadParesCoordenadas,coordenadasAEnviar);
 
 		    cerrarArchivo(pokemon);
 			log_info(logger,"Archivo cerrado");
 			free(arrayDeArchivo);
 			free(bloques);
+			free(posicionesSeparadas);
 
+			return resultado;
 }
 
 char *getToken(char *unString,char delimitador){
@@ -2030,6 +2022,7 @@ char *getToken(char *unString,char delimitador){
 		    }
 		    stringARetornar[i] = '\0';
 		    return stringARetornar;
+		    free(stringARetornar);
 		}
 
 char *getCoordenadaX(char *coordenada){
@@ -2076,17 +2069,18 @@ char *getCoordenadaY(char *coordenada){
 
 
 
-t_list* guardarCoordenadas(char** posiciones){
+t_list* guardarCoordenadas(char** posiciones,int length){
 	t_list* coordenadasx = list_create();
-	for(int i = 0; i < length_punteroAPuntero(posiciones);i++){
+	int a = length_punteroAPuntero(posiciones);
+	log_info(logger,"%d",a);
+	for(int i = 0; i < length;i++){
 	    list_add(coordenadasx,getCoordenadaX(posiciones[i]));
-
-
-
 	}
+
+
 	t_list* coordenadasy = list_create();
 
-	for(int j = 0; j < length_punteroAPuntero(posiciones);j++){
+	for(int j = 0; j < length;j++){
 		    list_add(coordenadasy,getCoordenadaY(posiciones[j]));
 
 
@@ -2101,6 +2095,7 @@ t_list* guardarCoordenadas(char** posiciones){
 		list_add(coordenadas,coordy);
 
 	}
+
 	list_destroy(coordenadasx);
 	list_destroy(coordenadasy);
 	return coordenadas;
@@ -2108,13 +2103,7 @@ t_list* guardarCoordenadas(char** posiciones){
 
 }
 
-void mostrarCoordenadas(t_list* lista){
-	for(int i=0;i<list_size(lista);i++){
-		char* coordenada = list_get(lista,i);
-		log_info(logger,"coordenada:%s",coordenada);
-	}
 
-}
 
 void insertarCoordenadas(t_list *lista,uint32_t* vector){
     for(int i = 0; i < list_size(lista);i++){
