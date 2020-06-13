@@ -254,7 +254,6 @@ void administrarSuscripcionesBroker(){
 	}
 
 	while(1){
-	if(!conexionAppeared){
 		sem_wait(&semaforoReconexion);
 		reconexionColaAppeared();
 
@@ -265,7 +264,6 @@ void administrarSuscripcionesBroker(){
 		suscripcionColaCaught();
 
 		suscripcionColaLocalized();
-	}
 	}
 }
 
