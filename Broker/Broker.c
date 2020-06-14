@@ -149,15 +149,6 @@ void procesar_solicitud(Header header,int cliente_fd){
 
      		    paquete = receiveAndUnpack(cliente_fd,sizePaquete);
 
-     		    char *pokemonNew = unpackPokemonNew(paquete);
-
-     		    uint32_t cantNew = unpackCantidadPokemons_New(paquete,strlen(pokemonNew));
-     		    uint32_t coordX = unpackCoordenadaX_New(paquete,strlen(pokemonNew));
-
-     		    log_error(logger,"POKEMON NEW: %s",pokemonNew);
-     		    log_error(logger,"CANTIDAD POKEMON: %d",cantNew);
-     		    log_error(logger,"COORDENADA X: %d",coordX);
-
      		    //Este paquete es el que se va a guardar en la cola.
      		    void *paqueteNewSinID = quitarIDPaquete(paquete,sizePaquete);
 
@@ -188,22 +179,46 @@ void procesar_solicitud(Header header,int cliente_fd){
      			break;
 
      		case t_LOCALIZED:;
-     			//TODO
+     		    paquete = receiveAndUnpack(cliente_fd,sizePaquete);
 
-                 //Ahora el paquete tiene otro ID!
-                 sizePaquete = sizePaquete + sizeof(uint32_t);
-     			//agregar mensaje a la cola LOCALIZED_POKEMON y enviar mensaje a los suscriptores.
+     		    uint32_t ID_LOCALIZED_Correlativo = unpackID(paquete);
+
+     		    if(existeRespuestaEnCola(ID_LOCALIZED_Correlativo,LOCALIZED_POKEMON)){
+     		    	log_info(logger,"El mensaje con ID Correlativo [%d] ya existe en la cola LOCALIZED_POKEMON",ID_LOCALIZED_Correlativo);
+     		    	free(paquete);
+     		    }
+     		    else{
+     		    	uint32_t ID_LOCALIZED_Generado = asignarIDMensaje();
+
+     		    	void *paqueteLocalizedSinID = quitarIDPaquete(paquete,sizePaquete);
+
+     		    	void *paqueteID_Localized = pack_ID(ID_LOCALIZED_Generado,t_LOCALIZED);
+
+     		    	uint32_t sizePaqueteID_Localized = sizeof(uint32_t) + sizeof(t_operacion);
+
+     		    	packAndSend(cliente_fd,paqueteID_Localized,sizePaqueteID_Localized,t_ID);
+
+     		    	void *paqueteLocalized = insertarIDEnPaquete(ID_LOCALIZED_Generado,paquete,sizePaquete,DOUBLE_ID);
+
+     		    	paquete = paqueteLocalized;
+
+     		    	mensaje = crearMensaje(paqueteLocalizedSinID,ID_LOCALIZED_Generado,ID_LOCALIZED_Correlativo,sizePaquete - sizeof(uint32_t));
+
+     		    	agregarMensajeACola(mensaje,LOCALIZED_POKEMON,"LOCALIZED_POKEMON");
+
+     		    	sizePaquete = sizePaquete + sizeof(uint32_t);
+
+     		    	enviarMensajeRecibidoASuscriptores(suscriptores_LOCALIZED_POKEMON,enviarMensajeA);
+
+     		    	free(paquete);
+     		    	free(paqueteID_Localized);
+     		    }
+
      			break;
 
      		case t_GET:;
 
      		    paquete = receiveAndUnpack(cliente_fd,sizePaquete);
-
-     		    char *pokemonRecibido = unpackPokemonGet(paquete);
-
-     		    log_error(logger,"TAMANIO PAQUETEe: %d",sizePaquete-sizeof(uint32_t));
-
-     		    log_error(logger,"POKEMON RECIBIDO GET: %s",pokemonRecibido);
 
      		    void *paqueteGetSinID = quitarIDPaquete(paquete,sizePaquete);
 
@@ -255,17 +270,6 @@ void procesar_solicitud(Header header,int cliente_fd){
 
                 void *paqueteAppeared = insertarIDEnPaquete(ID_APPEARED_Generado,paquete,sizePaquete,DOUBLE_ID);
 
-                char *pokemonAppeared = unpackPokemonAppeared(paqueteAppeared);
-
-                uint32_t coordenadaX = unpackCoordenadaX_Appeared(paqueteAppeared,strlen(pokemonAppeared));
-                uint32_t coordenadaY = unpackCoordenadaY_Appeared(paqueteAppeared,strlen(pokemonAppeared));
-
-                log_error(logger,"POKEMON APPEARED: %s",pokemonAppeared);
-                log_error(logger,"X: %d",coordenadaX);
-                log_error(logger,"Y: %d",coordenadaY);
-
-
-
                 paquete = paqueteAppeared;
 
                 mensaje = crearMensaje(paqueteAppearedSinID,ID_APPEARED_Generado,ID_APPEARED_Correlativo,sizePaquete - sizeof(uint32_t));
@@ -289,17 +293,6 @@ void procesar_solicitud(Header header,int cliente_fd){
      			// Recibo el Paquete
      		     paquete = receiveAndUnpack(cliente_fd,sizePaquete);
      		     //Sacarle el ID_Basura con el que llega al BROKER / <<< Esto se usara para guardarlo en la cola >>>
-
-     		    char *pokemonRecibidoCatch = unpackPokemonCatch(paquete);
-
-     		    uint32_t coordx = unpackCoordenadaX_Catch(paquete,strlen(pokemonRecibidoCatch));
-
-     	        log_error(logger,"TAMANIO PAQUETEe: %d",sizePaquete-sizeof(uint32_t));
-
-     	        log_error(logger,"POKEMON RECIBIDO CATCH: %s",pokemonRecibidoCatch);
-
-     	        log_error(logger,"COORDENADA X: %d",coordx);
-
      		     //Generar una ID nueva / lo empaco / se lo envio al productor
      		     uint32_t ID_CATCH = asignarIDMensaje();
      		     void *paqueteID_CATCH = pack_ID(ID_CATCH, t_CATCH);
@@ -381,13 +374,13 @@ void procesar_solicitud(Header header,int cliente_fd){
 
 
 void agregarMensajeACola(t_mensaje *mensaje,t_list *colaDeMensajes,char *nombreCola){
-	pthread_mutex_lock(&semaforoParticiones);
+	pthread_mutex_lock(&semaforoMensajes);
 	list_add(colaDeMensajes,mensaje);
 	log_info(logger,"Un nuevo mensaje fue agregado a la cola %s",nombreCola);
 	log_info(logger,"La cola %s tiene %d mensajes",nombreCola,list_size(colaDeMensajes));
 
     cachearMensaje(mensaje,nombreCola);
-    pthread_mutex_unlock(&semaforoParticiones);
+    pthread_mutex_unlock(&semaforoMensajes);
 }
 
 void eliminarPaqueteDeMemoria(uint32_t offset){
@@ -466,6 +459,8 @@ void iniciarMemoria(){
 	fclose(arch);
 	particionesLibres = list_create();
 	particiones = list_create();
+
+	//Acá iria lo de obtener las configuraciones del esquema de memoria.
 }
 
 uint32_t asignarIDParticion(){
@@ -654,7 +649,9 @@ void cachearMensaje(t_mensaje *mensaje,char *colaDeMensajes){
 }
 
 void enviarMensajeRecibidoASuscriptores(t_list *listaSuscriptores,void(*funcionDeEnvio)(t_suscriptor *)){
+	pthread_mutex_lock(&semaforoMensajes);
 	list_iterate(listaSuscriptores,(void *) funcionDeEnvio);
+	pthread_mutex_unlock(&semaforoMensajes);
 }
 
 void *quitarIDPaquete(void *paquete,uint32_t tamanioPaquete){
@@ -940,7 +937,7 @@ void inicializarSemaforos(){
     pthread_mutex_init(&semaforoIDMensaje,NULL);
     pthread_mutex_init(&semaforoIDTeam,NULL);
     pthread_mutex_init(&semaforoIDGameCard,NULL);
-    pthread_mutex_init(&semaforoParticiones,NULL);
+    pthread_mutex_init(&semaforoMensajes,NULL);
     pthread_mutex_init(&semaforoSuscripcionProceso,NULL);
 }
 
@@ -948,7 +945,7 @@ void destruirSemaforos(){
     pthread_mutex_destroy(&semaforoIDMensaje);
     pthread_mutex_destroy(&semaforoIDTeam);
     pthread_mutex_destroy(&semaforoIDGameCard);
-    pthread_mutex_destroy(&semaforoParticiones);
+    pthread_mutex_destroy(&semaforoMensajes);
     pthread_mutex_destroy(&semaforoSuscripcionProceso);
 }
 

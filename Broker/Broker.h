@@ -14,6 +14,7 @@
 #include <commons/string.h>
 #include <string.h>
 #include <pthread.h>
+#include <semaphore.h>
 
 typedef enum{
 	CORRELATIVE_ID = 1,
@@ -89,7 +90,7 @@ pthread_t hiloAtencionCliente;
 pthread_mutex_t semaforoIDMensaje;
 pthread_mutex_t semaforoIDTeam;
 pthread_mutex_t semaforoIDGameCard;
-pthread_mutex_t semaforoParticiones;
+pthread_mutex_t semaforoMensajes;
 pthread_mutex_t semaforoSuscripcionProceso;
 
 //Funciones
