@@ -6,6 +6,9 @@ int main(int argc,char* argv[]){
 	sem_init(&semDeBloques,0,1);
 	sem_init(&aperturaDeArchivo,0,1);
 	sem_init(&reconexion,0,1);
+	sem_init(&conexionRecuperadaDeNew,0,0);
+	sem_init(&conexionRecuperadaDeCatch,0,0);
+	sem_init(&conexionRecuperadaDeGet,0,0);
 	crearLogger();
 	crearLoggerObligatorio();
 
@@ -34,6 +37,10 @@ int main(int argc,char* argv[]){
 	//}
 	//config_destroy(archivoConfig);
 	//log_destroy(logger);
+
+    sem_destroy(&conexionRecuperadaDeNew);
+    sem_destroy(&conexionRecuperadaDeCatch);
+    sem_destroy(&conexionRecuperadaDeGet);
     sem_destroy(&semDeBloques);
     sem_destroy(&aperturaDeArchivo);
     sem_destroy(&reconexion);
@@ -86,6 +93,7 @@ void suscripcionColaCatch(){
 	while(1){
 		if(conexionNew && identificadorProcesoGC != NULL){;
 			conexionAColaCatch();
+
 			break;
 		}
 	}
@@ -128,7 +136,9 @@ void gestionMensajesGet(){
 					break;
 				}
 			}
-		}
+
+		}else {
+			sem_wait(&conexionRecuperadaDeGet);}
 	}
 }
 
@@ -160,7 +170,10 @@ void gestionMensajesCatch(){
 					break;
 				}
 			}
-		}
+
+		}else{
+			sem_wait(&conexionRecuperadaDeCatch);
+			}
 	}
 }
 
@@ -199,7 +212,9 @@ void gestionMensajesNew(){
 			    	conexionCatch = 0;
 			    	conexionGet = 0;
 			    }
-		}
+			}else{
+		    	sem_wait(&conexionRecuperadaDeNew);
+			}
 		}
 }
 
@@ -316,18 +331,20 @@ void conexionAColaNew(){
 	else{
 		conectarseAColaMensajes(socket_new,identificadorProcesoGC,t_NEW);
 		conexionNew = 1;
+
 		log_info(logger,"ME RECONECTE AL BROKER. LE MANDE EL ID: %s",identificadorProcesoGC);
 	}
+
+	sem_post(&conexionRecuperadaDeNew);
 	}
 }
 
 void conexionAColaCatch(){
-	//printf("Anterior socket %d\n",socket_catch);
 	socket_catch = crear_conexion(ip_broker,puerto_broker);
-	//printf("Socket que voy a enviar: %d\n",socket_catch);
 	if(socket_catch != -1){
 		conectarseAColaMensajes(socket_catch,identificadorProcesoGC,t_CATCH);
 		conexionCatch = 1;
+		sem_post(&conexionRecuperadaDeCatch);
 	}
 
 }
@@ -337,6 +354,7 @@ void conexionAColaGet(){
 	if(socket_get != -1){
 		conectarseAColaMensajes(socket_get,identificadorProcesoGC,t_GET);
 		conexionGet = 1;
+		sem_post(&conexionRecuperadaDeGet);
 	}
 
 }
@@ -500,15 +518,6 @@ void atender_cliente(int* socket){
 void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 	//int size;
 	//void* msg;
-	if(headerRecibido.operacion == -1 && headerRecibido.tamanioMensaje == 0){
-		//log_info(logger,"Se desconectó el Broker o hubo un error en el envío del mensaje");
-		conexionNew = 0;
-		sem_post(&reconexion);
-		conexionCatch = 0;
-		conexionGet = 0;
-		return;
-	}
-
 	uint32_t id;
 	uint32_t tamanio = headerRecibido.tamanioMensaje;
 	uint32_t tamanioPokemon;

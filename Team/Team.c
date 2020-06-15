@@ -11,6 +11,9 @@ int main(){
 
 	sem_init(&semaforoReconexion,0,1);
 	sem_init(&semaforoRespuestaCatch,0,0);
+	sem_init(&conexionRecuperadaDeAppeared,0,0);
+	sem_init(&conexionRecuperadaDeCaught,0,0);
+	sem_init(&conexionRecuperadaDeLocalized,0,0);
 
     pthread_t hiloMensajes;
 
@@ -48,7 +51,9 @@ int main(){
 	//DESTRUIR TODO AL FINAL
 	sem_destroy(&semaforoReconexion);
 	sem_destroy(&semaforoRespuestaCatch);
-
+    sem_destroy(&conexionRecuperadaDeAppeared);
+    sem_destroy(&conexionRecuperadaDeCaught);
+    sem_destroy(&conexionRecuperadaDeLocalized);
 	return EXIT_SUCCESS;
 }
 
@@ -132,7 +137,9 @@ void gestionMensajesLocalized(){
 					break;
 				}
 			}
-		}
+		}else {
+			sem_wait(&conexionRecuperadaDeLocalized);
+			}
 	}
 }
 
@@ -194,7 +201,9 @@ void gestionMensajesCaught(){
 					break;
 				}
 			}
-		}
+		}else{
+			sem_wait(&conexionRecuperadaDeCaught);
+			}
 	}
 }
 
@@ -233,7 +242,9 @@ void gestionMensajesAppeared(){
 		    	conexionCaught = 0;
 		    	conexionLocalized = 0;
 		    }
-	}
+	}else{
+    	sem_wait(&conexionRecuperadaDeAppeared);
+		}
 	}
 }
 
@@ -366,6 +377,8 @@ void conexionAColaAppeared(){
 		conexionAppeared = 1;
 		log_info(logger,"ME RECONECTE AL BROKER. LE MANDE EL ID: %s",identificadorProceso);
 	}
+
+	sem_post(&conexionRecuperadaDeAppeared);
 	}
 }
 
@@ -375,6 +388,7 @@ void conexionAColaCaught(){
 	if(socket_caught != -1){
 		conectarseAColaMensaje(socket_caught,identificadorProceso,t_CAUGHT);
 		conexionCaught = 1;
+		sem_post(&conexionRecuperadaDeCaught);
 	}
 
 }
@@ -385,6 +399,7 @@ void conexionAColaLocalized(){
 	if(socket_localized != -1){
 		conectarseAColaMensaje(socket_localized,identificadorProceso,t_LOCALIZED);
 		conexionLocalized = 1;
+		sem_post(&conexionRecuperadaDeLocalized);
 	}
 
 }
@@ -509,6 +524,7 @@ void gestionMensajesGameBoy(int* socket_servidor){
 
 void reconexionColaAppeared(){
 	while (1){
+		log_info(loggerObligatorio, "Fallo la reconexion, se volvera a intentar en %d segundos",tiempo_reconexion);
 		sleep(tiempo_reconexion);
 		conexionAColaAppeared();
 		if(conexionAppeared){
@@ -517,7 +533,7 @@ void reconexionColaAppeared(){
 			break;
 		}
 
-		log_info(loggerObligatorio, "Fallo la reconexion, se volvera a intentar en %d segundos",tiempo_reconexion);
+
 		}
 }
 

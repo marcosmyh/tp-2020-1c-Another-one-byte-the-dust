@@ -70,6 +70,10 @@ pthread_t hiloSuscripcionBroker;
 
 sem_t semaforoReconexion;
 sem_t semaforoRespuestaCatch;
+sem_t conexionRecuperadaDeAppeared;
+sem_t conexionRecuperadaDeCaught;
+sem_t conexionRecuperadaDeLocalized;
+
 
 bool conexionAppeared = 0;
 bool conexionCaught = 0;

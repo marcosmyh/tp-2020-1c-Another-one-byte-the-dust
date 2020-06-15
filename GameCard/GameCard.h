@@ -30,7 +30,6 @@
 
 //VARIABLES
 
-
 pthread_t thread;
 t_log *logger; // ALGO QUE NO ESTA TAN BIEN CREO CREER
 t_log *loggerObligatorio;
@@ -66,6 +65,10 @@ pthread_t hiloSuscripcionABroker;
 sem_t semDeBloques;
 sem_t reconexion;
 sem_t aperturaDeArchivo;
+sem_t conexionRecuperadaDeNew;
+sem_t conexionRecuperadaDeCatch;
+sem_t conexionRecuperadaDeGet;
+
 
 void crearLogger(void);
 void crearLoggerObligatorio();
