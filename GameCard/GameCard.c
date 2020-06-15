@@ -541,8 +541,6 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 
 
 			int seEnvioGet = procedimientoGET(id,pokemon);
-			//
-			// EL ENVIO DE MENSAJE QUEDA EN VERSION DE PRUEBA
 
 
 			free(paqueteGet);
@@ -656,12 +654,10 @@ int envioDeMensajeAppeared(char* pokemon, uint32_t posx, uint32_t posy, uint32_t
 }
 int envioDeMensajeLocalized(char* pokemon,uint32_t idmensaje,uint32_t cantidadParesCoordenadas,uint32_t arrayCoordenadas[]){
 	void* paqueteGet = pack_Localized(idmensaje,pokemon,cantidadParesCoordenadas,arrayCoordenadas);
-	//
-	//	NO USAR. EN FASE DE PRUEBA
-	//
+
 	int socket = crear_conexion(ip_broker,puerto_broker);
-	uint32_t tamPaquete = strlen(pokemon) + 1 + 2*sizeof(uint32_t);
-	int resultado = packAndSend(socket,paqueteGet,tamPaquete,t_GET);
+	uint32_t tamPaquete = strlen(pokemon)  + 2*sizeof(uint32_t);
+	int resultado = packAndSend(socket,paqueteGet,tamPaquete,t_LOCALIZED);
 	close(socket);
 	free(paqueteGet);
 	return resultado;
@@ -2007,7 +2003,7 @@ int procedimientoGET(uint32_t idMensaje,char* pokemon){
 
 		uint32_t coordenadasAEnviar[cantidadParesCoordenadas*2];
 		insertarCoordenadas(coordenadasSeparadas,coordenadasAEnviar);
-		imprimirContenido(coordenadasAEnviar,cantidadParesCoordenadas*2);
+
 
 
 		int resultado = envioDeMensajeLocalized(pokemon,idMensaje,cantidadParesCoordenadas,coordenadasAEnviar);
@@ -2080,8 +2076,6 @@ char *getCoordenadaY(char *coordenada){
 
 t_list* guardarCoordenadas(char** posiciones,int length){
 	t_list* coordenadasx = list_create();
-	int a = length_punteroAPuntero(posiciones);
-	log_info(logger,"%d",a);
 	for(int i = 0; i < length;i++){
 	    list_add(coordenadasx,getCoordenadaX(posiciones[i]));
 	}
@@ -2122,9 +2116,4 @@ void insertarCoordenadas(t_list *lista,uint32_t* vector){
     }
 }
 
-void imprimirContenido(uint32_t *vector,uint32_t size){
-		    for(int i = 0; i < size;i++){
-		        printf("posicion%d: %d \n",i,vector[i]);
-		    }
 
-		}
