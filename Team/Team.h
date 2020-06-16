@@ -29,6 +29,10 @@ typedef struct{
 	void *paquete;
 }t_infoPaquete;
 
+typedef enum{
+	t_atraparPokemon,
+	t_intercambiarPokemon,
+}t_operacionEntrenador;
 
 typedef struct {
 	int idEntrenador;
@@ -37,6 +41,8 @@ typedef struct {
 	t_list* pokemones;
 	t_list* objetivo;
 	t_pokemon* pokemonAAtrapar;
+	sem_t semaforoEntrenador;
+	pthread_t hiloEntrenador;
 	int rafagasEstimadas;
 	int rafagasEjecutadas;
 	int distancia;
@@ -46,6 +52,7 @@ typedef struct {
 	bool ocupado;
 	bool completoObjetivo;
 	bool blockeado;
+	t_operacionEntrenador operacionEntrenador;
 }t_entrenador;
 
 struct t_pokemon{
@@ -135,11 +142,13 @@ void enviarPokemonesAlBroker();
 void enviarGET(char* pokemon);
 void enviarCATCH(char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY);
 void enviarACK(uint32_t ID, t_operacion operacion);
+void inicializarSemaforosEntrenadores();
 bool estaEnElObjetivo(char* pokemon);
 bool yaFueAtrapado(char* pokemon);
 char* obtenerPokemon(t_pokemon* unPokemon);
 void planificarEntrenadores();
 void ejecutarEntrenador();
+void capturarPokemon(t_entrenador* entrenadorAEjecutar);
 void atraparPokemon(t_entrenador* entrenadorAEjecutar, t_pokemon* pokemonAAtrapar);
 void moverEntrenador(t_entrenador* entrenadorAEjecutar, t_pokemon* pokemonAAtrapar);
 t_pokemon* pokemonMasCercanoA(t_entrenador* unEntrenador);

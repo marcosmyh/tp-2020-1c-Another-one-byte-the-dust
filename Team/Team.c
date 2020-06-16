@@ -8,6 +8,7 @@ int main(){
 	socket_servidor = iniciar_servidor(ip_team, puerto_team, logger);
 	inicializarColas();
 	inicializarEntrenadores();
+	inicializarSemaforosEntrenadores();
 
 	sem_init(&semaforoReconexion,0,1);
 	sem_init(&semaforoRespuestaCatch,0,0);
@@ -704,6 +705,16 @@ void enviarACK(uint32_t ID, t_operacion operacion){
 	close(socket);
 }
 
+void inicializarSemaforosEntrenadores(){
+	int cantidadEntrenadores = obtenerCantidadEntrenadores();
+	int i;
+	for (i=0; i<cantidadEntrenadores; i++){
+		t_entrenador* unEntrenador = list_get(entrenadores, i);
+		sem_t semaforo = unEntrenador->semaforoEntrenador;
+		sem_init(&semaforo,0,0);
+	}
+}
+
 bool estaEnElObjetivo(char* pokemon){
 	int pokemonesObjetivoGlobal = list_size(objetivoTeam);
 	for(int i=0; i<pokemonesObjetivoGlobal; i++){
@@ -737,30 +748,53 @@ void planificarEntrenadores(){
 		if(!list_is_empty(colaReady) && list_is_empty(colaExec)){
 			if(strcmp(algoritmo_planificacion,"FIFO")==0){
 				aplicarFIFO();
-				//Aca deberia ir algo como ejecutar
+				t_entrenador* entrenadorAEjecutar = list_get(colaExec, 0);
+				entrenadorAEjecutar->operacionEntrenador = t_atraparPokemon;
+				pthread_t hiloEntrenador = entrenadorAEjecutar->hiloEntrenador;
+				pthread_create(&hiloEntrenador,NULL,(void*)ejecutarEntrenador,entrenadorAEjecutar);
 			}
 			else if(strcmp(algoritmo_planificacion,"RR")==0){
 				aplicarRR();
-				//Aca deberia ir algo como ejecutar
+				t_entrenador* entrenadorAEjecutar = list_get(colaExec, 0);
+				entrenadorAEjecutar->operacionEntrenador = t_atraparPokemon;
+				pthread_t hiloEntrenador = entrenadorAEjecutar->hiloEntrenador;
+				pthread_create(&hiloEntrenador,NULL,(void*)ejecutarEntrenador,entrenadorAEjecutar);
 			}
 			else if(strcmp(algoritmo_planificacion,"SJF-CD")==0){
 				aplicarSJFConDesalojo();
-				//Aca deberia ir algo como ejecutar
+				t_entrenador* entrenadorAEjecutar = list_get(colaExec, 0);
+				entrenadorAEjecutar->operacionEntrenador = t_atraparPokemon;
+				pthread_t hiloEntrenador = entrenadorAEjecutar->hiloEntrenador;
+				pthread_create(&hiloEntrenador,NULL,(void*)ejecutarEntrenador,entrenadorAEjecutar);
+				sem_t semaforo = entrenadorAEjecutar->semaforoEntrenador;
+				sem_wait(&semaforo);
 			}
 			else if(strcmp(algoritmo_planificacion,"SJF-SD")==0){
 				aplicarSJF();
-				//Aca deberia ir algo como ejecutar
+				t_entrenador* entrenadorAEjecutar = list_get(colaExec, 0);
+				entrenadorAEjecutar->operacionEntrenador = t_atraparPokemon;
+				pthread_t hiloEntrenador = entrenadorAEjecutar->hiloEntrenador;
+				pthread_create(&hiloEntrenador,NULL,(void*)ejecutarEntrenador,entrenadorAEjecutar);
 			}
 		}
 	}
 
 }
 
-void ejecutarEntrenador(){
+void ejecutarEntrenador(t_entrenador* entrenadorAEjecutar){
+	if (entrenadorAEjecutar->operacionEntrenador == 0){
+		capturarPokemon(entrenadorAEjecutar);
+	}
+	else{
+		//TODO: OPERACION DE INTERCAMBIO, EL ENTRENADOR ELEGIDO TIENE QUE GENERARSE CON QUIEN VA A INTERCAMBIAR
+		//intercambiarPokemon(entrenadorAEjecutar);
+	}
+}
+
+void capturarPokemon(t_entrenador* entrenadorAEjecutar){
 	log_info(logger, "Se procedera a ejecutar al entrenador seleccionado por el algoritmo");
 
 	t_pokemon* pokemonAAtrapar;
-	t_entrenador* entrenadorAEjecutar = (t_entrenador*) list_get(colaExec,0);
 	entrenadorAEjecutar->ocupado = true;
 
 	if (entrenadorAEjecutar->pokemonAAtrapar == NULL){
@@ -807,7 +841,6 @@ void ejecutarEntrenador(){
 
 
 	}
-	//TODO:REVISAR EL CASO DEL SJF CD
 	else{
 		//EJECUTAR SIN QUANTUM
 		moverEntrenador(entrenadorAEjecutar, pokemonAAtrapar);
@@ -994,7 +1027,11 @@ void aplicarRR(){
 void aplicarSJFConDesalojo(){
 	log_info(logger,"Se aplicara el algoritmo de planificacion SJF con desalojo");
 	if(!list_is_empty(colaExec)){
-		t_entrenador* entrenadorEnEjecucion = list_remove(colaExec,0);
+		t_entrenador* entrenadorEnEjecucion = list_get(colaExec,0);
+		//ANTES DE SACAR AL ENTRENADOR LE BAJO EL SEMAFORO
+		sem_t semaforo = entrenadorEnEjecucion->semaforoEntrenador;
+		sem_wait(&semaforo);
+		list_remove(colaExec,0);
 		list_add(colaReady, entrenadorEnEjecucion);
 		log_info(loggerObligatorio,"Se cambio un entrenador de EXEC a READY, Razon: Desalojado por el algoritmo de planificacion");
 	}
@@ -1009,6 +1046,9 @@ void aplicarSJF(){
 		t_entrenador* entrenadorAux = (t_entrenador*) list_remove(aux,0);
 		int index = list_get_index(colaReady,entrenadorAux,(void*)comparadorDeEntrenadores);
 		t_entrenador* entrenadorAEjecutar = list_remove(colaReady,index);
+		sem_t semaforo = entrenadorAEjecutar->semaforoEntrenador;
+		//CUANDO LO VOY A EJECUTAR LE LEVANTO EL SEMAFORO
+		sem_post(&semaforo);
 		list_add(colaExec, entrenadorAEjecutar);
 		log_info(loggerObligatorio, "Se cambió un entrenador de READY a EXEC, Razon: Elegido del algoritmo de planificacion");
 	}
