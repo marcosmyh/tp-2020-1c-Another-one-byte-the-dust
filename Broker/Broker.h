@@ -14,14 +14,13 @@
 #include <commons/string.h>
 #include <string.h>
 #include <pthread.h>
-#include <semaphore.h>
 
 typedef enum{
 	CORRELATIVE_ID = 1,
 	DOUBLE_ID,
 	BROKER_ID,
 	PARTITION_ID,
-	SIZE_PARTITION,
+	SIZE_PARTITION
 } t_FLAG;
 
 typedef struct
@@ -29,7 +28,6 @@ typedef struct
     int socket_suscriptor;
     char *identificadorProceso;
 }t_suscriptor;
-
 
 typedef struct
 {
@@ -48,8 +46,19 @@ typedef struct
 	uint32_t offset;
 	uint32_t ID_mensaje;
 	char *colaDeMensaje;
-	bool estaLibre;
 }t_particion;
+
+typedef void(*AlgoritmoMemoria)(t_mensaje *,char *,void(*)(),t_particion *(*)(uint32_t));
+typedef t_particion *(*FuncionCorrespondencia)(uint32_t);
+typedef void(*AlgoritmoReemplazo)();
+
+typedef struct
+{
+	AlgoritmoMemoria algoritmoMemoria;
+	FuncionCorrespondencia funcionCorrespondencia;
+	AlgoritmoReemplazo algoritmoReemplazo;
+
+}singletonMemoria;
 
 //Variables
 uint32_t offsetCache = 0;
@@ -58,6 +67,7 @@ uint32_t contadorIDTeam;
 uint32_t contadorIDGameCard;
 uint32_t contadorParticiones = 0;
 
+singletonMemoria *funcionCacheo;
 t_log *logger;
 t_config *config;
 char *ip;
@@ -67,11 +77,11 @@ char *algoritmo_reemplazo;
 char *algoritmo_particion_libre;
 int socket_servidor;
 int socket_cliente;
-int tamanio_memoria;
-int tamanio_minimo_particion;
-int frecuencia_compactacion;
-t_list *particionesLibres;
+uint32_t tamanio_memoria;
+uint32_t tamanio_minimo_particion;
+uint32_t frecuencia_compactacion;
 t_list *particiones;
+t_list *particionesLibres;
 t_list *NEW_POKEMON;
 t_list *suscriptores_NEW_POKEMON;
 t_list *APPEARED_POKEMON;
@@ -128,13 +138,11 @@ bool esUnTeam(char *);
 bool esUnGameCard(char *);
 bool esUnGameBoy(char *);
 void iniciarMemoria();
-void cachearMensaje(t_mensaje *,char *);
 void destruirMensaje(t_mensaje *);
 void destruirIdentificador(char *);
 uint32_t obtenerPosicionMensaje(t_mensaje *,t_list *);
 void eliminarMensaje(uint32_t, t_list *,char *,t_FLAG);
-void eliminarPaqueteDeMemoria(uint32_t);
-void compactarMemoria(uint32_t);
+void compactarMemoria();
 t_particion *crearParticion(uint32_t,uint32_t,char *);
 uint32_t espacioDisponible();
 void *descachearPaquete(t_mensaje *,char *);
@@ -144,16 +152,34 @@ bool tienenIDCorrelativoLosMensajes(char *);
 void enviarMensajesCacheados(t_suscriptor *,t_list *);
 bool existeAlgunACK(t_suscriptor *,t_list *);
 bool existeACK(t_suscriptor *,t_list *);
-bool existeParticionLibreConTamanioExacto(uint32_t);
 uint32_t *obtenerIDParticion(t_particion *);
 uint32_t *obtenerIDMensajeParticion(t_particion *);
-bool esUnaParticionHija(t_particion *);
 bool hayParticionesLibres();
-t_particion *obtenerParticionLibreParaCachear(uint32_t);
 bool existeParticionLibreConTamanio(uint32_t);
 void destruirParticion(t_particion *);
 void setearOffset(uint32_t,t_particion *);
 void inicializarSemaforos();
 void destruirSemaforos();
+void particionesDinamicas(t_mensaje *,char *,void (*)(),t_particion *(*)(uint32_t));
+void cachearMensaje(t_mensaje *,char *);
+void liberarRecursosAdministracionMemoria();
+bool tieneMenorOffset(void *,void *);
+bool hayParticiones();
+void consolidarParticion(t_particion *);
+uint32_t obtenerPosicionParticion(uint32_t);
+void modificarParticion(t_particion *,uint32_t,char *);
+bool estaLibre(t_particion *);
+void mostrarContenidoLista(t_list*);
+void mostrarNumero(int *);
+void mostrarLista(t_list *);
+uint32_t obtenerPosicionIDParticion(uint32_t);
+void introducirBloqueEnCache(void *,t_particion *);
+void buddySystem(t_mensaje *,char *,void (*)(),t_particion *(*)(uint32_t));
+void construirFuncionCacheo();
+void liberarParticion(t_particion *);
+void FIFO();
+void LRU();
+t_particion *firstFit(uint32_t);
+t_particion *bestFit(uint32_t);
 
 #endif
