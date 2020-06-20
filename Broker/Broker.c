@@ -7,15 +7,14 @@ int main(void) {
     inicializarColas();
     inicializarListasSuscriptores();
     inicializarSemaforos();
-    IDs_mensajes = list_create();
-    IDs_procesos = list_create();
-
     iniciarMemoria();
 
     socket_servidor = iniciar_servidor(ip,puerto);
 
+    //TODO
+    //Crear un hiloAtencion..
+
     while(1){
-        //Ahora si hay concurrencia!
        	int socket = esperar_cliente(socket_servidor);
     	int *socket_cliente = malloc(sizeof(int));
     	*socket_cliente = socket;
@@ -24,12 +23,8 @@ int main(void) {
         pthread_detach(hiloAtencionCliente);
     }
 
-
     destruirSemaforos();
-    list_destroy(IDs_mensajes);
-    list_destroy(IDs_procesos);
-    list_destroy(particionesLibres);
-    list_destroy(particiones);
+    liberarRecursosAdministracionMemoria();
     destruirColas();
     destruirListasSuscriptores();
     config_destroy(config);
@@ -100,7 +95,6 @@ void procesar_solicitud(Header header,int cliente_fd){
      uint32_t sizePaquete = header.tamanioMensaje;
      int codigo_operacion = header.operacion;
      t_mensaje *mensaje;
-
      void *paquete;
 
      //Determinar cuando doy de de baja a un suscriptor
@@ -373,18 +367,323 @@ void procesar_solicitud(Header header,int cliente_fd){
 }
 
 
+t_particion *firstFit(uint32_t tamPaquete){
+	t_particion *particion;
+
+	bool esMenor(void *unNumero,void *otroNumero){
+		uint32_t *valor = unNumero;
+		uint32_t *otroValor = otroNumero;
+		return *valor < *otroValor;
+	}
+
+	list_sort(particionesLibres,esMenor);
+
+	mostrarLista(particionesLibres);
+
+	for(int i = 0; i < list_size(particionesLibres);i++){
+		uint32_t *IDParticion = list_get(particionesLibres,i);
+		particion = obtenerParticion(*IDParticion,PARTITION_ID);
+		uint32_t tamanioParticion = particion->tamanioParticion;
+		if(tamanioParticion >= tamPaquete){
+			log_info(logger,"Encontré una particion :D! SU ID es %d",*IDParticion);
+			return particion;
+		}
+	}
+
+	return NULL;
+
+}
+
+void FIFO(){
+
+}
+
+void LRU(){
+
+}
+
+t_particion *bestFit(uint32_t tam){
+	//TODO
+	return NULL;
+}
+
+void mostrarNumero(int *var){
+    printf("ID PARTICION: %d \n",*var);
+
+}
+
+void mostrarLista(t_list *lista){
+	for(int i =0; i < list_size(lista);i++){
+		uint32_t *numero = list_get(lista,i);
+		printf("ID PARTICION: %d \n",*numero);
+	}
+}
+
+void mostrarContenidoLista(t_list* lista){
+   list_iterate(lista,(void *) mostrarNumero);
+}
+
+void liberarParticion(t_particion *particion){
+	uint32_t offset = particion->offset;
+
+	uint32_t tamanioParticion = particion->tamanioParticion;
+
+	list_add(particionesLibres,&(particion->ID_Particion));
+
+	log_error(logger,"EL ID DEL MENSAJE QUE GUARDA LA PARTICION: %d",particion->ID_mensaje);
+
+	FILE *arch = fopen("/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/Broker/Cache","rw+");
+
+	fseek(arch,offset,SEEK_CUR);
+
+	void *paqueteVacio = calloc(1,tamanioParticion);
+
+	fwrite(paqueteVacio,tamanioParticion,1,arch);
+
+    fclose(arch);
+
+    consolidarParticion(particion);
+
+}
+
+
+uint32_t obtenerPosicionParticion(uint32_t IDParticion){
+	t_particion *particion;
+	for(int i = 0; i < list_size(particiones);i++){
+		particion = list_get(particiones,i);
+		uint32_t IDParticionAComparar = particion->ID_Particion;
+		if(intComparator(&IDParticion,&IDParticionAComparar)){
+			return i;
+		}
+	}
+	return -1;
+}
+
+bool estaLibre(t_particion *particion){
+	uint32_t IDParticion = particion->ID_Particion;
+	return existeID(&IDParticion,particionesLibres,intComparator);
+}
+
+void modificarParticion(t_particion *particion,uint32_t IDMensaje,char *colaDeMensaje){
+	particion->ID_mensaje = IDMensaje;
+	particion->colaDeMensaje = colaDeMensaje;
+}
+
+void consolidarParticion(t_particion *particionActual){
+	uint32_t IDParticion = particionActual->ID_Particion;
+	uint32_t offsetActual = particionActual->offset;
+	uint32_t posActual = obtenerPosicionParticion(IDParticion);
+	uint32_t tamanioParticion = particionActual->tamanioParticion;
+	uint32_t posAnterior = posActual-1;
+	uint32_t posSiguiente = posActual+1;
+
+	log_error(logger,"POS ANTERIOR %d",posAnterior);
+	log_error(logger,"POS SIGUIENTE: %d",posSiguiente);
+
+	t_particion *particionAnterior = list_get(particiones,posAnterior);
+	t_particion *particionSiguiente = list_get(particiones,posSiguiente);
+
+	if(particionAnterior != NULL){
+		if(estaLibre(particionAnterior)){
+			uint32_t tamanioParticionAnterior = particionAnterior->tamanioParticion;
+			uint32_t offsetAnterior = particionAnterior->offset;
+			uint32_t tamanioTotal = tamanioParticion + tamanioParticionAnterior;
+			t_particion *particionConsolidadaIzquierda = crearParticion(tamanioTotal,-1,"");
+			log_error(logger,"ID PARTICION CONSOLIDADIZQUIERDA: %d",particionConsolidadaIzquierda->ID_Particion);
+			setearOffset(offsetAnterior,particionConsolidadaIzquierda);
+			log_error(logger,"VOY A BORRAR LA PARTICION: %d, QUE SE ENCUENTRA EN %d",particionActual->ID_Particion,posActual);
+			list_remove(particiones,posActual);
+			list_remove(particionesLibres,obtenerPosicionIDParticion(particionActual->ID_Particion));
+		    list_replace(particiones,posAnterior,particionConsolidadaIzquierda);
+		    list_remove(particionesLibres,obtenerPosicionIDParticion(particionAnterior->ID_Particion));
+		    list_add(particionesLibres,&(particionConsolidadaIzquierda->ID_Particion));
+		    mostrarLista(particionesLibres);
+
+
+		    if(particionSiguiente != NULL && estaLibre(particionSiguiente)){
+		    	consolidarParticion(particionSiguiente);
+		    }
+
+		    log_error(logger,"TAMANIO PARTICION CONSOLIDADA IZQUIERDA: %d",tamanioTotal);
+
+		}
+	}
+
+	if(particionSiguiente != NULL){
+		if(estaLibre(particionSiguiente)){
+
+            uint32_t tamanioParticionSiguiente = particionSiguiente->tamanioParticion;
+            uint32_t tamanioTotal = tamanioParticion + tamanioParticionSiguiente;
+            t_particion *particionConsolidadaDerecha = crearParticion(tamanioTotal,-1,"");
+			setearOffset(offsetActual,particionConsolidadaDerecha);
+			list_remove(particiones,posSiguiente);
+			list_remove(particionesLibres,obtenerPosicionIDParticion(particionSiguiente->ID_Particion));
+		    list_replace(particiones,posActual,particionConsolidadaDerecha);
+		    list_remove(particionesLibres,obtenerPosicionIDParticion(particionActual->ID_Particion));
+		    list_add(particionesLibres,&(particionConsolidadaDerecha->ID_Particion));
+
+		    if(particionAnterior != NULL && estaLibre(particionAnterior)){
+		    	consolidarParticion(particionAnterior);
+		    }
+		}
+	}
+
+	return;
+}
+
+
+bool existeParticionLibreParaCachearMensaje(uint32_t tamPaquete){
+	t_particion *particion;
+	bool resultado = false;
+	for(int i = 0; i < list_size(particionesLibres);i++){
+		uint32_t *IDParticion = list_get(particionesLibres,i);
+		particion = obtenerParticion(*IDParticion,PARTITION_ID);
+		uint32_t tamanioParticion = particion->tamanioParticion;
+		if(tamanioParticion >= tamPaquete){
+			resultado = true;
+			break;
+		}
+	}
+	return resultado;
+}
+
+
+//Creo que esta funcion no va...
+void introducirBloqueEnCache(void *paquete,t_particion *particion){
+
+	uint32_t tamParticion = particion ->tamanioParticion;
+
+	FILE *arch = fopen("/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/Broker/Cache","rw+");
+
+	fseek(arch,offsetCache,SEEK_CUR);
+
+	log_error(logger,"Posición de inicio de la partición creada [%d]",offsetCache);
+
+	setearOffset(offsetCache,particion);
+
+	fwrite(paquete,tamParticion,1,arch);
+
+	offsetCache += tamParticion;
+
+	fclose(arch);
+}
+
+void buddySystem(t_mensaje *mensaje,char *nombreCola,void (*algoritmoReemplazo)(),t_particion *(*funcionCorrespondencia)(uint32_t)){
+	//TODO
+}
+
+//Se puede evitar repetir lógica...
+void particionesDinamicas(t_mensaje *mensaje,char *nombreCola,void (*algoritmoReemplazo)(),t_particion *(*funcionCorrespondencia)(uint32_t)){
+
+	void *paqueteACachear = mensaje->paquete;
+
+	uint32_t tamPaquete = mensaje->tamanioPaquete;
+
+	uint32_t IDMensaje = mensaje->ID_mensaje;
+
+	uint32_t tamPaqueteAuxiliar = tamPaquete;
+
+	if(tamPaquete < tamanio_minimo_particion){
+		tamPaqueteAuxiliar = tamanio_minimo_particion;
+	}
+
+	if(!existeParticionLibreParaCachearMensaje(tamPaqueteAuxiliar)){
+		//compactarMemoria();
+		//particionesDinamicas(mensaje,nombreCola,etc)
+		//o llamar a FIFO/LRU
+	}
+	else{
+		t_particion *particionLibre = funcionCorrespondencia(tamPaqueteAuxiliar);
+
+		uint32_t posicionParticionLibre = obtenerPosicionIDParticion(particionLibre->ID_Particion);
+
+		modificarParticion(particionLibre,IDMensaje,nombreCola);
+
+		uint32_t offsetParticionLibre = particionLibre->offset;
+
+		uint32_t tamanioRestante = particionLibre->tamanioParticion - tamPaqueteAuxiliar;
+
+		if(tamanioRestante == 0){
+
+			FILE *arch = fopen("/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/Broker/Cache","rw+");
+
+			fseek(arch,offsetParticionLibre,SEEK_CUR);
+
+		    log_error(logger,"Posición de inicio de la partición obtenida por FIRST FIT: %d",offsetParticionLibre);
+
+		    fwrite(paqueteACachear,tamPaqueteAuxiliar,1,arch);
+
+			fclose(arch);
+
+			list_remove(particionesLibres,posicionParticionLibre);
+		}
+		else{
+
+			FILE *arch = fopen("/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/Broker/Cache","rw+");
+
+			fseek(arch,offsetParticionLibre,SEEK_CUR);
+
+			log_error(logger,"Posición de inicio de la partición obtenida por FIRST FIT: %d",offsetParticionLibre);
+
+			fwrite(paqueteACachear,tamPaqueteAuxiliar,1,arch);
+
+			log_error(logger,"OCUPE LA PARTICION CON ID %d el mensaje con ID %d",particionLibre->ID_Particion,IDMensaje);
+
+			fclose(arch);
+
+			particionLibre->tamanioParticion = tamPaqueteAuxiliar;
+
+			t_particion *nuevaParticion = crearParticion(tamanioRestante,-1,"");
+			log_error(logger,"ID PARTICION OBTENIDA POR FUNCION CORRESPONDENCIA: %d",particionLibre->ID_Particion);
+			log_error(logger,"ID NUEVA PARTICION: %d",nuevaParticion->ID_Particion);
+			log_error(logger,"TAMANIO PARTICION LIBRE: %d",tamanioRestante);
+			list_add(particiones,nuevaParticion);
+			list_replace(particionesLibres,posicionParticionLibre,&(nuevaParticion->ID_Particion));
+
+			setearOffset(offsetParticionLibre+tamPaqueteAuxiliar,nuevaParticion);
+		}
+	}
+}
+
+
+void cachearMensaje(t_mensaje *mensaje,char *nombreCola){
+	//Llamo al "singleton"
+	funcionCacheo->algoritmoMemoria(mensaje,nombreCola,funcionCacheo->algoritmoReemplazo,funcionCacheo->funcionCorrespondencia);
+}
+
+void construirFuncionCacheo(){
+	//Se hace una sola vez..
+	funcionCacheo = malloc(sizeof(singletonMemoria));
+
+	if(stringComparator("PARTICIONES",algoritmo_memoria)){
+		funcionCacheo->algoritmoMemoria = particionesDinamicas;
+	}else{
+		funcionCacheo->algoritmoMemoria = buddySystem;
+	}
+
+	if(stringComparator("FF",algoritmo_particion_libre)){
+		funcionCacheo->funcionCorrespondencia = firstFit;
+	}
+	else{
+		funcionCacheo->funcionCorrespondencia = bestFit;
+	}
+
+	if(stringComparator("FIFO",algoritmo_reemplazo)){
+		funcionCacheo->algoritmoReemplazo = FIFO;
+	}
+	else{
+		funcionCacheo->algoritmoReemplazo = LRU;
+	}
+}
+
 void agregarMensajeACola(t_mensaje *mensaje,t_list *colaDeMensajes,char *nombreCola){
 	pthread_mutex_lock(&semaforoMensajes);
 	list_add(colaDeMensajes,mensaje);
 	log_info(logger,"Un nuevo mensaje fue agregado a la cola %s",nombreCola);
 	log_info(logger,"La cola %s tiene %d mensajes",nombreCola,list_size(colaDeMensajes));
 
-    cachearMensaje(mensaje,nombreCola);
-    pthread_mutex_unlock(&semaforoMensajes);
-}
-
-void eliminarPaqueteDeMemoria(uint32_t offset){
-	//TODO
+	cachearMensaje(mensaje,nombreCola);
+	pthread_mutex_unlock(&semaforoMensajes);
 }
 
 
@@ -409,8 +708,61 @@ bool existeACK(t_suscriptor *suscriptor,t_list *acks){
 }
 
 
-void compactarMemoria(uint32_t offsetPaqueteEliminado){
-	//TODO
+void compactarMemoria(){
+	FILE *arch = fopen("/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/Broker/Cache","rw+");
+
+	t_particion *particionActual;
+	t_particion *particionSiguiente;
+	uint32_t espacioLibre = 0;
+	uint32_t offsetLocalCache = 0;
+
+	list_sort(particiones,tieneMenorOffset);
+
+	for(int i = 0; i < list_size(particiones);i++){
+
+		particionActual = list_get(particiones,i);
+
+		particionSiguiente = list_get(particiones,i+1);
+
+		//Habría que validar si las particiones obtenidas no son NULL..
+
+		uint32_t tamParticionActual = particionActual->tamanioParticion;
+
+		if(estaLibre(particionActual)){
+
+			uint32_t tamParticionSiguiente = particionSiguiente->tamanioParticion;
+
+			uint32_t offsetSiguiente = particionSiguiente->offset;
+
+			fseek(arch,offsetSiguiente,SEEK_CUR);
+
+			void *particion = malloc(tamParticionSiguiente);
+
+			fread(particion,tamParticionSiguiente,1,arch);
+
+			fseek(arch,offsetLocalCache,SEEK_CUR);
+
+			fwrite(particion,tamParticionSiguiente,1,arch);
+
+			setearOffset(offsetLocalCache,particionSiguiente);
+
+			offsetLocalCache += tamParticionSiguiente;
+
+			espacioLibre += tamParticionActual;
+		}else{
+			offsetLocalCache += tamParticionActual;
+		}
+	}
+
+	list_clean(particionesLibres);
+
+	t_particion *nuevaParticion = crearParticion(espacioLibre,-1,"");
+
+	setearOffset(offsetLocalCache,nuevaParticion);
+
+	list_add(particionesLibres,nuevaParticion);
+
+	fclose(arch);
 }
 
 
@@ -430,6 +782,7 @@ uint32_t obtenerPosicionMensaje(t_mensaje *mensaje,t_list *colaDeMensajes){
 	return posicionMensaje;
 }
 
+//Faltaría invocar a liberarParticion
 void eliminarMensaje(uint32_t ID, t_list *colaDeMensajes,char *nombreCola,t_FLAG flag){
 	t_mensaje *mensajeAEliminar = obtenerMensaje(ID,colaDeMensajes,flag);
 	uint32_t posicionMensaje = obtenerPosicionMensaje(mensajeAEliminar,colaDeMensajes);
@@ -456,11 +809,33 @@ void iniciarMemoria(){
 	char *paquete = calloc(1,tamanio_memoria);
 	FILE *arch = fopen("/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/Broker/Cache","w");
 	fwrite(paquete,tamanio_memoria,1,arch);
-	fclose(arch);
 	particionesLibres = list_create();
 	particiones = list_create();
 
-	//Acá iria lo de obtener las configuraciones del esquema de memoria.
+	//Tal vez sería conveniente que crearParticion sólo reciba un tamanio...
+	t_particion *particionInicial = crearParticion(tamanio_memoria,-1,"");
+	log_error(logger,"Se inició la memoria cache!");
+	setearOffset(0,particionInicial);
+
+	list_add(particiones,particionInicial);
+	list_add(particionesLibres,&(particionInicial->ID_Particion));
+
+	construirFuncionCacheo();
+
+	fclose(arch);
+}
+
+
+uint32_t obtenerPosicionIDParticion(uint32_t IDParticion){
+
+	for(int i = 0; i < list_size(particionesLibres);i++){
+		uint32_t *ID_A_Comparar = list_get(particionesLibres,i);
+		if(intComparator(ID_A_Comparar,&IDParticion)){
+			return i;
+		}
+	}
+
+	return -1;
 }
 
 uint32_t asignarIDParticion(){
@@ -475,7 +850,6 @@ t_particion *crearParticion(uint32_t tamanioParticion,uint32_t ID_mensaje,char *
 	particion->ID_Particion = asignarIDParticion();
 	particion->ID_mensaje = ID_mensaje;
 	particion->colaDeMensaje = colaDeMensaje;
-	particion->estaLibre = false;
 	particion->tamanioParticion = tamanioParticion;
 	//El offset se setea más adelante..
 
@@ -551,32 +925,38 @@ t_particion *obtenerParticion(uint32_t elem,t_FLAG flag){
 	return particion;
 }
 
+
 void *descachearPaquete(t_mensaje *mensaje,char *colaDePokemon){
-	    uint32_t IDMensaje = mensaje->ID_mensaje;
-		uint32_t tamPaquete = mensaje->tamanioPaquete;
-		t_particion *particionMensaje = obtenerParticion(IDMensaje,BROKER_ID);
-		uint32_t offset = particionMensaje->offset;
+	uint32_t IDMensaje = mensaje->ID_mensaje;
 
-		FILE *arch = fopen("/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/Broker/Cache","r");
+    uint32_t tamPaquete = mensaje->tamanioPaquete;
 
-		fseek(arch,offset,SEEK_CUR);
+	t_particion *particionMensaje = obtenerParticion(IDMensaje,BROKER_ID);
 
-		void *paquete = malloc(tamPaquete);
+	uint32_t offset = particionMensaje->offset;
 
-		fread(paquete,tamPaquete,1,arch);
+	log_error(logger,"TAM PAQUETE: %d y su offset :D %d",tamPaquete,offset);
 
-		fclose(arch);
+	FILE *arch = fopen("/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/Broker/Cache","r");
 
-		if(tienenIDCorrelativoLosMensajes(colaDePokemon)){
-			uint32_t IDCorrelativo = mensaje->ID_correlativo;
-			void *paqueteConUnID = insertarIDEnPaquete(IDCorrelativo,paquete,tamPaquete+sizeof(uint32_t),0);
-			void *paqueteConDosID = insertarIDEnPaquete(IDMensaje,paqueteConUnID,tamPaquete + sizeof(uint32_t),DOUBLE_ID);
-			return paqueteConDosID;
-		}
-		else{
-			void *paqueteConUnID = insertarIDEnPaquete(IDMensaje,paquete,tamPaquete+sizeof(uint32_t),0);
-			return paqueteConUnID;
-		}
+	fseek(arch,offset,SEEK_CUR);
+
+	void *paquete = malloc(tamPaquete);
+
+	fread(paquete,tamPaquete,1,arch);
+
+	fclose(arch);
+
+	if(tienenIDCorrelativoLosMensajes(colaDePokemon)){
+		uint32_t IDCorrelativo = mensaje->ID_correlativo;
+		void *paqueteConUnID = insertarIDEnPaquete(IDCorrelativo,paquete,tamPaquete+sizeof(uint32_t),0);
+		void *paqueteConDosID = insertarIDEnPaquete(IDMensaje,paqueteConUnID,tamPaquete + sizeof(uint32_t),DOUBLE_ID);
+		return paqueteConDosID;
+	}
+	else{
+		void *paqueteConUnID = insertarIDEnPaquete(IDMensaje,paquete,tamPaquete+sizeof(uint32_t),0);
+		return paqueteConUnID;
+	}
 }
 
 bool tienenIDCorrelativoLosMensajes(char *nombreCola){
@@ -597,10 +977,6 @@ bool tieneMenorOffset(void *particion1,void *particion2){
 	return offsetUnaParticion < offsetOtraParticion;
 }
 
-bool hayParticionesLibres(){
-	return !list_is_empty(particionesLibres);
-}
-
 bool existeParticionLibreConTamanio(uint32_t cantACachear){
 	bool resultado = false;
 	for(int i = 0;i < list_size(particionesLibres);i++){
@@ -612,40 +988,6 @@ bool existeParticionLibreConTamanio(uint32_t cantACachear){
 		}
 	}
 	return resultado;
-}
-
-t_particion *obtenerParticionLibreParaCachear(uint32_t cantCachear){
-	//TODO
-	return NULL;
-}
-
-void cachearMensaje(t_mensaje *mensaje,char *colaDeMensajes){
-
-	void *paqueteACachear = mensaje->paquete;
-
-	uint32_t tamPaquete = mensaje->tamanioPaquete;
-
-	uint32_t IDMensaje = mensaje->ID_mensaje;
-
-	t_particion *nuevaParticion = crearParticion(tamPaquete,IDMensaje,colaDeMensajes);
-
-	log_error(logger,"Se creo una nueva particion para el mensaje con ID [%d] de la cola %s",IDMensaje,colaDeMensajes);
-
-    list_add(particiones,nuevaParticion);
-
-	FILE *arch = fopen("/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/Broker/Cache","rw+");
-
-	fseek(arch,offsetCache,SEEK_CUR);
-
-	log_error(logger,"Posición de inicio de la partición creada: %d",offsetCache);
-
-	setearOffset(offsetCache,nuevaParticion);
-
-	fwrite(paqueteACachear,tamPaquete,1,arch);
-
-	offsetCache += tamPaquete;
-
-	fclose(arch);
 }
 
 void enviarMensajeRecibidoASuscriptores(t_list *listaSuscriptores,void(*funcionDeEnvio)(t_suscriptor *)){
@@ -709,6 +1051,7 @@ uint32_t *obtenerIDCorrelativo(t_mensaje *mensaje){
 uint32_t *obtenerIDMensaje(t_mensaje *mensaje){
 	return &(mensaje->ID_mensaje);
 }
+
 
 t_mensaje *obtenerMensaje(uint32_t ID,t_list *colaDeMensajes,t_FLAG flag){
 	t_mensaje *mensaje;
@@ -906,6 +1249,13 @@ void setearValoresConfig(){
 
 }
 
+void liberarRecursosAdministracionMemoria(){
+	//liberar listas particiones
+	free(funcionCacheo);
+    list_destroy(particionesLibres);
+    list_destroy(particiones);
+}
+
 void inicializarColas(){
 	NEW_POKEMON = list_create();
 	APPEARED_POKEMON = list_create();
@@ -913,6 +1263,7 @@ void inicializarColas(){
 	CAUGHT_POKEMON = list_create();
 	GET_POKEMON = list_create();
 	LOCALIZED_POKEMON = list_create();
+    IDs_mensajes = list_create();
 }
 
 void inicializarListasSuscriptores(){
@@ -922,6 +1273,7 @@ void inicializarListasSuscriptores(){
 	suscriptores_CAUGHT_POKEMON = list_create();
 	suscriptores_GET_POKEMON = list_create();
 	suscriptores_LOCALIZED_POKEMON = list_create();
+    IDs_procesos = list_create();
 }
 
 void destruirListasSuscriptores(){
@@ -931,6 +1283,7 @@ void destruirListasSuscriptores(){
 	list_destroy(suscriptores_CAUGHT_POKEMON);
 	list_destroy(suscriptores_GET_POKEMON);
 	list_destroy(suscriptores_LOCALIZED_POKEMON);
+	list_destroy(IDs_mensajes);
 }
 
 void inicializarSemaforos(){
@@ -956,12 +1309,15 @@ void destruirColas(){
 	list_destroy(CAUGHT_POKEMON);
 	list_destroy(GET_POKEMON);
 	list_destroy(LOCALIZED_POKEMON);
+    list_destroy(IDs_procesos);
 
 	//TODO
 	//list_destroy_and_destroy_elements
 	//Desarrollar función destructora de mensajes.
 }
 
+
+//Agregar envio de mensajes cacheados...
 void suscribirProceso(char *identificadorProceso,int cliente_fd,t_operacion operacionSuscripcion){
 	//Al suscribir a un proceso a una determinada cola adquiere el caracter de suscriptor.
 
