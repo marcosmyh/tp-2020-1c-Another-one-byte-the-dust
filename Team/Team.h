@@ -40,6 +40,7 @@ typedef struct {
 	uint32_t coordenadaY;
 	t_list* pokemones;
 	t_list* objetivo;
+	t_list* pokemonesQueFaltan;
 	t_pokemon* pokemonAAtrapar;
 	sem_t semaforoEntrenador;
 	pthread_t hiloEntrenador;
@@ -87,6 +88,7 @@ bool conexionCaught = 0;
 bool conexionLocalized = 0;
 bool seEnvioMensajeGET = 0;
 bool llegoRespuesta = 0;
+bool planificacionCompleta = 0;
 char* identificadorProceso = NULL;
 t_log* logger;
 t_log* loggerObligatorio;
@@ -191,5 +193,13 @@ void procedimientoMensajeCaught(t_infoPaquete *info);
 void procedimientoMensajeLocalized(t_infoPaquete *info);
 void procedimientoMensajeID(int socket);
 void recibirHandshake(int socket,uint32_t tamanioPaquete);
+
+void revisionDeadlocks();
+bool cumplioObjetivoTeam();
+bool noCumplioObjetivo(t_entrenador* unEntrenador);
+void detectarDeadlocks();
+t_entrenador* informarDeadlocks(t_entrenador* unEntrenador, t_pokemon* unPokemon);
+void generarPokemonesFaltantes();
+void pokemonesQueFaltan(t_entrenador* unEntrenador);
 
 #endif
