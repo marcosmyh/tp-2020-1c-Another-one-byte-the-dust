@@ -24,6 +24,8 @@
 //ESTRUCTURAS
 typedef struct t_pokemon t_pokemon;
 
+typedef struct t_entrenador t_entrenador;
+
 typedef struct{
 	int socket;
 	void *paquete;
@@ -34,7 +36,7 @@ typedef enum{
 	t_intercambiarPokemon,
 }t_operacionEntrenador;
 
-typedef struct {
+struct t_entrenador{
 	int idEntrenador;
 	uint32_t coordenadaX;
 	uint32_t coordenadaY;
@@ -42,6 +44,7 @@ typedef struct {
 	t_list* objetivo;
 	t_list* pokemonesQueFaltan;
 	t_pokemon* pokemonAAtrapar;
+	t_entrenador* entrenadorAIntercambiar;
 	sem_t semaforoEntrenador;
 	pthread_t hiloEntrenador;
 	int rafagasEstimadas;
@@ -54,7 +57,7 @@ typedef struct {
 	bool completoObjetivo;
 	bool blockeado;
 	t_operacionEntrenador operacionEntrenador;
-}t_entrenador;
+};
 
 struct t_pokemon{
 	char* nombrePokemon;
@@ -201,5 +204,14 @@ void detectarDeadlocks();
 t_entrenador* informarDeadlocks(t_entrenador* unEntrenador, t_pokemon* unPokemon);
 void generarPokemonesFaltantes();
 void pokemonesQueFaltan(t_entrenador* unEntrenador);
+
+void intercambiarPokemon(t_entrenador* entrenadorAEjecutar);
+bool comparadorNombrePokemones(t_pokemon* unPokemon, t_pokemon* otroPokemon);
+t_pokemon* pokemonQueNoNecesito(t_entrenador* unEntrenador);
+bool estaEnObjetivo(char* unPokemon, t_entrenador* unEntrenador);
+void moverEntrenadorParaIntercambio(t_entrenador* entrenadorAEjecutar, t_entrenador* otroEntrenador);
+void realizarIntercambio(t_entrenador* entrenadorAEjecutar, t_entrenador*entrenadorAIntercambiar, t_pokemon* pokemonQueElOtroNoNecesita,  t_pokemon* pokemonQueYoNoNecesito);
+
+
 
 #endif
