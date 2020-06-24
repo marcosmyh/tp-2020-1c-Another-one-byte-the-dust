@@ -39,6 +39,13 @@ t_log* loggerObligatorio;
 t_config* config;
 
 // Estructuras
+
+typedef struct{
+	int socket;
+	void *paquete;
+	Header headerRecibido;
+}t_infoPackGB;
+
 // Cada proceso escrito como la suma de sus caracteres ascii's
 typedef enum{
 	BROKER = 453,
@@ -90,5 +97,5 @@ void envioDeMensajeCaught(uint32_t atrapado, uint32_t idmensaje);
 void envioDeMensajeGet(char* pokemon,uint32_t idmensaje);
 
 void conectarmeACola(int socket,int tiempo,char* colaDeMensaje);
-
+void discriminarMensaje(t_infoPackGB *paquete);
 #endif /* GAMEBOY_GAMEBOY_H_ */
