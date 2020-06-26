@@ -57,6 +57,7 @@ struct t_entrenador{
 	bool completoObjetivo;
 	bool blockeado;
 	t_operacionEntrenador operacionEntrenador;
+	int ciclosEjecutados;
 };
 
 struct t_pokemon{
@@ -85,6 +86,11 @@ sem_t conexionRecuperadaDeAppeared;
 sem_t conexionRecuperadaDeCaught;
 sem_t conexionRecuperadaDeLocalized;
 
+//METRICAS
+int ciclosTotales = 0;
+int cambiosDeContexto = 0;
+int deadlocksProducidos = 0;
+int deadlocksResueltos = 0;
 
 bool conexionAppeared = 0;
 bool conexionCaught = 0;
@@ -212,6 +218,7 @@ bool estaEnObjetivo(char* unPokemon, t_entrenador* unEntrenador);
 void moverEntrenadorParaIntercambio(t_entrenador* entrenadorAEjecutar, t_entrenador* otroEntrenador);
 void realizarIntercambio(t_entrenador* entrenadorAEjecutar, t_entrenador*entrenadorAIntercambiar, t_pokemon* pokemonQueElOtroNoNecesita,  t_pokemon* pokemonQueYoNoNecesito);
 
-
+void imprimirMetricas();
+void metricas();
 
 #endif
