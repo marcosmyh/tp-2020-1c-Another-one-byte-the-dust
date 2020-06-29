@@ -34,6 +34,7 @@ char* PUERTO_BROKER;
 char* PUERTO_TEAM;
 char* PUERTO_GAMECARD;
 int tiempoRestante;
+char* identificador;
 t_log* logger;
 t_log* loggerObligatorio;
 t_config* config;

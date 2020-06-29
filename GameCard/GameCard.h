@@ -54,7 +54,7 @@ int socket_servidor;
 bool conexionNew = 0;
 bool conexionCatch = 0;
 bool conexionGet = 0;
-char* identificadorProcesoGC = NULL;
+char* identificadorProcesoGC;
 
 pthread_t hiloAtencionCatch;
 pthread_t hiloAtencionNew;

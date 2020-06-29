@@ -530,6 +530,16 @@ void destruirInfoPaqueteGB(t_infoPackGB *infoPaquete){
 	free(infoPaquete);
 }
 
+void envioDelACK(uint32_t id, t_operacion operacion){
+	int socket = crear_conexion(IP_BROKER, PUERTO_BROKER,"Broker");
+	void* paquete = pack_Ack(id, operacion,identificador);
+	uint32_t tamPaquete = sizeof(id) + sizeof(t_operacion) + strlen(identificador) + 1 + sizeof(uint32_t);
+	packAndSend(socket, paquete, tamPaquete, t_ACK);
+	log_info(logger, "El envio del ACK del mensaje con ID [%d] se realizo con exito",id);
+	close(socket);
+	free(paquete);
+}
+
 
 void recepcionDeMensaje(){
 	pthread_t hiloRecepcion;
@@ -556,16 +566,17 @@ void discriminarMensaje(t_infoPackGB *infoPack){
 
 				uint32_t tipoDeOperacion = infoPack->headerRecibido.operacion;
 				void* paquete = infoPack->paquete;
+				uint32_t id = unpackID(paquete);
+
+				envioDelACK(id,tipoDeOperacion);
 				switch (tipoDeOperacion) {
 						case t_GET:;
 							//log_info(logger,"Me llegaron mensajes de la cola Get");
 
 							char* pokemonGet = unpackPokemonGet(paquete);
 							//uint32_t tamanioPokemonGet = strlen(pokemonGet);
-							uint32_t idGet = unpackID(paquete);
 
-
-							log_info(logger,"Pokemon: %s id: %d",pokemonGet,idGet);
+							log_info(logger,"Pokemon: %s id: %d",pokemonGet,id);
 							free(pokemonGet);
 							break;
 
@@ -574,12 +585,10 @@ void discriminarMensaje(t_infoPackGB *infoPack){
 							char* pokemonCatch = unpackPokemonCatch(paquete);
 							uint32_t tamanioPokemoCatch = strlen(pokemonCatch);
 
-
-							uint32_t idCatch = unpackID(paquete);
 							uint32_t posXCatch = unpackCoordenadaX_Catch(paquete, tamanioPokemoCatch);
 							uint32_t posYCatch = unpackCoordenadaY_Catch(paquete, tamanioPokemoCatch);
 
-							log_info(logger,"Pokemon: %s posX: %d posY: %d id: %d",pokemonCatch,posXCatch,posYCatch,idCatch);
+							log_info(logger,"Pokemon: %s posX: %d posY: %d id: %d",pokemonCatch,posXCatch,posYCatch,id);
 							free(pokemonCatch);
 							break;
 						case t_NEW:;
@@ -587,13 +596,11 @@ void discriminarMensaje(t_infoPackGB *infoPack){
 							char* pokemonNew = unpackPokemonNew(paquete);
 							uint32_t tamanioPokemonNew = strlen(pokemonNew);
 
-
-							uint32_t idNew = unpackID(paquete);
 							uint32_t posXNew = unpackCoordenadaX_New(paquete, tamanioPokemonNew);
 							uint32_t posYNew = unpackCoordenadaY_New(paquete, tamanioPokemonNew);
 							uint32_t cantPokemonNew = unpackCantidadPokemons_New(paquete, tamanioPokemonNew);
 
-							log_info(logger,"Pokemon: %s posX: %d posY: %d cantidad: %d id: %d",pokemonNew,posXNew,posYNew,cantPokemonNew,idNew);
+							log_info(logger,"Pokemon: %s posX: %d posY: %d cantidad: %d id: %d",pokemonNew,posXNew,posYNew,cantPokemonNew,id);
 							free(pokemonNew);
 							break;
 						case t_APPEARED:;
@@ -601,22 +608,19 @@ void discriminarMensaje(t_infoPackGB *infoPack){
 							char* pokemonAppeared = unpackPokemonAppeared(paquete);
 							uint32_t tamanioPokemonAppeared = strlen(pokemonAppeared);
 
-
-							uint32_t idAppeared = unpackID(paquete);
 							uint32_t posXAppeared = unpackCoordenadaX_Appeared(paquete, tamanioPokemonAppeared);
 							uint32_t posYAppeared = unpackCoordenadaY_Appeared(paquete, tamanioPokemonAppeared);
 
-							log_info(logger,"Pokemon: %s posX: %d posY: %d id: %d",pokemonAppeared,posXAppeared,posYAppeared, idAppeared);
+							log_info(logger,"Pokemon: %s posX: %d posY: %d id: %d",pokemonAppeared,posXAppeared,posYAppeared, id);
 							free(pokemonAppeared);
 							break;
 
 						case t_CAUGHT:;
 							//log_info(logger,"Me llegaron mensajes de la cola CAUGHT");
 
-							uint32_t idCaugt = unpackID(paquete);
 							int resultado = unpackResultado_Caught(paquete);
 
-							log_info(logger,"Resultado Caught: %d id: %d",resultado, idCaugt);
+							log_info(logger,"Resultado Caught: %d id: %d",resultado, id);
 
 							break;
 
@@ -624,10 +628,9 @@ void discriminarMensaje(t_infoPackGB *infoPack){
 							//log_info(logger,"Me llegaron mensajes de la cola LOCALIZED");
 							//uint32_t tamanioPokemonLocalized = strlen(pokemonLocalized);
 							char* pokemonLocalized = unpackPokemonLocalized(paquete);
-							uint32_t idLocalized = unpackID(paquete);
 							// EN FASE DE PRUEBA
 
-							log_info(logger,"Pokemon: %s resultado Caught: %d id: %d",pokemonLocalized,idLocalized);
+							log_info(logger,"Pokemon: %s resultado Caught: %d id: %d",pokemonLocalized,id);
 							free(pokemonLocalized);
 							break;
 
@@ -712,7 +715,7 @@ void conectarmeACola(int socket,int tiempo,char* colaDeMensaje){
 
 // RESPUESTA DEL MENSAJE PARA ASEGURARME QUE ME SUSCRIBIÓ
 	void *paqueteDeRespuesta = receiveAndUnpack(conexion,tamanio);
-	char* identificador = unpackProceso(paqueteDeRespuesta);
+	identificador = unpackProceso(paqueteDeRespuesta);
 	uint32_t sizeProceso = strlen(identificador) + 1;
 	t_operacion operacionSuscripta = unpackOperacion(paqueteDeRespuesta,sizeProceso);
 

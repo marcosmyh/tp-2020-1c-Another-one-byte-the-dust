@@ -221,6 +221,8 @@ void gestionMensajesNew(){
 void recibirHandshake(int socket,uint32_t tamanioPaquete){
 	void *paqueteBroker = receiveAndUnpack(socket,tamanioPaquete);
 	identificadorProcesoGC = unpackProceso(paqueteBroker);
+	config_set_value(archivoConfig,"ID",identificadorProcesoGC);
+	config_save(archivoConfig);
 	free(paqueteBroker);
 	log_info(logger,"ID RECIBIDO: %s",identificadorProcesoGC);
 }
@@ -626,6 +628,7 @@ void setearValoresDeGame(t_config *config){
 	tiempo_de_reconexion = config_get_int_value(config,"TIEMPO_DE_REINTENTO_CONEXION");
 	tiempo_de_reintento_operacion = config_get_int_value(config,"TIEMPO_DE_REINTENTO_OPERACION");
 	tiempo_de_retardo = config_get_int_value(config,"TIEMPO_RETARDO_OPERACION");
+	identificadorProcesoGC = config_get_string_value(config,"ID");
 }
 
 int envioDeMensajeCaught(uint32_t atrapado, uint32_t idmensaje){
