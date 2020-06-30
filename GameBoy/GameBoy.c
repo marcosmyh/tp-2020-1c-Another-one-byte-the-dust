@@ -78,6 +78,7 @@ int main(int argc,char* argv[]){
 
 	terminar_programa();
 	free(tipoDeMensaje);
+	free(identificador);
 	/*
 		//enviar mensajea
 		//enviar_mensaje("Vamos Boca",conexion);
@@ -703,7 +704,7 @@ void conectarmeACola(int socket,int tiempo,char* colaDeMensaje){
 	}
 
 	// SUSCRIPCION A FUTURO.
-	int resultado = enviarSuscripcion(conexion,"GameCard",tipoDeMensaje);
+	int resultado = enviarSuscripcion(conexion,"GameBoy",tipoDeMensaje);
 
 	if(resultado == -1)log_error(loggerObligatorio,"La suscripcion a %s falló",colaDeMensaje);
 	log_info(loggerObligatorio,"Suscripcion a %s enviada",colaDeMensaje);
@@ -723,9 +724,7 @@ void conectarmeACola(int socket,int tiempo,char* colaDeMensaje){
 	log_info(loggerObligatorio,"Suscripción con éxito, Mi identificador: %s",identificador);
 
 	free(paqueteDeRespuesta);
-	free(identificador);
 	recepcionDeMensajes(tiempo);
-
 	}else log_error(loggerObligatorio,"No se pudo concretar la suscripción a %s",colaDeMensaje);
 }
 
