@@ -64,6 +64,7 @@ struct t_pokemon{
 	char* nombrePokemon;
 	uint32_t coordenadaX;
 	uint32_t coordenadaY;
+	int distanciaAEntrenador;
 };
 
 //COLAS
@@ -130,6 +131,7 @@ int socket_localized;
 
 
 //FUNCIONES
+int tamArray (char** puntero);
 void crearLogger();
 void gestionarHilosDelBroker();
 void crearLoggerObligatorio();
@@ -163,9 +165,12 @@ void capturarPokemon(t_entrenador* entrenadorAEjecutar);
 void atraparPokemon(t_entrenador* entrenadorAEjecutar, t_pokemon* pokemonAAtrapar);
 void moverEntrenador(t_entrenador* entrenadorAEjecutar, t_pokemon* pokemonAAtrapar);
 t_pokemon* pokemonMasCercanoA(t_entrenador* unEntrenador);
-bool comparadorPosiciones(int unaPosicion, int otraPosicion);
-int elMenorNumeroDe(t_list* aux);
+t_pokemon* comparadorDistancia(t_pokemon* unPokemon, t_pokemon* otroPokemon);
 void completarCatch(t_entrenador* unEntrenador, bool resultadoCaught);
+void completarCatchNormal(t_entrenador* unEntrenador);
+void completarCatchSinBroker(t_entrenador* unEntrenador);
+void completarIntercambioNormal(t_entrenador* unEntrenador);
+void completarIntercambioSinBroker(t_entrenador* unEntrenador);
 bool cumplioObjetivo(t_entrenador* unEntrenador); //USAR ESTA PARA CHEQUEAR SI EL TEAM CUMPLIÓ EL OBJETIVO
 void sacarPokemonDelMapa(t_pokemon* unPokemon);
 void aplicarFIFO();
