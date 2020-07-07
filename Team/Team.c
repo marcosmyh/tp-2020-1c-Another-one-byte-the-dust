@@ -19,6 +19,7 @@ int main(){
 	pthread_mutex_init(&mutexPokemonesEnMapa,NULL);
 	pthread_mutex_init(&mutexPlanificacionReady,NULL);
 	pthread_mutex_init(&mutexPlanificacionEntrenadores,NULL);
+	pthread_mutex_init(&mutexEjecucionEntrenadores,NULL);
 
     pthread_t hiloMensajes;
     pthread_t hiloPlanificacionReady;
@@ -845,12 +846,15 @@ void planificarEntrenadores(){
 
 void ejecutarEntrenador(t_entrenador* entrenadorAEjecutar){
 	// 0 = atrapar  1 = intercambiar
+	pthread_mutex_lock(&mutexEjecucionEntrenadores);
 	if (entrenadorAEjecutar->operacionEntrenador == 0){
 		capturarPokemon(entrenadorAEjecutar);
 	}
 	else{
 		intercambiarPokemon(entrenadorAEjecutar);
 	}
+	pthread_mutex_unlock(&mutexEjecucionEntrenadores);
+
 }
 
 //ACA EMPIEZAN LAS FUNCIONES NUEVAS
@@ -1425,7 +1429,9 @@ bool estaEnElMapa(char* unPokemon){
 void planificarEntradaAReady(){
 	//ESTO PLANIFICA DE NEW A READY Y DE BLOCKED A READY
 	log_info(logger, "Se empezará la planificacion a Ready de entrendores");
+
 	while(1){
+		pthread_mutex_lock(&mutexPokemonesEnMapa);
 		if(list_is_empty(pokemonesEnMapa)){
 
 		}
@@ -1475,6 +1481,7 @@ void planificarEntradaAReady(){
 			}
 			pthread_mutex_unlock(&mutexPlanificacionReady);
 		}
+		pthread_mutex_unlock(&mutexPokemonesEnMapa);
 	}
 }
 

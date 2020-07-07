@@ -90,6 +90,7 @@ sem_t conexionRecuperadaDeLocalized;
 pthread_mutex_t mutexPokemonesEnMapa;
 pthread_mutex_t mutexPlanificacionReady;
 pthread_mutex_t mutexPlanificacionEntrenadores;
+pthread_mutex_t mutexEjecucionEntrenadores;
 
 //METRICAS
 int ciclosTotales = 0;
