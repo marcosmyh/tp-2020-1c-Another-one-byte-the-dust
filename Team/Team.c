@@ -18,6 +18,7 @@ int main(){
 
 	pthread_mutex_init(&mutexPokemonesEnMapa,NULL);
 	pthread_mutex_init(&mutexPlanificacionReady,NULL);
+	pthread_mutex_init(&mutexPlanificacionEntrenadores,NULL);
 
     pthread_t hiloMensajes;
     pthread_t hiloPlanificacionReady;
@@ -813,6 +814,7 @@ void planificarEntrenadores(){
 				entrenadorAEjecutar->operacionEntrenador = t_atraparPokemon;
 				pthread_t hiloEntrenador = entrenadorAEjecutar->hiloEntrenador;
 				pthread_create(&hiloEntrenador,NULL,(void*)ejecutarEntrenador,entrenadorAEjecutar);
+				pthread_detach(hiloEntrenador);
 			}
 			else if(strcmp(algoritmo_planificacion,"RR")==0){
 				aplicarRR();
@@ -839,7 +841,6 @@ void planificarEntrenadores(){
 			}
 		}
 	}
-
 }
 
 void ejecutarEntrenador(t_entrenador* entrenadorAEjecutar){
@@ -1423,6 +1424,7 @@ bool estaEnElMapa(char* unPokemon){
 
 void planificarEntradaAReady(){
 	//ESTO PLANIFICA DE NEW A READY Y DE BLOCKED A READY
+	log_info(logger, "Se empezará la planificacion a Ready de entrendores");
 	while(1){
 		if(list_is_empty(pokemonesEnMapa)){
 
@@ -1430,8 +1432,7 @@ void planificarEntradaAReady(){
 		else{
 			//TODO ACA VA MUTEX
 			pthread_mutex_lock(&mutexPlanificacionReady);
-			log_info(logger, "Se empezará la planificacion a Ready de entrendores");
-			t_list* pokemones = pokemonesEnMapa;
+			t_list* pokemones = list_duplicate(pokemonesEnMapa);
 			bool estaLibre(t_entrenador* unEntrenador){
 				return !estaOcupado(unEntrenador);
 			}
@@ -1471,8 +1472,8 @@ void planificarEntradaAReady(){
 				list_add(colaReady,entrenadorElegido); //esto esta igual que en SJF, deberia estar bien
 				log_info(loggerObligatorio, "Se pasó al entrenador %d de NEW a READY, Razon: Elegido por el planificador de entrada a ready", entrenadorElegido->idEntrenador);
 				//TODO ACA VA MUTEX
-				pthread_mutex_unlock(&mutexPlanificacionReady);
 			}
+			pthread_mutex_unlock(&mutexPlanificacionReady);
 		}
 	}
 }
