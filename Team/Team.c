@@ -16,6 +16,9 @@ int main(){
 	sem_init(&conexionRecuperadaDeCaught,0,0);
 	sem_init(&conexionRecuperadaDeLocalized,0,0);
 
+	pthread_mutex_init(&mutexPokemonesEnMapa,NULL);
+	pthread_mutex_init(&mutexPlanificacionReady,NULL);
+
     pthread_t hiloMensajes;
     pthread_t hiloPlanificacionReady;
     pthread_t hiloPlanificacionEntrenadores;
@@ -279,7 +282,11 @@ void procedimientoMensajeAppeared(t_infoPaquete *infoAppeared){
     			pokemonAAtrapar->nombrePokemon = pokemonAppeared;
     			pokemonAAtrapar->coordenadaX = coordenadaX;
     			pokemonAAtrapar->coordenadaY = coordenadaY;
+    			//TODO
+    			pthread_mutex_lock(&mutexPokemonesEnMapa);
     			list_add(pokemonesEnMapa, pokemonAAtrapar);
+    			pthread_mutex_unlock(&mutexPokemonesEnMapa);
+
     			log_info(loggerObligatorio,"Pokemon agregado: %s, ubicado en X:%d  Y:%d",pokemonAppeared, coordenadaX, coordenadaY);
 
     			if(esSocketBroker(socket)){
@@ -627,11 +634,9 @@ void inicializarEntrenadores(){
 		entrenadorNuevo->ciclosEjecutados = 0;
 
 		int j = 0;
-		//log_info(logger, " POKEMON ANTES DE ENTRAR AL IF:  %s",pokemon_entrenadores[i]);
 		int tamPokemonEntrenador = tamArray(pokemon_entrenadores);
-		if(cantidadPokemonesEntrenador <= tamPokemonEntrenador){
-			int aux = tamArray(pokemon_entrenadores[i]);
-			if (aux == 1){
+		if(cantidadPokemonesEntrenador < tamPokemonEntrenador){
+			if (charContains(pokemon_entrenadores[i], '|')){
 				list_add(entrenadorNuevo->pokemones, pokemon_entrenadores[i]);
 			}
 			else{
@@ -672,6 +677,17 @@ int tamArray (char** puntero){
 		i++;
 	}
 	return i;
+}
+
+bool charContains(char *cadena,char caracter){
+    int i = 0;
+    bool resultado = false;
+    for(i = 0; i < strlen(cadena);i++){
+        if(cadena[i] == caracter){
+            return !resultado;
+        }
+    }
+    return resultado;
 }
 
 void enviarPokemonesAlBroker(){
@@ -790,6 +806,7 @@ void planificarEntrenadores(){
 
 		else if(!list_is_empty(colaReady) && list_is_empty(colaExec) && !planificacionCompleta && !list_is_empty(pokemonesEnMapa)){
 			log_info(logger, "Se comenzara la planificacion de los entrenadores");
+			log_info(logger, "POKEMONES EN MAPA, ANTES DE LA PLANIFICACION: %d", list_size(pokemonesEnMapa));
 			if(strcmp(algoritmo_planificacion,"FIFO")==0){
 				aplicarFIFO();
 				t_entrenador* entrenadorAEjecutar = list_get(colaExec, 0);
@@ -1089,6 +1106,7 @@ void moverEntrenador(t_entrenador* entrenadorAEjecutar, t_pokemon* pokemonAAtrap
 t_pokemon* pokemonMasCercanoA(t_entrenador* unEntrenador){
 	t_list* aux = list_create();
 	int cantPokemonesEnMapa = list_size(pokemonesEnMapa);
+	log_info(logger, "POKEMONES EN MAPA: %d", cantPokemonesEnMapa);
 	for(int i = 0; i < cantPokemonesEnMapa; i++){
 		t_pokemon* unPokemon = list_get(pokemonesEnMapa, i);
 		int distanciaAPokemon = (abs(unEntrenador->coordenadaX - unPokemon->coordenadaX) + abs(unEntrenador->coordenadaY - unPokemon->coordenadaY));
@@ -1119,6 +1137,7 @@ void completarCatch(t_entrenador* unEntrenador, bool resultadoCaught){
 	if (resultadoCaught){
 		//ESTE ES EL CASO DEL CAUGHT PARA ATRAPAR EL POKEMON NORMALMENTE
 		if(unEntrenador->operacionEntrenador == 0){
+			log_info(logger, "ACA ME ROMPO TODO");
 			sacarPokemonDelMapa(pokemonAtrapado);
 			list_add(pokemonesAtrapados, pokemonAtrapado);
 			list_add(unEntrenador->pokemones, pokemonAtrapado);
@@ -1283,7 +1302,9 @@ bool cumplioObjetivo(t_entrenador* unEntrenador){
 
 void sacarPokemonDelMapa(t_pokemon* unPokemon){
 	int index = list_get_index(pokemonesEnMapa, unPokemon, (void*)comparadorPokemones);
+	pthread_mutex_lock(&mutexPokemonesEnMapa);
 	list_remove(pokemonesEnMapa, index);
+	pthread_mutex_unlock(&mutexPokemonesEnMapa);
 }
 
 bool comparadorPokemones(t_pokemon* unPokemon, t_pokemon* otroPokemon){
@@ -1407,6 +1428,8 @@ void planificarEntradaAReady(){
 
 		}
 		else{
+			//TODO ACA VA MUTEX
+			pthread_mutex_lock(&mutexPlanificacionReady);
 			log_info(logger, "Se empezará la planificacion a Ready de entrendores");
 			t_list* pokemones = pokemonesEnMapa;
 			bool estaLibre(t_entrenador* unEntrenador){
@@ -1447,6 +1470,8 @@ void planificarEntradaAReady(){
 				t_entrenador* entrenadorElegido = (t_entrenador*) list_remove(colaNew, index);
 				list_add(colaReady,entrenadorElegido); //esto esta igual que en SJF, deberia estar bien
 				log_info(loggerObligatorio, "Se pasó al entrenador %d de NEW a READY, Razon: Elegido por el planificador de entrada a ready", entrenadorElegido->idEntrenador);
+				//TODO ACA VA MUTEX
+				pthread_mutex_unlock(&mutexPlanificacionReady);
 			}
 		}
 	}

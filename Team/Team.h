@@ -87,6 +87,9 @@ sem_t conexionRecuperadaDeAppeared;
 sem_t conexionRecuperadaDeCaught;
 sem_t conexionRecuperadaDeLocalized;
 
+pthread_mutex_t mutexPokemonesEnMapa;
+pthread_mutex_t mutexPlanificacionReady;
+
 //METRICAS
 int ciclosTotales = 0;
 int cambiosDeContexto = 0;
@@ -132,6 +135,7 @@ int socket_localized;
 
 //FUNCIONES
 int tamArray (char** puntero);
+bool charContains(char *cadena,char caracter);
 void crearLogger();
 void gestionarHilosDelBroker();
 void crearLoggerObligatorio();
