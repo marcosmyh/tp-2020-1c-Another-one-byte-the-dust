@@ -32,6 +32,12 @@ typedef struct{
 }t_infoPaquete;
 
 typedef enum{
+	t_NEW_STATE,
+	t_BLOCKED_STATE
+} t_FLAG;
+
+
+typedef enum{
 	t_atraparPokemon,
 	t_intercambiarPokemon,
 }t_operacionEntrenador;
@@ -231,5 +237,15 @@ void realizarIntercambio(t_entrenador* entrenadorAEjecutar, t_entrenador*entrena
 
 void imprimirMetricas();
 void metricas();
+bool tieneLosMismosElementos(t_list*,t_list*,bool(*)(void *,void *));
+int cantOcurrencias(char *nombrePokemon,t_list *lista);
+bool stringComparator(void *unString, void *otroString);
+void transicionAReady(t_entrenador *entrenador,t_FLAG estado);
+void transicionDeBlockedAReady(t_entrenador *entrenador);
+void transicionDeNewAReady(t_entrenador *entrenador);
+t_entrenador *entrenadorQueVaAReady();
+t_list *obtenerEntrenadoresDisponibles();
+void mostrarContenidoLista(t_list* lista,void(*printer)(void *));
+void imprimirString(void *contenidoAMostrar);
 
 #endif

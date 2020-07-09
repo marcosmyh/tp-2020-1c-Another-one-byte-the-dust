@@ -61,6 +61,45 @@ void destruirInfoPaquete(t_infoPaquete *infoPaquete){
 	free(infoPaquete);
 }
 
+int cantOcurrencias(char *nombrePokemon,t_list *lista){
+	int cantOcurrencias = 0;
+
+	for(int i = 0; i < list_size(lista);i++){
+		char *elem = list_get(lista,i);
+		if(stringComparator(elem,nombrePokemon)){
+			cantOcurrencias++;
+		}
+	}
+
+	return cantOcurrencias;
+}
+
+bool tieneLosMismosElementos(t_list *pokemonesEntrenador,t_list *objetivos,bool(*comparator)(void *,void *)){
+	bool resultado = false;
+
+	log_error(logger,"TAM POKEMONES %d y TAM OBJETIVOS %d",list_size(pokemonesEntrenador),list_size(objetivos));
+
+	for(int i = 0; i < list_size(pokemonesEntrenador);i++){
+		char *pokemonAComparar = list_get(pokemonesEntrenador,i);
+		log_error(logger,"POKEMON %s",pokemonAComparar);
+
+		int cantOcurrenciasEntrenador = cantOcurrencias(pokemonAComparar,pokemonesEntrenador);
+		int cantOcurrenciasObjetivos = cantOcurrencias(pokemonAComparar,objetivos);
+
+		if(cantOcurrenciasEntrenador != cantOcurrenciasObjetivos){
+			return resultado;
+		}
+	}
+
+	log_error(logger,"ALGO XD");
+
+	return !resultado;
+}
+
+bool stringComparator(void *unString, void *otroString){
+	return string_equals_ignore_case(unString,otroString);
+}
+
 void iniciarGestionMensajes(){
 	pthread_create(&hiloSuscripcionBroker,NULL,(void *)administrarSuscripcionesBroker,NULL);
     pthread_create(&hiloAtencionAppeared,NULL,(void *)gestionMensajesAppeared,NULL);
@@ -270,6 +309,7 @@ void administrarSuscripcionesBroker(){
 }
 
 void procedimientoMensajeAppeared(t_infoPaquete *infoAppeared){
+	pthread_mutex_lock(&mutexPokemonesEnMapa);
 	void *paqueteAppeared = infoAppeared->paquete;
 	int socket = infoAppeared->socket;
     char* pokemonAppeared = unpackPokemonAppeared(paqueteAppeared);
@@ -285,9 +325,9 @@ void procedimientoMensajeAppeared(t_infoPaquete *infoAppeared){
     			pokemonAAtrapar->coordenadaX = coordenadaX;
     			pokemonAAtrapar->coordenadaY = coordenadaY;
     			//TODO
-    			pthread_mutex_lock(&mutexPokemonesEnMapa);
+    			//pthread_mutex_lock(&mutexPokemonesEnMapa);
     			list_add(pokemonesEnMapa, pokemonAAtrapar);
-    			pthread_mutex_unlock(&mutexPokemonesEnMapa);
+    			//pthread_mutex_unlock(&mutexPokemonesEnMapa);
 
     			log_info(loggerObligatorio,"Pokemon agregado: %s, ubicado en X:%d  Y:%d",pokemonAppeared, coordenadaX, coordenadaY);
 
@@ -304,6 +344,7 @@ void procedimientoMensajeAppeared(t_infoPaquete *infoAppeared){
     	        destruirInfoPaquete(infoAppeared);
     			log_info(logger,"El mensaje de appeared del pokemon %s ya fue recibido o no necesita atraparse, queda descartado",pokemonAppeared);
     }
+    pthread_mutex_unlock(&mutexPokemonesEnMapa);
 
 }
 
@@ -846,15 +887,16 @@ void planificarEntrenadores(){
 
 void ejecutarEntrenador(t_entrenador* entrenadorAEjecutar){
 	// 0 = atrapar  1 = intercambiar
+	log_error(logger,"EJECUTANDO ENTRENADOR %d",entrenadorAEjecutar->idEntrenador);
 	pthread_mutex_lock(&mutexEjecucionEntrenadores);
 	if (entrenadorAEjecutar->operacionEntrenador == 0){
 		capturarPokemon(entrenadorAEjecutar);
 	}
 	else{
+		log_error(logger,"NO DEBERIAS ENTRAR ACA");
 		intercambiarPokemon(entrenadorAEjecutar);
 	}
-	pthread_mutex_unlock(&mutexEjecucionEntrenadores);
-
+	log_error(logger,"FINALIZÓ LA EJECUCIÓN ENTRENADOR %d",entrenadorAEjecutar->idEntrenador);
 }
 
 //ACA EMPIEZAN LAS FUNCIONES NUEVAS
@@ -1139,17 +1181,18 @@ t_pokemon* comparadorDistancia(t_pokemon* unPokemon, t_pokemon* otroPokemon){
 void completarCatch(t_entrenador* unEntrenador, bool resultadoCaught){
 	t_pokemon* pokemonAtrapado = unEntrenador->pokemonAAtrapar;
 	char *nombrePokemon = pokemonAtrapado->nombrePokemon;
+
 	if (resultadoCaught){
 		//ESTE ES EL CASO DEL CAUGHT PARA ATRAPAR EL POKEMON NORMALMENTE
 		if(unEntrenador->operacionEntrenador == 0){
 			log_info(logger, "ACA ME ROMPO TODO");
 			sacarPokemonDelMapa(pokemonAtrapado);
 			list_add(pokemonesAtrapados, pokemonAtrapado);
-			list_add(unEntrenador->pokemones, pokemonAtrapado);
+			list_add(unEntrenador->pokemones, nombrePokemon);
 			unEntrenador->cantPokemonesPorAtrapar = unEntrenador->cantPokemonesPorAtrapar - 1;
 			unEntrenador->contadorRR = 0;
 			log_info(logger, "El pokemon %s pudo ser atrapado por el entrenador %d!",nombrePokemon, unEntrenador->idEntrenador);
-			if(conexionAppeared == 0){
+			if(conexionAppeared){
 				//SI HAY CONEXION PROCEDO NORMAL, CON EL ENTRENADOR BLOQUEADO
 				completarCatchNormal(unEntrenador);
 			}
@@ -1160,7 +1203,7 @@ void completarCatch(t_entrenador* unEntrenador, bool resultadoCaught){
 		}
 		else{
 			//ESTE CASO ES PARA EL CAUGHT CUANDO HACE EL INTERCAMBIO
-			list_add(unEntrenador->pokemones, pokemonAtrapado);
+			list_add(unEntrenador->pokemones, nombrePokemon);
 			unEntrenador->contadorRR = 0;
 			unEntrenador->entrenadorAIntercambiar = NULL;
 			log_info(logger, "El pokemon %s pudo ser atrapado por el entrenador %d!",nombrePokemon, unEntrenador->idEntrenador);
@@ -1215,6 +1258,8 @@ void completarCatchNormal(t_entrenador* unEntrenador){
 			//LOS ENTRENADORES QUE NO COMPLETEN EL OBJETIVO Y PROBABLEMENTE ESTEN EN DEADLOCK QUEDAN BLOCKED Y EN ESTADO OCUPADO
 			}
 	}
+
+	pthread_mutex_unlock(&mutexEjecucionEntrenadores);
 }
 
 void completarCatchSinBroker(t_entrenador* unEntrenador){
@@ -1243,6 +1288,9 @@ void completarCatchSinBroker(t_entrenador* unEntrenador){
 			//LOS ENTRENADORES QUE NO COMPLETEN EL OBJETIVO Y PROBABLEMENTE ESTEN EN DEADLOCK QUEDAN BLOCKED Y EN ESTADO OCUPADO
 			}
 	}
+
+	log_error(logger,"ANTES DE HACER EL UNLOCK DE EJECUCION EN COMPLETAR CATCH");
+	pthread_mutex_unlock(&mutexEjecucionEntrenadores);
 }
 
 void completarIntercambioNormal(t_entrenador* unEntrenador){
@@ -1281,7 +1329,30 @@ void completarIntercambioSinBroker(t_entrenador* unEntrenador){
 	}
 }
 
+void mostrarContenidoLista(t_list* lista,void(*printer)(void *)){
+	list_iterate(lista,printer);
+}
+
+void imprimirString(void *contenidoAMostrar){
+	printf("ULTIMO ACCESO: %s \n",(char *) contenidoAMostrar);
+}
+
 bool cumplioObjetivo(t_entrenador* unEntrenador){
+
+	log_error(logger,"ESTOY EN CUMPLIOOBJETIvo");
+	t_list *nombresPokemonesEntrenador = unEntrenador->pokemones;
+	t_list *nombresPokemonesObjetivos = unEntrenador->objetivo;
+
+	log_error(logger,"POKE ENTRENADORES");
+	mostrarContenidoLista(nombresPokemonesEntrenador,imprimirString);
+	log_error(logger,"POKE OBJETIVOS");
+	mostrarContenidoLista(nombresPokemonesObjetivos,imprimirString);
+
+	return tieneLosMismosElementos(nombresPokemonesEntrenador,nombresPokemonesObjetivos,stringComparator);
+
+
+
+	/*
 	int cantPokemonesAtrapados = list_size(unEntrenador->pokemones);
 	int cantCoincidencias = 0;
 	int i = 0;
@@ -1303,13 +1374,15 @@ bool cumplioObjetivo(t_entrenador* unEntrenador){
 		}
 	}
 	return cantCoincidencias == cantPokemonesAtrapados;
+	*/
 }
 
 void sacarPokemonDelMapa(t_pokemon* unPokemon){
 	int index = list_get_index(pokemonesEnMapa, unPokemon, (void*)comparadorPokemones);
-	pthread_mutex_lock(&mutexPokemonesEnMapa);
+	log_error(logger,"EL POKEMON QUE VOY A BORRAR %s SE ENCUENTRA EN LA POS: %d",unPokemon->nombrePokemon,index);
+	//pthread_mutex_lock(&mutexPokemonesEnMapa);
 	list_remove(pokemonesEnMapa, index);
-	pthread_mutex_unlock(&mutexPokemonesEnMapa);
+	//pthread_mutex_unlock(&mutexPokemonesEnMapa);
 }
 
 bool comparadorPokemones(t_pokemon* unPokemon, t_pokemon* otroPokemon){
@@ -1426,61 +1499,118 @@ bool estaEnElMapa(char* unPokemon){
 	return false;
 }
 
+
+//New -> Ready
+//Blocked -> Ready
+
+//transicionAReady(t_entrenador *entrenador,t_NEW_STATE);
+//transicionAReady(t_entrenador *entrenador,t_BLOCKED_STATE);
+
+//obtenerEntrenadoresDisponibles
+
+t_list *obtenerEntrenadoresDisponibles(){
+	t_list* entrenadoresLibres = list_create();
+
+	if(!list_is_empty(colaNew)){
+		for(int i = 0; i < list_size(colaNew); i++){
+			t_entrenador* unEntrenador = list_get(colaNew, i);
+			list_add(entrenadoresLibres,unEntrenador); //esto esta igual que en SJF, deberia estar bien
+		}
+	}
+
+
+	bool estaLibre(t_entrenador* unEntrenador){
+		return !estaOcupado(unEntrenador);
+	}
+
+	if(!list_is_empty(colaBlocked)){
+		t_list *entrenadoresBloqueadosDisponibles = list_filter(colaBlocked, (void*)estaLibre);
+		list_add_all(entrenadoresLibres,entrenadoresBloqueadosDisponibles);
+		//hacer free de entrenadoresBloqueadosDisponibles;
+	}
+
+	return entrenadoresLibres;
+}
+
+void transicionAReady(t_entrenador *entrenador,t_FLAG estado){
+	if(estado == t_NEW_STATE){
+		transicionDeNewAReady(entrenador);
+	}
+
+	if(estado == t_BLOCKED_STATE){
+		transicionDeBlockedAReady(entrenador);
+	}
+
+}
+
+t_entrenador *entrenadorQueVaAReady(t_list *entrenadoresLibres){
+	t_entrenador *entrenadorAux;
+
+	t_list* pokemones = list_duplicate(pokemonesEnMapa);
+	//SACO EL PRIMER POKEMON DE LA LISTA
+	t_pokemon* unPokemon = list_remove(pokemones, 0);
+
+	//CALCULO LA DISTANCIA DE TODOS A ESE POKEMON
+	calcularDistanciaA(entrenadoresLibres,unPokemon);
+
+	//ORDENO LA LISTA EN BASE A ESA DISTANCIA DE MENOR A MAYOR
+	list_sort(entrenadoresLibres, (void*)comparadorDeDistancia);
+
+	//SACO EL PRIMERO DE ESA LISTA ORDENADA
+	entrenadorAux = list_remove(entrenadoresLibres, 0);
+
+	return entrenadorAux;
+}
+
+
+void transicionDeNewAReady(t_entrenador *entrenador){
+	int index = list_get_index(colaNew,entrenador,(void*)comparadorDeEntrenadores);
+	t_entrenador* entrenadorElegido = (t_entrenador*) list_remove(colaNew, index);
+	list_add(colaReady,entrenadorElegido); //esto esta igual que en SJF, deberia estar bien
+	log_info(loggerObligatorio, "Se pasó al entrenador %d de NEW a READY, Razon: Elegido por el planificador de entrada a ready", entrenadorElegido->idEntrenador);
+}
+
+void transicionDeBlockedAReady(t_entrenador *entrenador){
+	int index = list_get_index(colaBlocked,entrenador,(void*)comparadorDeEntrenadores);
+	t_entrenador* entrenadorElegido = (t_entrenador*) list_remove(colaBlocked, index);
+	entrenadorElegido->blockeado = false;
+	list_add(colaReady,entrenadorElegido); //esto esta igual que en SJF, deberia estar bien
+	log_info(loggerObligatorio, "Se pasó al entrenador %d de BLOCKED a READY, Razon: Elegido por el planificador de entrada a ready", entrenadorElegido->idEntrenador);
+}
+
 void planificarEntradaAReady(){
 	//ESTO PLANIFICA DE NEW A READY Y DE BLOCKED A READY
 	log_info(logger, "Se empezará la planificacion a Ready de entrendores");
 
 	while(1){
 		pthread_mutex_lock(&mutexPokemonesEnMapa);
+
 		if(list_is_empty(pokemonesEnMapa)){
 
 		}
 		else{
-			//TODO ACA VA MUTEX
-			pthread_mutex_lock(&mutexPlanificacionReady);
-			t_list* pokemones = list_duplicate(pokemonesEnMapa);
-			bool estaLibre(t_entrenador* unEntrenador){
-				return !estaOcupado(unEntrenador);
+
+			t_entrenador *entrenador;
+			t_list *entrenadoresLibres;
+
+			//pthread_mutex_lock(&mutexPlanificacionReady);
+
+			entrenadoresLibres = obtenerEntrenadoresDisponibles();
+
+			if(!list_is_empty(entrenadoresLibres)){
+
+			entrenador = entrenadorQueVaAReady(entrenadoresLibres);
+
+			if(entrenador->blockeado){
+				transicionAReady(entrenador,t_BLOCKED_STATE);
+			}else{
+				transicionAReady(entrenador,t_NEW_STATE);
 			}
-			t_list* entrenadoresLibres = list_filter(colaBlocked, (void*)estaLibre);
-			if(!list_is_empty(colaNew) || !list_is_empty(entrenadoresLibres)){
-				int entrenadoresNew = list_size(colaNew);
 
-				//JUNTO LAS LISTAS DE BLOCKED(POR INACTIVIDAD) Y DE NEW
-				for (int i=0; i<entrenadoresNew; i++){
-				t_entrenador* unEntrenador = (t_entrenador*) list_get(colaNew, i);
-				list_add(entrenadoresLibres,unEntrenador); //esto esta igual que en SJF, deberia estar bien
-				}
-
-				//SACO EL PRIMER POKEMON DE LA LISTA
-				t_pokemon* unPokemon = list_remove(pokemones, 0);
-
-				//CALCULO LA DISTANCIA DE TODOS A ESE POKEMON
-				calcularDistanciaA(entrenadoresLibres,unPokemon);
-
-				//ORDENO LA LISTA EN BASE A ESA DISTANCIA DE MENOR A MAYOR
-				list_sort(entrenadoresLibres, (void*)comparadorDeDistancia);
-
-				//SACO EL PRIMERO DE ESA LISTA ORDENADA
-				t_entrenador* entrenadorAux = list_remove(entrenadoresLibres, 0);
-
-				//SI ESTA BLOCKEADO LO VOY A BUSCAR A BLOCKEADO, LO SACO Y LO MANDO A READY
-				if(entrenadorAux->blockeado){
-					int index = list_get_index(colaBlocked,entrenadorAux,(void*)comparadorDeEntrenadores);
-					t_entrenador* entrenadorElegido = (t_entrenador*) list_remove(colaBlocked, index);
-					list_add(colaReady,entrenadorElegido); //esto esta igual que en SJF, deberia estar bien
-					log_info(loggerObligatorio, "Se pasó al entrenador %d de BLOCKED a READY, Razon: Elegido por el planificador de entrada a ready", entrenadorElegido->idEntrenador);
-				}
-
-				//SI NO ESTA BLOCKEADO, ESTA EN NEW Y PROCEDO IGUAL
-				int index = list_get_index(colaNew,entrenadorAux,(void*)comparadorDeEntrenadores);
-				t_entrenador* entrenadorElegido = (t_entrenador*) list_remove(colaNew, index);
-				list_add(colaReady,entrenadorElegido); //esto esta igual que en SJF, deberia estar bien
-				log_info(loggerObligatorio, "Se pasó al entrenador %d de NEW a READY, Razon: Elegido por el planificador de entrada a ready", entrenadorElegido->idEntrenador);
-				//TODO ACA VA MUTEX
 			}
-			pthread_mutex_unlock(&mutexPlanificacionReady);
-		}
+
+			//pthread_mutex_unlock(&mutexPlanificacionReady);
+	}
 		pthread_mutex_unlock(&mutexPokemonesEnMapa);
 	}
 }
