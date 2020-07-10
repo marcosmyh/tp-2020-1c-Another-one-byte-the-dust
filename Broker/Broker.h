@@ -14,13 +14,15 @@
 #include <commons/string.h>
 #include <string.h>
 #include <pthread.h>
+#include <commons/temporal.h>
 
 typedef enum{
 	CORRELATIVE_ID = 1,
 	DOUBLE_ID,
 	BROKER_ID,
 	PARTITION_ID,
-	SIZE_PARTITION
+	SIZE_PARTITION,
+	OFFSET
 } t_FLAG;
 
 typedef struct
@@ -46,9 +48,10 @@ typedef struct
 	uint32_t offset;
 	uint32_t ID_mensaje;
 	char *colaDeMensaje;
+	char *ultimoAcceso;
 }t_particion;
 
-typedef void(*AlgoritmoMemoria)(t_mensaje *,char *,void(*)(),t_particion *(*)(uint32_t));
+typedef void(*AlgoritmoMemoria)(t_mensaje *,char *,void(*)(),t_particion *(*)(uint32_t),uint32_t);
 typedef t_particion *(*FuncionCorrespondencia)(uint32_t);
 typedef void(*AlgoritmoReemplazo)();
 
@@ -94,14 +97,12 @@ t_list *GET_POKEMON;
 t_list *suscriptores_GET_POKEMON;
 t_list *LOCALIZED_POKEMON;
 t_list *suscriptores_LOCALIZED_POKEMON;
-t_list *IDs_mensajes;
-t_list *IDs_procesos;
 pthread_t hiloAtencionCliente;
 pthread_mutex_t semaforoIDMensaje;
 pthread_mutex_t semaforoIDTeam;
 pthread_mutex_t semaforoIDGameCard;
 pthread_mutex_t semaforoMensajes;
-pthread_mutex_t semaforoSuscripcionProceso;
+pthread_mutex_t semaforoProcesamientoSolicitud[8];
 
 //Funciones
 t_log *crearLogger();
@@ -134,52 +135,60 @@ uint32_t *obtenerIDMensaje(t_mensaje *);
 t_mensaje *obtenerMensaje(uint32_t,t_list *,t_FLAG);
 t_mensaje *obtenerMensajeDeCola(uint32_t,t_list *,uint32_t *(*)(t_mensaje *));
 bool esPrimeraConexion(char *);
-bool esUnTeam(char *);
-bool esUnGameCard(char *);
-bool esUnGameBoy(char *);
 void iniciarMemoria();
 void destruirMensaje(t_mensaje *);
 void destruirIdentificador(char *);
 uint32_t obtenerPosicionMensaje(t_mensaje *,t_list *);
-void eliminarMensaje(uint32_t, t_list *,char *,t_FLAG);
+void eliminarMensaje(uint32_t, t_list *,char *);
 void compactarMemoria();
-t_particion *crearParticion(uint32_t,uint32_t,char *);
+t_particion *crearParticion(uint32_t);
 uint32_t espacioDisponible();
 void *descachearPaquete(t_mensaje *,char *);
 t_particion *obtenerParticion(uint32_t,t_FLAG);
 void ocuparEspacio(t_particion *);
 bool tienenIDCorrelativoLosMensajes(char *);
-void enviarMensajesCacheados(t_suscriptor *,t_list *);
+void enviarMensajesCacheados(t_suscriptor *,t_list *,char *,t_operacion,t_FLAG);
 bool existeAlgunACK(t_suscriptor *,t_list *);
 bool existeACK(t_suscriptor *,t_list *);
 uint32_t *obtenerIDParticion(t_particion *);
 uint32_t *obtenerIDMensajeParticion(t_particion *);
-bool hayParticionesLibres();
 bool existeParticionLibreConTamanio(uint32_t);
 void destruirParticion(t_particion *);
 void setearOffset(uint32_t,t_particion *);
 void inicializarSemaforos();
 void destruirSemaforos();
-void particionesDinamicas(t_mensaje *,char *,void (*)(),t_particion *(*)(uint32_t));
+void particionesDinamicas(t_mensaje *,char *,void (*)(),t_particion *(*)(uint32_t),uint32_t);
 void cachearMensaje(t_mensaje *,char *);
 void liberarRecursosAdministracionMemoria();
 bool tieneMenorOffset(void *,void *);
-bool hayParticiones();
 void consolidarParticion(t_particion *);
 uint32_t obtenerPosicionParticion(uint32_t);
 void modificarParticion(t_particion *,uint32_t,char *);
 bool estaLibre(t_particion *);
-void mostrarContenidoLista(t_list*);
-void mostrarNumero(int *);
-void mostrarLista(t_list *);
+void mostrarContenidoLista(t_list*,void(*)(void *));
+void imprimirNumero(void *);
+void imprimirString(void *contenidoAMostrar);
 uint32_t obtenerPosicionIDParticion(uint32_t);
-void introducirBloqueEnCache(void *,t_particion *);
-void buddySystem(t_mensaje *,char *,void (*)(),t_particion *(*)(uint32_t));
+void buddySystem(t_mensaje *,char *,void (*)(),t_particion *(*)(uint32_t),uint32_t);
 void construirFuncionCacheo();
 void liberarParticion(t_particion *);
 void FIFO();
 void LRU();
 t_particion *firstFit(uint32_t);
 t_particion *bestFit(uint32_t);
+uint32_t *obtenerOffsetParticion(t_particion *);
+bool tieneMenorID(void *,void *);
+char *obtenerIDSuscriptor(t_suscriptor *);
+bool existeSuscriptor(char *,t_list *);
+void agregarSuscriptor(t_suscriptor *,t_list *,char *);
+bool todosRecibieronElMensaje(t_mensaje *,t_list *);
+void destruirSuscriptor(t_suscriptor *);
+char *getHorario();
+void setearHorarioAcceso(t_particion *);
+bool seUsoMenosRecientemente(void *,void *);
+void ordenarParticionesLibres(bool(*)(void *,void*));
+void ordenarParticionesLibresSegun(t_FLAG);
+bool tieneMenorTamanio(void *,void *);
+void recorrerParticionesYLiberar(t_list *,char *);
 
 #endif
