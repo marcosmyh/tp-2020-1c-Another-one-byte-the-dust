@@ -659,7 +659,7 @@ int envioDeMensajeLocalized(char* pokemon,uint32_t idmensaje,uint32_t cantidadPa
 	void* paqueteGet = pack_Localized(idmensaje,pokemon,cantidadParesCoordenadas,arrayCoordenadas);
 
 	int socket = crear_conexion(ip_broker,puerto_broker);
-	uint32_t tamPaquete = strlen(pokemon)  + 2*sizeof(uint32_t);
+	uint32_t tamPaquete = strlen(pokemon) + 3*sizeof(uint32_t) + cantidadParesCoordenadas*2*sizeof(uint32_t);
 	int resultado = packAndSend(socket,paqueteGet,tamPaquete,t_LOCALIZED);
 	close(socket);
 	free(paqueteGet);

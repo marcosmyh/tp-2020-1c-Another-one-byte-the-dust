@@ -100,13 +100,13 @@ void* pack_Localized(uint32_t idCorrelativo, char* pokemon, uint32_t cantidadPar
 	desplazamiento += sizeof(uint32_t);
 	for(int i=0; i<(cantidadParesCoordenadas*2); i++){
 		packCoordenada_Localized(buffer, desplazamiento, arrayCoordenadas[i]);
+		desplazamiento+=sizeof(uint32_t);
 	}
 	return buffer;
 }
 
 void packCoordenada_Localized(void* buffer, uint32_t desplazamiento, uint32_t coordenada){
 	memcpy(buffer+desplazamiento, &coordenada, sizeof(uint32_t));
-	desplazamiento += sizeof(uint32_t);
 }
 
 void* pack_Get(uint32_t id, char* pokemon){

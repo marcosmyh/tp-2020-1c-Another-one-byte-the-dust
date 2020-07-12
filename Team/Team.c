@@ -363,7 +363,7 @@ void procedimientoMensajeLocalized(t_infoPaquete *infoLocalized){
 	if (!estaEnElMapa(pokemonLocalized)&& estaEnElObjetivo(pokemonLocalized) && !yaFueAtrapado(pokemonLocalized) && correspondeAUnIDDe(mensajesGET, IDCorrelativo)) {
 		uint32_t tamanioPokemon = strlen(pokemonLocalized);
 		uint32_t cantidadPokemones =unpackCantidadParesCoordenadas_Localized(paqueteLocalized,tamanioPokemon);
-		uint32_t desplazamiento = tamanioPokemon + 2*sizeof(uint32_t);
+		uint32_t desplazamiento = tamanioPokemon + 4*sizeof(uint32_t);
 		for (int i = 0; i < cantidadPokemones; i++) {
 			t_pokemon* pokemonAAtrapar = malloc(sizeof(t_pokemon));
 			pokemonAAtrapar->nombrePokemon = pokemonLocalized;
