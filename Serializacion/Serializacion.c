@@ -85,7 +85,6 @@ void* pack_New(uint32_t id, char* pokemon, uint32_t cantidad, uint32_t coordenad
 }
 
 void* pack_Localized(uint32_t idCorrelativo, char* pokemon, uint32_t cantidadParesCoordenadas, uint32_t arrayCoordenadas[]){
-	//REVISAR EL FUNCIONAMIENTO DEL LOCALIZED
 	uint32_t tamMensaje = sizeof(idCorrelativo) + strlen(pokemon) + sizeof(uint32_t) + sizeof(cantidadParesCoordenadas) + cantidadParesCoordenadas*2*sizeof(uint32_t);
 	uint32_t tamPokemon = strlen(pokemon);
 	void* buffer = malloc(tamMensaje);
