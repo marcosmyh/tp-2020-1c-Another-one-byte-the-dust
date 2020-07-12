@@ -22,8 +22,11 @@ typedef enum{
 	BROKER_ID,
 	PARTITION_ID,
 	SIZE_PARTITION,
-	OFFSET
+	OFFSET,
+	ACK,
+	REPLACEMENT_ALGORITHM
 } t_FLAG;
+
 
 typedef struct
 {
@@ -139,7 +142,7 @@ void iniciarMemoria();
 void destruirMensaje(t_mensaje *);
 void destruirIdentificador(char *);
 uint32_t obtenerPosicionMensaje(t_mensaje *,t_list *);
-void eliminarMensaje(uint32_t, t_list *,char *);
+void eliminarMensaje(uint32_t, t_list *,char *,t_FLAG);
 void compactarMemoria();
 t_particion *crearParticion(uint32_t);
 uint32_t espacioDisponible();
@@ -171,7 +174,9 @@ void imprimirString(void *contenidoAMostrar);
 uint32_t obtenerPosicionIDParticion(uint32_t);
 void buddySystem(t_mensaje *,char *,void (*)(),t_particion *(*)(uint32_t),uint32_t);
 void construirFuncionCacheo();
-void liberarParticion(t_particion *);
+void liberarParticionParticionesDinamicas(t_particion *);
+void liberarParticionBuddySystem(t_particion *);
+void liberarParticion(t_particion *,char *);
 void FIFO();
 void LRU();
 t_particion *firstFit(uint32_t);
@@ -190,5 +195,6 @@ void ordenarParticionesLibres(bool(*)(void *,void*));
 void ordenarParticionesLibresSegun(t_FLAG);
 bool tieneMenorTamanio(void *,void *);
 void recorrerParticionesYLiberar(t_list *,char *);
+t_list *obtenerColaMensaje(char *);
 
 #endif

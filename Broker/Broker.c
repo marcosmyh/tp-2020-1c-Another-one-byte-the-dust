@@ -105,7 +105,7 @@ void procesar_solicitud(Header header,int cliente_fd){
 
     	 list_add(mensaje->suscriptoresALosQueMandeMensaje,idAAgregar);
 
-    	 log_info(logger,"Le mande un mensaje a %s",idAAgregar);
+    	 log_info(logger,"Le mande un mensaje as %s",idAAgregar);
      }
 
      switch (codigo_operacion) {
@@ -468,10 +468,39 @@ void recorrerParticionesYLiberar(t_list *particionesOrdenadas,char *funcionCorre
 		if(!estaLibre(particion)){
 			log_error(logger,"%s: LA PARTICION CON ID %d SE ACABA DE LIBERAR",funcionCorrespondencia,particion->ID_Particion);
 
-			liberarParticion(particion);
+			eliminarMensaje(particion->ID_mensaje,obtenerColaMensaje(particion->colaDeMensaje),particion->colaDeMensaje,REPLACEMENT_ALGORITHM);
+			liberarParticion(particion,algoritmo_memoria);
+
 			return;
 		}
 	}
+}
+
+t_list *obtenerColaMensaje(char *nombreCola){
+
+	if(stringComparator(nombreCola,"NEW_POKEMON")){
+		return NEW_POKEMON;
+	}
+
+	if(stringComparator(nombreCola,"LOCALIZED_POKEMON")){
+		return LOCALIZED_POKEMON;
+	}
+
+	if(stringComparator(nombreCola,"CAUGHT_POKEMON")){
+		return CAUGHT_POKEMON;
+	}
+
+	if(stringComparator(nombreCola,"GET_POKEMON")){
+		return GET_POKEMON;
+	}
+
+	if(stringComparator(nombreCola,"CATCH_POKEMON")){
+		return CATCH_POKEMON;
+	}
+	else{
+		return APPEARED_POKEMON;
+	}
+
 }
 
 void FIFO(){
@@ -519,9 +548,9 @@ void mostrarContenidoLista(t_list* lista,void(*printer)(void *)){
 	list_iterate(lista,printer);
 }
 
-void liberarParticion(t_particion *particion){
 
-	//FALTA ELIMINAR t_mensaje
+//liberarParticionParticionesDinamicas(particion)
+void liberarParticionParticionesDinamicas(t_particion *particion){
 
 	uint32_t offset = particion->offset;
 
@@ -676,6 +705,20 @@ bool seUsoMenosRecientemente(void *particion1,void *particion2){
 	//Falta liberar los strings.
 
 	return valorHorario1 < valorHorario2;
+}
+
+
+void liberarParticion(t_particion *particion,char *nombreAlgoritmo){
+	if(stringComparator(nombreAlgoritmo,"BS")){
+		liberarParticionBuddySystem(particion);
+	}
+	else{
+		liberarParticionParticionesDinamicas(particion);
+	}
+}
+
+void liberarParticionBuddySystem(t_particion *particion){
+
 }
 
 //Se puede evitar repetir lógica...
@@ -950,13 +993,19 @@ uint32_t obtenerPosicionMensaje(t_mensaje *mensaje,t_list *colaDeMensajes){
 	return posicionMensaje;
 }
 
-void eliminarMensaje(uint32_t ID, t_list *colaDeMensajes,char *nombreCola){
+void eliminarMensaje(uint32_t ID, t_list *colaDeMensajes,char *nombreCola,t_FLAG flag){
 	t_mensaje *mensajeAEliminar = obtenerMensaje(ID,colaDeMensajes,BROKER_ID);
 	uint32_t posicionMensaje = obtenerPosicionMensaje(mensajeAEliminar,colaDeMensajes);
 	list_remove_and_destroy_element(colaDeMensajes,posicionMensaje,(void *) destruirMensaje);
-	t_particion *particionALiberar = obtenerParticion(ID,BROKER_ID);
-	liberarParticion(particionALiberar);
-	log_info(logger,"El mensaje con BROKER_ID [%d] se eliminó de la cola %s. Motivo: Todos los suscriptores recibieron el mensaje.",ID,nombreCola);
+
+	if(flag == ACK){
+		log_info(logger,"El mensaje con BROKER_ID [%d] se eliminó de la cola %s. Motivo: Todos los suscriptores recibieron el mensaje.",ID,nombreCola);
+	}
+
+	if(flag == REPLACEMENT_ALGORITHM){
+		log_info(logger,"El mensaje con BROKER_ID [%d] se eliminó de la cola %s. Motivo: Fue seleccionado para su reemplazo.",ID,nombreCola);
+	}
+
 }
 
 void destruirMensaje(t_mensaje *mensaje){
@@ -1281,7 +1330,8 @@ void validarRecepcionMensaje(uint32_t ID_mensaje,t_operacion nombreCola,char *ID
                     log_info(logger,"%s recibió satisfactoriamente el mensaje con ID %d de la cola NEW",ID_proceso,ID_mensaje);
 
                     if(todosRecibieronElMensaje(mensaje,suscriptores_NEW_POKEMON)){
-                    	//eliminarMensaje(ID_mensaje,NEW_POKEMON,"NEW_POKEMON");
+                    	//eliminarMensaje(ID_mensaje,NEW_POKEMON,"NEW_POKEMON",ACK);
+                    	//liberarParticion(obtenerParticion(ID_mensaje,BROKER_ID),algoritmo_memoria);
                     }
 
 	     			break;
@@ -1292,7 +1342,8 @@ void validarRecepcionMensaje(uint32_t ID_mensaje,t_operacion nombreCola,char *ID
                     log_info(logger,"%s recibió satisfactoriamente el mensaje con ID %d de la cola LOCALIZED",ID_proceso,ID_mensaje);
 
                     if(todosRecibieronElMensaje(mensaje,suscriptores_LOCALIZED_POKEMON)){
-                    	//eliminarMensaje(ID_mensaje,LOCALIZED_POKEMON,"LOCALIZED_POKEMON");
+                    	//eliminarMensaje(ID_mensaje,LOCALIZED_POKEMON,"LOCALIZED_POKEMON",ACK);
+                    	//liberarParticion(obtenerParticion(ID_mensaje,BROKER_ID),algoritmo_memoria);
                     }
 
 	     			break;
@@ -1303,7 +1354,8 @@ void validarRecepcionMensaje(uint32_t ID_mensaje,t_operacion nombreCola,char *ID
                     log_info(logger,"%s recibió satisfactoriamente el mensaje con ID %d de la cola GET",ID_proceso,ID_mensaje);
 
                     if(todosRecibieronElMensaje(mensaje,suscriptores_GET_POKEMON)){
-                    	//eliminarMensaje(ID_mensaje,GET_POKEMON,"GET_POKEMON");
+                    	//eliminarMensaje(ID_mensaje,GET_POKEMON,"GET_POKEMON",ACK);
+                    	//liberarParticion(obtenerParticion(ID_mensaje,BROKER_ID),algoritmo_memoria);
                     }
 
 	     			break;
@@ -1314,7 +1366,8 @@ void validarRecepcionMensaje(uint32_t ID_mensaje,t_operacion nombreCola,char *ID
                     log_info(logger,"%s recibió satisfactoriamente el mensaje con ID %d de la cola APPEARED",ID_proceso,ID_mensaje);
 
                     if(todosRecibieronElMensaje(mensaje,suscriptores_APPEARED_POKEMON)){
-                    	//eliminarMensaje(ID_mensaje,APPEARED_POKEMON,"APPEARED_POKEMON");
+                    	//eliminarMensaje(ID_mensaje,APPEARED_POKEMON,"APPEARED_POKEMON",ACK);
+                    	//liberarParticion(obtenerParticion(ID_mensaje,BROKER_ID),algoritmo_memoria);
                     }
 
 	     			break;
@@ -1325,7 +1378,8 @@ void validarRecepcionMensaje(uint32_t ID_mensaje,t_operacion nombreCola,char *ID
                     log_info(logger,"%s recibió satisfactoriamente el mensaje con ID %d de CATCH",ID_proceso,ID_mensaje);
 
                     if(todosRecibieronElMensaje(mensaje,suscriptores_CATCH_POKEMON)){
-                    	//eliminarMensaje(ID_mensaje,CATCH_POKEMON,"CATCH_POKEMON");
+                    	//eliminarMensaje(ID_mensaje,CATCH_POKEMON,"CATCH_POKEMON",ACK);
+                    	//liberarParticion(obtenerParticion(ID_mensaje,BROKER_ID),algoritmo_memoria);
                     }
 
 	     			break;
@@ -1336,7 +1390,8 @@ void validarRecepcionMensaje(uint32_t ID_mensaje,t_operacion nombreCola,char *ID
                     log_info(logger,"%s recibió satisfactoriamente el mensaje con ID %d de CAUGHT",ID_proceso,ID_mensaje);
 
                     if(todosRecibieronElMensaje(mensaje,suscriptores_CAUGHT_POKEMON)){
-                    	//eliminarMensaje(ID_mensaje,CAUGHT_POKEMON,"CAUGHT_POKEMON");
+                    	//eliminarMensaje(ID_mensaje,CAUGHT_POKEMON,"CAUGHT_POKEMON",ACK);
+                    	//liberarParticion(obtenerParticion(ID_mensaje,BROKER_ID),algoritmo_memoria);
                     }
 
 	     			break;
