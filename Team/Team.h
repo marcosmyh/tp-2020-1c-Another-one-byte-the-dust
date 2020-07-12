@@ -93,6 +93,9 @@ sem_t conexionRecuperadaDeAppeared;
 sem_t conexionRecuperadaDeCaught;
 sem_t conexionRecuperadaDeLocalized;
 
+sem_t semaforoPlanificacionReady;
+sem_t semaforoPlanificacionExec;
+
 pthread_mutex_t mutexPokemonesEnMapa;
 pthread_mutex_t mutexPlanificacionReady;
 pthread_mutex_t mutexPlanificacionEntrenadores;
@@ -142,6 +145,8 @@ int socket_localized;
 
 
 //FUNCIONES
+bool hayPokemones = false;
+bool hayEntrenadores = false;
 int tamArray (char** puntero);
 bool charContains(char *cadena,char caracter);
 void crearLogger();
