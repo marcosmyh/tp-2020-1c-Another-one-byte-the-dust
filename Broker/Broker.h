@@ -15,6 +15,8 @@
 #include <string.h>
 #include <pthread.h>
 #include <commons/temporal.h>
+#include <math.h>
+#include <signal.h>
 
 typedef enum{
 	CORRELATIVE_ID = 1,
@@ -66,12 +68,24 @@ typedef struct
 
 }singletonMemoria;
 
+typedef struct nodo{
+	uint32_t id;
+	uint32_t offset;
+	uint32_t tamanioQueOcupa;
+	bool ocupado;
+	struct nodo *hijoIzquierdo;
+	struct nodo *hijoDerecho;
+	struct nodo *padre;
+}t_nodo;         					// <_---------------------- NUEVO
+
+
 //Variables
 uint32_t offsetCache = 0;
 uint32_t contadorIDMensaje;
 uint32_t contadorIDTeam;
 uint32_t contadorIDGameCard;
 uint32_t contadorParticiones = 0;
+t_nodo* nodoRaiz; // <--------------------NUEVO
 
 singletonMemoria *funcionCacheo;
 t_log *logger;
@@ -196,5 +210,6 @@ void ordenarParticionesLibresSegun(t_FLAG);
 bool tieneMenorTamanio(void *,void *);
 void recorrerParticionesYLiberar(t_list *,char *);
 t_list *obtenerColaMensaje(char *);
+void dumpDeCache(int);
 
 #endif

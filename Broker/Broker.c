@@ -1,6 +1,9 @@
 #include "Broker.h"
 
 int main(void) {
+
+	signal(SIGUSR1,&dumpDeCache);
+
     config = crearConfig();
     logger = crearLogger();
     setearValoresConfig();
@@ -677,9 +680,419 @@ bool existeParticionLibreParaCachearMensaje(uint32_t tamPaquete){
 	return resultado;
 }
 
+//////////////////////////////////////////////////////////////////////////////////////////////7
+//////////////////////	Zona de trabajo del Gaby	   ///////////////////////////////////////7
+//////////////////////////////////////////////////////////////////////////////////////////////7
+//////////////////////////ZONA EN MANTENIMIENTO  /////////////////////////////////////////////7
+//////////////////////////HALF LIFE 3 ES REAL    /////////////////////////////////////////////7
+//////////////////////////////////////////////////////////////////////////////////////////////7
+
+void mostrarEstadoDeMemoria(){
+	int i;
+	time_t horaDelSistema = time(NULL);
+	struct tm *tiempo;
+	tiempo = localtime(&horaDelSistema);
+	int tamanio = 0;
+	printf("\033[1;36m");
+	printf("---------------------------------------------------\n");
+	printf("Dump: %d/%d/%d %d:%d:%d\n",tiempo->tm_mday,tiempo->tm_mon+1,tiempo->tm_year+1900,tiempo->tm_hour,tiempo->tm_min,tiempo->tm_sec);
+
+
+	list_sort(particiones,tieneMenorOffset);
+	for(i = 0 ;  i < list_size(particiones); i++){
+		t_particion *particion = calloc(1,sizeof(t_particion*));
+		particion = list_get(particiones,i);
+		if(estaLibre(particion)){
+			printf("Partición %d: 0x%08X-0x%08X [L] Size:%dB\n",(i+1),tamanio,tamanio + particion->tamanioParticion - 1,particion->tamanioParticion);
+		}else{
+			printf("Partición %d: 0x%08X-0x%08X [X] Size:%dB LRU:%s Cola:%s ID:%d\n",(i+1),tamanio,tamanio + particion->tamanioParticion - 1,particion->tamanioParticion,particion->ultimoAcceso,particion->colaDeMensaje,particion->ID_mensaje);
+		}
+		tamanio += particion->tamanioParticion;
+	}
+	printf("---------------------------------------------------\n");
+	printf("\033[0m");
+}
+
+void dumpDeCache(int signal){
+
+	pthread_mutex_lock(&semaforoMensajes);
+	mostrarEstadoDeMemoria();
+	pthread_mutex_unlock(&semaforoMensajes);
+}
+
+t_nodo* crearNodo(t_particion *particion){
+
+  t_nodo* nodo = malloc(sizeof(t_nodo));
+  nodo->id = particion->ID_Particion;
+  nodo->tamanioQueOcupa = particion->tamanioParticion;
+  nodo->offset = particion->offset;
+  nodo->ocupado = 0;
+  nodo->padre = NULL;
+  nodo->hijoDerecho = NULL;
+  nodo->hijoIzquierdo = NULL;
+  return nodo;
+}
+
+void limpiarNodo(t_nodo* unNodo){
+	free(unNodo);
+}
+
+void crearNodoPadre(){
+	t_particion *particion = obtenerParticion(1,PARTITION_ID);
+	nodoRaiz = crearNodo(particion);
+}
+
+void asignarPadre(t_nodo* padre, t_nodo* hijo){
+	hijo->padre = padre;
+}
+
+void asignarHijos(t_nodo* padre, t_nodo* hijoIzquierdo,t_nodo* hijoDerecho){
+	padre->ocupado = 1;
+	padre->hijoIzquierdo = hijoIzquierdo;
+	padre->hijoDerecho = hijoDerecho;
+}
+
+void escribirPosicionandoOffset(void *paquete,uint32_t tamanioAEscribir,int offset){
+
+	FILE *arch = fopen("/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/Broker/Cache","rw+");
+
+	fseek(arch,offset,SEEK_CUR);
+
+	log_error(logger,"Posición de inicio de la partición: %d",offset);
+
+	fwrite(paquete,tamanioAEscribir,1,arch);
+
+	fclose(arch);
+}
+
+int obtenerExponente(int unTamanio){
+
+	double i = 0;
+	   while(1){
+
+		   int exponente = pow(2,i);
+
+		   if(exponente == unTamanio) return i;
+		   i++;
+	   }
+
+}
+
+int obtenerTamanioMinimoBuddy(int unTamanio){
+
+	int tamanioMinimo = 0;
+	int exponente = 0;
+
+	while(tamanioMinimo < unTamanio){
+		tamanioMinimo = pow(2,exponente);
+		exponente++;
+	}
+
+	if(tamanioMinimo < tamanio_minimo_particion) tamanioMinimo = tamanio_minimo_particion;
+	return tamanioMinimo;
+}
+
+bool existeParticionLibreDelMismoTamanioQue(uint32_t tamPaquete){
+	t_particion *particion;
+	bool resultado = false;
+	for(int i = 0; i < list_size(particionesLibres);i++){
+		uint32_t *IDParticion = list_get(particionesLibres,i);
+		particion = obtenerParticion(*IDParticion,PARTITION_ID);
+		uint32_t tamanioParticion = particion->tamanioParticion;
+		if(tamanioParticion == tamPaquete){
+			resultado = true;
+			break;
+		}
+	}
+	return resultado;
+}
+
+int crearHijos(t_nodo* nodoPadre){
+
+	if(nodoPadre->tamanioQueOcupa == tamanio_minimo_particion) return -1;
+
+	uint32_t posicionPadre = obtenerPosicionParticion(nodoPadre->id);
+	t_particion *particionPadre = obtenerParticion(nodoPadre->id,PARTITION_ID);
+
+	uint32_t tamanioDeHijo = particionPadre->tamanioParticion/2;
+	printf("Tamanio de mis hijos %d \n",tamanioDeHijo);
+
+	t_particion *particionPrimerHijo = crearParticion(tamanioDeHijo);
+	t_particion *particionSegundoHijo = crearParticion(tamanioDeHijo);
+
+	//Mutex
+	list_add(particiones,particionPrimerHijo);
+	list_add(particiones,particionSegundoHijo);
+	list_add(particionesLibres,&particionPrimerHijo->ID_Particion);
+	list_add(particionesLibres,&particionSegundoHijo->ID_Particion);
+	t_nodo* primerHijo = crearNodo(particionPrimerHijo);
+	t_nodo* segundoHijo = crearNodo(particionSegundoHijo);
+
+	primerHijo->offset = particionPadre->offset;
+	segundoHijo->offset = particionPadre->offset + tamanioDeHijo;
+
+	setearOffset(particionPadre->offset,particionPrimerHijo);
+	setearOffset(particionPadre->offset + tamanioDeHijo,particionSegundoHijo);
+
+	asignarHijos(nodoPadre,primerHijo,segundoHijo);
+
+	asignarPadre(nodoPadre,primerHijo);
+	asignarPadre(nodoPadre,segundoHijo);
+
+	list_remove(particionesLibres,obtenerPosicionIDParticion(particionPadre->ID_Particion));
+	list_remove(particiones,posicionPadre);
+
+	//destruirParticion(particionPadre);
+
+	return 0;
+	//Mutex
+}
+
+t_nodo* buscarNodo(t_nodo* nodoPadre,t_particion *particion){
+
+	//log_info(logger,"La particion id es: %d y su tamaño es: %d",particion->ID_Particion,particion->tamanioParticion);
+	//log_info(logger,"El nodo en proceso es: %d y su tamaño es: %d",nodoPadre->id,nodoPadre->tamanioQueOcupa);
+	if(nodoPadre->id == particion->ID_Particion){
+		return nodoPadre;
+	}
+
+	if(nodoPadre->hijoIzquierdo != NULL && nodoPadre->hijoIzquierdo->id == particion->ID_Particion){
+		//printf("Es el nodo izuiqerdo\n");
+		return nodoPadre->hijoIzquierdo;
+	}
+
+	if(nodoPadre->hijoDerecho != NULL && nodoPadre->hijoDerecho->id == particion->ID_Particion){
+		//printf("Es el nodo derecho\n");
+		return nodoPadre->hijoDerecho;
+	}
+
+	//printf("El offset del padre es: %d y el tamaño %d\n",nodoPadre->offset,nodoPadre->tamanioQueOcupa);
+
+	if(particion->offset < (nodoPadre->offset + nodoPadre->tamanioQueOcupa/2) ){
+		//printf("Reintento pero ahora con el nodo izquierdo \n");
+		return buscarNodo(nodoPadre->hijoIzquierdo,particion);
+	}else{
+		//printf("Reintento pero ahora con el nodo derecho\n");
+		return buscarNodo(nodoPadre->hijoDerecho,particion);
+	}
+}
+
+void ocuparNodo(t_nodo *unNodo,t_particion* unaParticion){
+	unNodo->id = unaParticion->ID_Particion;
+	unNodo->ocupado = 1;
+}
+
+void liberarNodo(t_nodo* unNodo){
+	unNodo->ocupado = 0;
+}
+
+bool hermanoLibre(t_nodo* unNodo){
+
+	t_nodo* nodoPadre = unNodo->padre;
+	t_nodo* nodoHermano;
+
+	if(nodoPadre == NULL) return 0;
+
+	if(nodoPadre->hijoDerecho == unNodo){
+		nodoHermano = nodoPadre->hijoIzquierdo;
+		return !(nodoHermano->ocupado);
+	}
+
+	nodoHermano = nodoPadre->hijoDerecho;
+	return !(nodoHermano->ocupado);
+}
+
+void matarNodo(t_nodo* unNodo){
+	free(unNodo);
+}
+
+void reunirHermanos(t_nodo* nodoPadre){
+	// Matar hijos.
+	log_info(logger,"Se reunen los buddys");
+
+	// FREE?
+	matarNodo(nodoPadre->hijoDerecho);
+	matarNodo(nodoPadre->hijoIzquierdo);
+
+	nodoPadre->hijoDerecho = NULL;
+	nodoPadre->hijoIzquierdo = NULL;
+
+	t_particion *particionPadre = crearParticion(nodoPadre->tamanioQueOcupa);
+
+	setearOffset(nodoPadre->offset,particionPadre);
+	ocuparNodo(nodoPadre,particionPadre);
+	liberarNodo(nodoPadre);
+	//nodoPadre->ocupado = 0;
+
+	list_add(particiones,particionPadre);
+	list_add(particionesLibres,particionPadre);
+	log_info(logger,"buddys reunidos su nuevo id es: %d, su tamaño es :%d y su off: %d",nodoPadre->id,nodoPadre->tamanioQueOcupa,nodoPadre->offset);
+}
+
+t_nodo *obtenerHermano(t_nodo *unNodo){
+	t_nodo* nodoPadre = unNodo->padre;
+	t_nodo* nodoHermano;
+
+	if(nodoPadre->hijoDerecho == unNodo){
+		nodoHermano = nodoPadre->hijoIzquierdo;
+
+		return nodoHermano;
+	}
+
+	nodoHermano = nodoPadre->hijoDerecho;
+	return nodoHermano;
+}
+
+void consolidarBuddy(t_nodo *unNodo){
+	//log_info(logger,"Se procede a ver si el nodo con id %d se va a consolidar con su buddy",unNodo->id);
+
+	if(!hermanoLibre(unNodo)){
+		log_info(logger,"Su buddy no se encuentra libre");
+		return;
+	}
+	t_nodo *hermano = obtenerHermano(unNodo);
+
+
+	log_info(logger,"Su buddy está libre y su id es %d, se procede a consolidar",hermano->id);
+	uint32_t posicionParticionNodo = obtenerPosicionIDParticion(unNodo->id);
+	uint32_t posicionParticionHermano = obtenerPosicionIDParticion(hermano->id);
+
+	list_remove(particionesLibres,posicionParticionNodo);
+	list_remove(particionesLibres,posicionParticionHermano);
+
+	uint32_t posParticionNodo = obtenerPosicionParticion(unNodo->id);
+
+	list_remove(particiones,posParticionNodo);
+
+	uint32_t posParticionHermano = obtenerPosicionParticion(hermano->id);
+
+	list_remove(particiones,posParticionHermano);
+	log_info(logger,"Se quitaron de las particiones de particiones");
+	t_nodo *nodoPadre = unNodo->padre;
+
+	//log_info(logger,"El contenido del padre es id: %d tam: %d off: %d",nodoPadre->id,nodoPadre->tamanioQueOcupa,nodoPadre->offset);
+
+	reunirHermanos(nodoPadre);
+
+	//LIBERAR MEMORIA DE PARTICION DENTRO DE REUNIR HERMANOS
+
+	//for(int i = 0; i < list_size(particionesLibres);i++){
+	//	uint32_t *ID = list_get(particionesLibres,i);
+	//	t_particion *particion = obtenerParticion(*ID,PARTITION_ID);
+	//	printf("TAMANIO DE LA PARTICION %d: %d \n",particion->ID_Particion,particion->tamanioParticion);
+	//}
+
+	return consolidarBuddy(nodoPadre);
+}
+
+uint32_t dividirYObtenerIDParticionExacta(t_nodo *unNodo, uint32_t tamanioSolicitado){
+
+
+	if(unNodo->tamanioQueOcupa == tamanioSolicitado) return unNodo->id;
+
+	if(crearHijos(unNodo) == -1) return -1;
+
+	return dividirYObtenerIDParticionExacta(unNodo->hijoIzquierdo,tamanioSolicitado);
+}
+
+
 void buddySystem(t_mensaje *mensaje,char *nombreCola,void (*algoritmoReemplazo)(),t_particion *(*funcionCorrespondencia)(uint32_t),uint32_t frecuenciaLocal){
 	//TODO
+	void *paqueteACachear = mensaje->paquete;
+
+	uint32_t tamPaquete = mensaje->tamanioPaquete;
+
+	uint32_t IDMensaje = mensaje->ID_mensaje;
+
+	uint32_t tamPaqueteAuxiliar = obtenerTamanioMinimoBuddy(tamPaquete);
+
+	if(tamPaqueteAuxiliar > tamanio_memoria){
+		log_error(logger,"El tamaño excede al tamaño de la memoria");
+	}
+
+	if(!existeParticionLibreParaCachearMensaje(tamPaqueteAuxiliar)){
+
+		log_error(logger,"No hay espacio");
+		//   llamar a FIFO/LRU
+		algoritmoReemplazo();
+
+		buddySystem(mensaje,nombreCola,algoritmoReemplazo,funcionCorrespondencia,frecuenciaLocal);
+
+
+	}else{
+		t_particion *particionLibre = funcionCorrespondencia(tamPaqueteAuxiliar);
+
+		uint32_t posicionParticionLibre = obtenerPosicionIDParticion(particionLibre->ID_Particion);
+
+		//modificarParticion(particionLibre,IDMensaje,nombreCola);
+
+		uint32_t offsetParticionLibre = particionLibre->offset;
+
+		uint32_t tamanioRestante = particionLibre->tamanioParticion - tamPaqueteAuxiliar;
+
+		if(tamanioRestante == 0){
+
+			log_error(logger,"La particion tiene el tamaño exacto");
+
+			modificarParticion(particionLibre,IDMensaje,nombreCola);
+
+			escribirPosicionandoOffset(paqueteACachear,tamPaqueteAuxiliar,offsetParticionLibre);
+
+			setearHorarioAcceso(particionLibre);
+
+			// Hasta aca
+
+			list_remove(particionesLibres,posicionParticionLibre);
+
+			t_nodo* nodoParticion = buscarNodo(nodoRaiz,particionLibre);
+
+			ocuparNodo(nodoParticion,particionLibre);
+
+			//log_error(logger,"El nodo editado es el de id %d y tamaño %d",nodoParticion->id,nodoParticion->tamanioQueOcupa);
+			//Escribir en esa particion y marcarla como ocupada
+
+		}else{
+			log_error(logger,"No hay particion con tamaño exacto");
+
+			t_nodo* nodoParticion = buscarNodo(nodoRaiz,particionLibre);
+
+			uint32_t idParticionLibre = dividirYObtenerIDParticionExacta(nodoParticion,tamPaqueteAuxiliar);
+
+			//log_error(logger,"El id es: %d",idParticionLibre);
+
+			if(idParticionLibre == -1) return;
+
+			t_particion *particionNuevaAEscribir = obtenerParticion(idParticionLibre,PARTITION_ID);
+
+			modificarParticion(particionNuevaAEscribir,IDMensaje,nombreCola);
+
+			// usar funcion escribirPosicionandoOffset(paqueteACachear,particionLibre,offsetParticionLibre);
+			//todo
+
+			escribirPosicionandoOffset(paqueteACachear,tamPaqueteAuxiliar,offsetParticionLibre);
+
+			setearHorarioAcceso(particionNuevaAEscribir);
+
+			//Hasta aca
+
+			list_remove(particionesLibres,obtenerPosicionIDParticion(idParticionLibre));
+
+			t_nodo* nodoParticionNueva = buscarNodo(nodoRaiz,particionNuevaAEscribir);
+
+			ocuparNodo(nodoParticionNueva,particionNuevaAEscribir);
+
+			//log_error(logger,"El nodo editado es el de id %d y tamaño %d",nodoParticionNueva->id,nodoParticionNueva->tamanioQueOcupa);
+		}
+
+	}
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////////7
+//////////////////////	Zona de trabajo del Gaby	   ///////////////////////////////////////7
+//////////////////////////////////////////////////////////////////////////////////////////////7
+//////////////////////////ZONA EN MANTENIMIENTO  /////////////////////////////////////////////7
+//////////////////////////HALF LIFE 3 ES REAL    /////////////////////////////////////////////7
+//////////////////////////////////////////////////////////////////////////////////////////////7
 
 
 void setearHorarioAcceso(t_particion *particion){
@@ -719,6 +1132,28 @@ void liberarParticion(t_particion *particion,char *nombreAlgoritmo){
 
 void liberarParticionBuddySystem(t_particion *particion){
 
+
+	uint32_t offset = particion->offset;
+
+	uint32_t tamanioParticion = particion->tamanioParticion;
+
+	list_add(particionesLibres,&(particion->ID_Particion));
+
+	//log_error(logger,"EL ID DEL MENSAJE QUE GUARDA LA PARTICION: %d",particion->ID_mensaje);
+
+	void *paqueteVacio = calloc(1,tamanioParticion);
+
+	escribirPosicionandoOffset(paqueteVacio,tamanioParticion,offset);
+
+    list_sort(particiones,tieneMenorOffset);
+
+    t_nodo *nodoALiberar = buscarNodo(nodoRaiz,particion);
+
+    liberarNodo(nodoALiberar); // hermanoLibre(nodoALiberar);
+
+    consolidarBuddy(nodoALiberar);
+
+    list_sort(particiones,tieneMenorOffset);
 }
 
 //Se puede evitar repetir lógica...
@@ -827,6 +1262,8 @@ void construirFuncionCacheo(){
 		funcionCacheo->algoritmoMemoria = particionesDinamicas;
 	}else{
 		funcionCacheo->algoritmoMemoria = buddySystem;
+		log_info(logger,"Se inicio Buddy system");
+		crearNodoPadre();
 	}
 
 	if(stringComparator("FF",algoritmo_particion_libre)){
