@@ -23,7 +23,7 @@ int main(){
 	pthread_mutex_init(&mutexPokemonesEnMapa,NULL);
 	pthread_mutex_init(&mutexPlanificacionReady,NULL);
 	pthread_mutex_init(&mutexPlanificacionEntrenadores,NULL);
-	pthread_mutex_init(&mutexEjecucionEntrenadores,NULL);
+	pthread_mutex_init(&mutexEntrenadoresReady,NULL);
 
     pthread_t hiloMensajes;
     pthread_t hiloPlanificacionReady;
@@ -340,9 +340,13 @@ void procedimientoMensajeAppeared(t_infoPaquete *infoAppeared){
     	        destruirInfoPaquete(infoAppeared);
     			log_info(logger,"El mensaje de appeared del pokemon %s ya fue recibido o no necesita atraparse, queda descartado",pokemonAppeared);
     }
-    pthread_mutex_unlock(&mutexPokemonesEnMapa);
 
     hayPokemones = true;
+
+    pthread_mutex_unlock(&mutexPokemonesEnMapa);
+    pthread_mutex_unlock(&mutexEntrenadoresReady);
+
+    //hayPokemones = true;
 
 }
 
@@ -685,6 +689,7 @@ void inicializarEntrenadores(){
 				while(pokemones[j]!= NULL){
 					log_info(logger, "%s", pokemones[j]);
 					list_add(entrenadorNuevo->pokemones, pokemones[j]);
+					list_add(pokemonesAtrapados,pokemones[j]);
 					j++;
 				}
 			}
@@ -709,6 +714,7 @@ void inicializarEntrenadores(){
 
 	log_info(logger, "Se han cargado todos los entrenadores");
 	log_info(logger, "Se ha definido el objetivo global del team");
+	log_error(logger,"TAM OBJETIVOS: %d",list_size(objetivoTeam));
 }
 
 int tamArray (char** puntero){
@@ -837,9 +843,14 @@ char* obtenerPokemon(t_pokemon* unPokemon){
 }
 
 void planificarEntrenadores(){
+
+	//ESte hilo debería saber quien ejecuta primero
+
 	//PARA RR, FIFO Y SJF-SD NO CONSIDERO QUE HAGA FALTA SEMAFOROS, SOLO PARA SJF-CD
 	while(1){
 		if (hayEntrenadores){
+
+			//log_info(logger,"HAY ENTRENADORES: %d",hayEntrenadores);
 
 			sem_wait(&semaforoPlanificacionExec);
 
@@ -848,6 +859,9 @@ void planificarEntrenadores(){
 				sem_post(&semaforoPlanificacionExec);
 			}
 			else{
+				log_error(logger,"ANTES DE PLANIFICAR EL ENTRENADOR");
+				log_error(logger,"TAM READY: %d",list_size(colaReady));
+				log_error(logger,"TAM EXEC: %d",list_size(colaExec));
 				//CORRE LA PLANIFICACION PERO CON T_INTERCAMBIAR
 				if(planificacionCompleta){
 					if(strcmp(algoritmo_planificacion,"FIFO")==0){
@@ -933,16 +947,18 @@ void ejecutarEntrenador(t_entrenador* entrenadorAEjecutar){
 
 //ACA EMPIEZAN LAS FUNCIONES NUEVAS
 
+//intercambiarPokemonCon(t_entrenador *entrenador
+
 void intercambiarPokemon(t_entrenador* entrenadorAEjecutar){
 	entrenadorAEjecutar->ocupado = true;
-	t_pokemon* pokemonQueNecesito = list_get(entrenadorAEjecutar->pokemonesQueFaltan,0);
+	char *pokemonQueNecesito = list_get(entrenadorAEjecutar->pokemonesQueFaltan,0);
 
 	t_entrenador* entrenadorAIntercambiar;
-	t_pokemon* pokemonQueElOtroNoNecesita;
-	t_pokemon* pokemonQueYoNoNecesito;
+	char *pokemonQueElOtroNoNecesita;
+	char *pokemonQueYoNoNecesito;
 
 	if (entrenadorAEjecutar->entrenadorAIntercambiar == NULL){
-		entrenadorAIntercambiar = informarDeadlocks(entrenadorAEjecutar, pokemonQueNecesito);
+		entrenadorAIntercambiar = obtenerEntrenadorQueTieneMiPokemon(entrenadorAEjecutar, pokemonQueNecesito);
 		pokemonQueElOtroNoNecesita = pokemonQueNoNecesito(entrenadorAIntercambiar);
 		pokemonQueYoNoNecesito = pokemonQueNoNecesito(entrenadorAEjecutar);
 	}
@@ -998,9 +1014,24 @@ void intercambiarPokemon(t_entrenador* entrenadorAEjecutar){
 
 }
 
-void realizarIntercambio(t_entrenador* entrenadorAEjecutar, t_entrenador* entrenadorAIntercambiar, t_pokemon* pokemonQueElOtroNoNecesita,  t_pokemon* pokemonQueYoNoNecesito){
+t_pokemon *crearPokemon(char *nombrePokemon,uint32_t coordX,uint32_t coordY){
+	t_pokemon *pokemon = malloc(sizeof(t_pokemon));
+	pokemon->nombrePokemon = nombrePokemon;
+	pokemon->coordenadaX = coordX;
+	pokemon->coordenadaY = coordY;
+	pokemon->distanciaAEntrenador = -1;
+
+	return pokemon;
+}
+
+
+void realizarIntercambio(t_entrenador* entrenadorAEjecutar, t_entrenador* entrenadorAIntercambiar, char* pokemonQueElOtroNoNecesita, char* pokemonQueYoNoNecesito){
 	log_info(loggerObligatorio, "Se comenzará el intercambio entre el entrenador %d  y el entrenador %d", entrenadorAEjecutar->idEntrenador, entrenadorAIntercambiar->idEntrenador);
-	atraparPokemon(entrenadorAEjecutar, pokemonQueElOtroNoNecesita); //ATRAPO UN POKEMON QUE EL OTRO NO NECESITA
+
+	t_pokemon *pokemonQueRecibo = crearPokemon(pokemonQueElOtroNoNecesita,entrenadorAIntercambiar->coordenadaX,entrenadorAIntercambiar->coordenadaY);
+
+	atraparPokemon(entrenadorAEjecutar,pokemonQueRecibo); //ATRAPO UN POKEMON QUE EL OTRO NO NECESITA
+
 	while(1){
 		if(llegoRespuesta){
 			//CUANDO LLEGA LA RESPUESTA HABILITO LA EJECUCION
@@ -1016,7 +1047,11 @@ void realizarIntercambio(t_entrenador* entrenadorAEjecutar, t_entrenador* entren
 	}
 	int index2 = list_get_index(entrenadorAEjecutar->pokemones, pokemonQueYoNoNecesito, (void*)comparadorNombrePokemones);
 	list_remove(entrenadorAEjecutar->pokemones, index2);
-	atraparPokemon(entrenadorAIntercambiar, pokemonQueYoNoNecesito); //EL OTRO ATRAPA UN POKEMON QUE YO NO NECESITO
+
+	t_pokemon *pokemonQueCedo = crearPokemon(pokemonQueYoNoNecesito,entrenadorAEjecutar->coordenadaX,entrenadorAEjecutar->coordenadaY);
+
+	atraparPokemon(entrenadorAIntercambiar,pokemonQueCedo); //EL OTRO ATRAPA UN POKEMON QUE YO NO NECESITO
+
 	while(1){
 		if(llegoRespuesta){
 			//CUANDO LLEGA LA RESPUESTA HABILITO LA EJECUCION
@@ -1041,13 +1076,12 @@ bool comparadorNombrePokemones(t_pokemon* unPokemon, t_pokemon* otroPokemon){
 	}
 }
 
-t_pokemon* pokemonQueNoNecesito(t_entrenador* unEntrenador){
-	t_pokemon* pokemonQueNoNecesito;
+char *pokemonQueNoNecesito(t_entrenador* unEntrenador){
+	char *pokemonQueNoNecesito;
 	int cantPokemons = list_size(unEntrenador->pokemones);
 	for(int i=0; i<cantPokemons; i++){
-		t_pokemon* unPokemon = list_get(unEntrenador->pokemones,i);
-		char* nombrePokemon = unPokemon->nombrePokemon;
-		if(estaEnObjetivo(nombrePokemon, unEntrenador)){
+		char *unPokemon = list_get(unEntrenador->pokemones,i);
+		if(estaEnObjetivo(unPokemon, unEntrenador)){
 			pokemonQueNoNecesito = unPokemon;
 			break;
 		}
@@ -1059,9 +1093,8 @@ bool estaEnObjetivo(char* unPokemon, t_entrenador* unEntrenador){
 	int cantPokemons = list_size(unEntrenador->pokemones);
 	int i = 0;
 	for(i = 0; i<cantPokemons; i++){
-		t_pokemon* pokemon = list_get(unEntrenador->objetivo,i);
-		char* nombrePokemon = obtenerPokemon(pokemon);
-		if (strcmp(unPokemon,nombrePokemon) == 0){
+		char *pokemon = list_get(unEntrenador->objetivo,i);
+		if (strcmp(unPokemon,pokemon) == 0){
 			return true;
 		}
 	}
@@ -1173,6 +1206,7 @@ void capturarPokemon(t_entrenador* entrenadorAEjecutar){
 	}
 }
 
+
 void atraparPokemon(t_entrenador* entrenadorAEjecutar, t_pokemon* pokemonAAtrapar){
 	entrenadorAEjecutar->pokemonAAtrapar = pokemonAAtrapar;
 	if(conexionAppeared){
@@ -1198,26 +1232,38 @@ t_pokemon* pokemonMasCercanoA(t_entrenador* unEntrenador){
 	for(int i = 0; i < cantPokemonesEnMapa; i++){
 		t_pokemon* unPokemon = list_get(pokemonesEnMapa, i);
 		int distanciaAPokemon = (abs(unEntrenador->coordenadaX - unPokemon->coordenadaX) + abs(unEntrenador->coordenadaY - unPokemon->coordenadaY));
+		log_error(logger,"DISTANCIA DEL ENTRENADOR %d AL POKEMON %s ES %d",unEntrenador->idEntrenador,unPokemon->nombrePokemon,distanciaAPokemon);
 		//CALCULO LA DISTANCIA AL ENTRENADOR Y LA GUARDO EN UNA VARIABLE DENTRO DEL POKEMON
 		unPokemon->distanciaAEntrenador = distanciaAPokemon;
 		list_add(aux, unPokemon);
 	}
 	//LUEGO DE CREAR LA LISTA AUX CON LOS POKEMONES CON LAS DISTANCIAS A ESE ENTRENADOR, LA ORDENO DE MENOR A MAYOR
-	list_sort(aux, (void*)comparadorDistancia);
+
+	bool compararDistancia(void *unPokemon,void *otroPokemon){
+		t_pokemon *pokemon1 = unPokemon;
+		t_pokemon *pokemon2 = otroPokemon;
+
+		return pokemon1->distanciaAEntrenador < pokemon2->distanciaAEntrenador;
+	}
+
+	list_sort(aux,compararDistancia);
+
+	/*
+	int *distanciaPoke(t_pokemon *pokemon){
+		return &(pokemon->distanciaAEntrenador);
+	}
+
+	t_list *numeritos = list_map(aux,(void *)distanciaPoke);
+
+	mostrarContenidoLista(numeritos,imprimirNumero);
 	//SACO EL PRIMER POKEMON DE LA LISTA Y  ESE ES EL MAS CERCANO
+	 *
+	 */
 	t_pokemon* pokemonMasCercano = list_get(aux,0);
 
 	return pokemonMasCercano;
 }
 
-t_pokemon* comparadorDistancia(t_pokemon* unPokemon, t_pokemon* otroPokemon){
-	if (unPokemon->distanciaAEntrenador <= otroPokemon->distanciaAEntrenador){
-		return unPokemon;
-	}
-	else{
-		return otroPokemon;
-	}
-}
 
 void completarCatch(t_entrenador* unEntrenador, bool resultadoCaught){
 	t_pokemon* pokemonAtrapado = unEntrenador->pokemonAAtrapar;
@@ -1227,7 +1273,7 @@ void completarCatch(t_entrenador* unEntrenador, bool resultadoCaught){
 		//ESTE ES EL CASO DEL CAUGHT PARA ATRAPAR EL POKEMON NORMALMENTE
 		if(unEntrenador->operacionEntrenador == 0){
 			sacarPokemonDelMapa(pokemonAtrapado);
-			list_add(pokemonesAtrapados, pokemonAtrapado);
+			list_add(pokemonesAtrapados,nombrePokemon);
 			list_add(unEntrenador->pokemones, nombrePokemon);
 			unEntrenador->cantPokemonesPorAtrapar = unEntrenador->cantPokemonesPorAtrapar - 1;
 			unEntrenador->contadorRR = 0;
@@ -1324,17 +1370,21 @@ void completarCatchSinBroker(t_entrenador* unEntrenador){
 			list_add(colaExit, unEntrenador);
 			log_info(loggerObligatorio, "Se cambió al entrenador %d de EXEC a EXIT, Razon: Termino de atrapar un pokemon y cumplio con su objetivo", unEntrenador->idEntrenador);
 			//CUANDO SALGO DE EXEC HAGO EL POST
-			sem_post(&semaforoPlanificacionExec);
+			//sem_post(&semaforoPlanificacionExec);
 			}
 		else{
+			log_error(logger,"ANTES DE HACER EL REMOVE EXEC");
+			t_entrenador* unEntrenador = list_remove(colaExec,0);
 			unEntrenador->pokemonAAtrapar = NULL;
 			list_add(colaBlocked, unEntrenador);
 			log_info(logger, "El entrenador %d atrapo el pokemon, no puede atrapar mas y no cumplio el objetivo, esperara al algoritmo de Deadlock", unEntrenador->idEntrenador);
 			//LOS ENTRENADORES QUE NO COMPLETEN EL OBJETIVO Y PROBABLEMENTE ESTEN EN DEADLOCK QUEDAN BLOCKED Y EN ESTADO OCUPADO
 			//CUANDO SALGO DE EXEC HAGO EL POST
-			sem_post(&semaforoPlanificacionExec);
+			//sem_post(&semaforoPlanificacionExec);
 			}
+		sem_post(&semaforoPlanificacionExec);
 	}
+	//sem_post(&semaforoPlanificacionExec);
 	//pthread_mutex_unlock(&mutexEjecucionEntrenadores);
 }
 
@@ -1389,10 +1439,10 @@ bool cumplioObjetivo(t_entrenador* unEntrenador){
 	t_list *nombresPokemonesEntrenador = unEntrenador->pokemones;
 	t_list *nombresPokemonesObjetivos = unEntrenador->objetivo;
 
-	log_error(logger,"POKEMONES QUE ATRAPÓ EL ENTRENADOR %d", unEntrenador->idEntrenador);
-	mostrarContenidoLista(nombresPokemonesEntrenador,imprimirString);
-	log_error(logger,"POKEMONES QUE TIENE COMO OBJETIVO EL ENTRENADOR %d", unEntrenador->idEntrenador);
-	mostrarContenidoLista(nombresPokemonesObjetivos,imprimirString);
+	//log_error(logger,"POKEMONES QUE ATRAPÓ EL ENTRENADOR %d", unEntrenador->idEntrenador);
+	//mostrarContenidoLista(nombresPokemonesEntrenador,imprimirString);
+	//log_error(logger,"POKEMONES QUE TIENE COMO OBJETIVO EL ENTRENADOR %d", unEntrenador->idEntrenador);
+	//mostrarContenidoLista(nombresPokemonesObjetivos,imprimirString);
 
 	return tieneLosMismosElementos(nombresPokemonesEntrenador,nombresPokemonesObjetivos,stringComparator);
 
@@ -1578,6 +1628,10 @@ t_list *obtenerEntrenadoresDisponibles(){
 	return entrenadoresLibres;
 }
 
+void imprimirNumero(void *contenidoAMostrar){
+    printf("ID: %d \n",*(uint32_t *) contenidoAMostrar);
+}
+
 void transicionAReady(t_entrenador *entrenador,t_FLAG estado){
 	if(estado == t_NEW_STATE){
 		transicionDeNewAReady(entrenador);
@@ -1589,18 +1643,29 @@ void transicionAReady(t_entrenador *entrenador,t_FLAG estado){
 	//sem_post(&semaforoPlanificacionReady);
 }
 
-t_entrenador *entrenadorQueVaAReady(t_list *entrenadoresLibres){
+t_entrenador *entrenadorQueVaAReady(t_list *entrenadoresLibres,int contadorPokemones){
 	t_entrenador *entrenadorAux;
-
-	t_list* pokemones = list_duplicate(pokemonesEnMapa);
 	//SACO EL PRIMER POKEMON DE LA LISTA
-	t_pokemon* unPokemon = list_remove(pokemones, 0);
+	pthread_mutex_lock(&mutexEntrenadoresReady);
+	t_list* pokemones = list_duplicate(pokemonesEnMapa);
+	log_error(logger,"CANT POkemones: %d",list_size(pokemonesEnMapa));
+	log_error(logger,"CONTADOR POKEMONES: %d",contadorPokemones);
+	t_pokemon* unPokemon = list_remove(pokemones,contadorPokemones);
 
+	log_error(logger,"EL POKEMON QUE SACO DE LA LISTA ES: %s",unPokemon->nombrePokemon);
 	//CALCULO LA DISTANCIA DE TODOS A ESE POKEMON
 	calcularDistanciaA(entrenadoresLibres,unPokemon);
 
 	//ORDENO LA LISTA EN BASE A ESA DISTANCIA DE MENOR A MAYOR
 	list_sort(entrenadoresLibres, (void*)comparadorDeDistancia);
+
+	int *obtenerDistanciaEntrenador(t_entrenador *entrenador){
+		return &(entrenador->distancia);
+	}
+
+	t_list *distanciasEntrenadores = list_map(entrenadoresLibres,(void *)obtenerDistanciaEntrenador);
+
+	mostrarContenidoLista(distanciasEntrenadores,imprimirNumero);
 
 	//SACO EL PRIMERO DE ESA LISTA ORDENADA
 	entrenadorAux = list_remove(entrenadoresLibres, 0);
@@ -1654,7 +1719,9 @@ void planificarEntradaAReady(){
 
 					if(!list_is_empty(entrenadoresLibres)){
 
-					entrenador = entrenadorQueVaAReady(entrenadoresLibres);
+					int pokes = abs(valorSemPlanificadorReady - 3);
+
+					entrenador = entrenadorQueVaAReady(entrenadoresLibres,pokes);
 
 					if(entrenador->blockeado){
 						transicionAReady(entrenador,t_BLOCKED_STATE);
@@ -1748,51 +1815,52 @@ void revisionDeadlocks(){
 
 	//TODO FIJATE DE USAR ESTA VERSION NUEVA, VERIFICAR SI HAY QUE PONER UN SEMAFORO
 	//VERSION NUEVA
-	/*
+
+	//list_is_empty(colaExec) && list_is_empty(colaReady)
+	//Cuando el objetivo de
+
+	//while (pokemonesAtrapados != pokemonesObjetivo)
+	//ya agregamos los list_add(pokemonesAtrapados);
+	//list_size(pokemonesAtrapados) == list_size(objetivoTeam);
+
+
 	while (1){
-		int pokemonesAtrapados;
-		int pokemonesObjetivo = list_size(objetivoTeam);
-		int i;
-		int cantEntrenadores = list_size(entrenadores);
-		for (i=0; i<cantEntrenadores; i++){
-			t_entrenador* unEntrenador = list_get(entrenadores,i);
-			int pokemonesAtrapadosPorEntrenador = list_size(unEntrenador->pokemones);
-			pokemonesAtrapados += pokemonesAtrapadosPorEntrenador;
-		}
-		if(pokemonesAtrapados == pokemonesObjetivo){
-			//SE ATRAPARON TODOS LOS POKEMONES, ENTONCES BUSCA DEADLOCKS
-			if(cumplioObjetivoTeam()){
-				log_info(loggerObligatorio, "El %s cumplio el objetivo, se pasara a imprimir sus metricas",identificadorProceso);
-				return;
-			}
-			//SINO, ME PONGO A BUSCAR DEADLOCKS
-			planificacionCompleta = true;
-			log_info(loggerObligatorio, "El %s NO cumplio el objetivo, se pasara a detectar deadlocks",identificadorProceso);
 
-			//A LOS ENTRENADORES QUE NO CUMPLIERON LOS OBJETIVOS, LES GENERO UNA LISTA DE POKEMONES QUE LES FALTAN
-			generarPokemonesFaltantes();
+		if(list_size(pokemonesAtrapados) == list_size(objetivoTeam)){
+			log_error(logger,"entre en revision deadlocks");
+				if(cumplioObjetivoTeam()){
+					log_info(loggerObligatorio, "El %s cumplio el objetivo, se pasara a imprimir sus metricas",identificadorProceso);
+					log_error(logger,"Imprimo metricas xd");
+					//TODO imprimirmetricas;
+					return;
+				}
+				//SINO, ME PONGO A BUSCAR DEADLOCKS
+				planificacionCompleta = true;
+				log_info(loggerObligatorio, "El %s NO cumplio el objetivo, se pasara a detectar deadlocks",identificadorProceso);
 
-			//ME PONGO A BUSCAR DEADLOCKS
-			detectarDeadlocks();
+				//A LOS ENTRENADORES QUE NO CUMPLIERON LOS OBJETIVOS, LES GENERO UNA LISTA DE POKEMONES QUE LES FALTAN
+				log_error(logger,"ANtes de generar");
+				generarPokemonesFaltantes();
+
+				//ME PONGO A BUSCAR DEADLOCKS
+				log_error(logger,"ANTES DE DETECTAR");
+				detectarDeadlocks();
 		}
 	}
-	*/
+
 }
 
 bool cumplioObjetivoTeam(){
+	bool resultado = false;
 	int cantEntrenadores = list_size(entrenadores);
 	int i;
 	for(i=0; i<cantEntrenadores; i++){
 		t_entrenador* unEntrenador = list_get(entrenadores,i);
-		if(cumplioObjetivo(unEntrenador)){
-			//No hago nada
-		}
-		else{
-			return false;
-			//Si uno solo no cumple, entonces el team no cumplió el objetivo
+		if(!cumplioObjetivo(unEntrenador)){
+			return resultado;
 		}
 	}
-	return true;
+	return !resultado;
 }
 
 bool noCumplioObjetivo(t_entrenador* unEntrenador){
@@ -1800,6 +1868,8 @@ bool noCumplioObjetivo(t_entrenador* unEntrenador){
 }
 
 void detectarDeadlocks(){
+	//t_list *idsEntrenadores = list_create();
+
 	while(list_size(colaExit) < list_size(entrenadores)){
 		t_list* entrenadoresEnDeadlock = list_filter(entrenadores, (void*)noCumplioObjetivo);
 		int cantEntrenadoresEnDeadlock = list_size(entrenadoresEnDeadlock);
@@ -1808,75 +1878,90 @@ void detectarDeadlocks(){
 			t_entrenador* entrenadorEnDeadlock = list_get(entrenadoresEnDeadlock, i);
 			int j;
 			int cantPokemonesFaltantes = list_size(entrenadorEnDeadlock->pokemonesQueFaltan);
+			log_error(logger,"CANT POKEMONES FALTANTES PARA EL ENTRENADOR %d: %d",entrenadorEnDeadlock->idEntrenador,cantPokemonesFaltantes);
 			for(j=0; j<cantPokemonesFaltantes; j++){
-				t_pokemon* unPokemonFaltante = list_get(entrenadorEnDeadlock->pokemonesQueFaltan,i);
-				t_entrenador* entrenadorEnConflicto = informarDeadlocks(entrenadorEnDeadlock, unPokemonFaltante);
-				log_info(loggerObligatorio, "El entrenador %d ,esta en deadlock, necesita un %s que lo posee el entrenador %d", entrenadorEnDeadlock->idEntrenador, unPokemonFaltante->nombrePokemon,
+				char *pokemonFaltante = list_get(entrenadorEnDeadlock->pokemonesQueFaltan,j);
+				log_error(logger,"ANTES DE OBTENER EL ENTRENADOR");
+				t_entrenador* entrenadorEnConflicto = obtenerEntrenadorQueTieneMiPokemon(entrenadorEnDeadlock, pokemonFaltante);
+				log_info(loggerObligatorio, "El entrenador %d ,esta en deadlock, necesita un %s que lo posee el entrenador %d", entrenadorEnDeadlock->idEntrenador, pokemonFaltante,
 						entrenadorEnConflicto->idEntrenador);
 				deadlocksProducidos++;
 				//CUANDO ENCUENTRO UN ENTRENADOR QUE TIENE MI POKEMON, SE LO VOY A INTERCAMBIAR POR UNO QUE NO ME SIRVA
-				//LO BUSCO EN LOS BLOQUEADOS, LE CAMBIO LA BANDERA DE LA OPERACION Y LO MANDO A READY PARA QUE SEA PLANIFICADO POR EL PLANIFICADOR
-				int indexEntrenador = list_get_index(colaBlocked, entrenadorEnDeadlock, (void*)comparadorDeEntrenadores);
-				t_entrenador* entrenadorEnDeadlock = list_get(colaBlocked, i);
-				entrenadorEnDeadlock->blockeado = false;
-				entrenadorEnDeadlock->ocupado = false;
-				entrenadorEnDeadlock->operacionEntrenador = t_intercambiarPokemon;
-				//sem_signal(&semaforoPlanificacionReady);
-				list_remove(colaBlocked, indexEntrenador);
-				list_add(colaReady,entrenadorEnDeadlock);
-				log_info(loggerObligatorio, "Se cambio un entrenador de BLOCKED a READY, Razon: Seleccionado por el algoritmo de deteccion de deadlocks para que lo resuelva");
+				//LO BUSCO EN LOS BLOQUEADOS, LE CAMBIO LA BANDERA DE LA OPERACION Y LO MANDO A READY PARA QUE SEA PLANIFICADO POR EL PLANIFICADO
+			}
+
+			if(!list_is_empty(colaBlocked)){
+
+			int indexEntrenador = list_get_index(colaBlocked, entrenadorEnDeadlock, (void*)comparadorDeEntrenadores);
+			log_error(logger,"indexEntrenador: %d",indexEntrenador);
+			//si !saliste...salis xd
+			t_entrenador* entrenadorEnDeadlock = list_get(colaBlocked,i);
+			log_error(logger,"XDD");
+			log_error(logger,"ID ENTRENADOR ANTES DEL REMOVE: %d",entrenadorEnDeadlock->idEntrenador);
+			entrenadorEnDeadlock->blockeado = false;
+			entrenadorEnDeadlock->ocupado = false;
+			entrenadorEnDeadlock->operacionEntrenador = t_intercambiarPokemon;
+			//sem_signal(&semaforoPlanificacionReady);
+			list_remove(colaBlocked, indexEntrenador);
+			list_add(colaReady,entrenadorEnDeadlock);
+			log_info(loggerObligatorio, "Se cambio un entrenador de BLOCKED a READY, Razon: Seleccionado por el algoritmo de deteccion de deadlocks para que lo resuelva");
+			//list_add(idsEntrenadores,&(entrenadorEnDeadlock->idEntrenador));
 			}
 		}
 	}
 }
 
-t_entrenador* informarDeadlocks(t_entrenador* unEntrenador, t_pokemon* unPokemon){
+t_entrenador* obtenerEntrenadorQueTieneMiPokemon(t_entrenador* unEntrenador, char* unPokemon){
 	//ME INFORMA QUE ENTRENADOR TIENE EL POKEMON QUE NECESITO
 	t_list* aux = list_filter(entrenadores, (void*)noCumplioObjetivo);
 	int indexEntrenador = list_get_index(aux, unEntrenador, (void*)comparadorDeEntrenadores);
 	list_remove(aux,indexEntrenador);
 	int cantEntrenadores = list_size(aux);
 	int i;
-	t_entrenador* entrenadorEnConflicto;
 	for(i = 0; i<cantEntrenadores; i++){
 		t_entrenador* entrenadorEnDeadlock = list_get(aux, i);
 		int j;
 		int cantPokemones = list_size(entrenadorEnDeadlock->pokemones);
 		for(j=0; j<cantPokemones; j++){
-			t_pokemon* unPokemonDeOtroEntrenador = list_get(entrenadorEnDeadlock->pokemones,i);
-			if(strcmp(unPokemon->nombrePokemon,unPokemonDeOtroEntrenador->nombrePokemon)==0){
-				entrenadorEnConflicto = entrenadorEnDeadlock;
-				break;
+			char *unPokemonDeOtroEntrenador = list_get(entrenadorEnDeadlock->pokemones,j);
+			if(strcmp(unPokemon,unPokemonDeOtroEntrenador)==0){
+				return entrenadorEnDeadlock;
 			}
 		}
 	}
-	return entrenadorEnConflicto;
+	log_error(logger,"xddd");
+	return NULL;
 }
 
 
 void generarPokemonesFaltantes(){
 	t_list* entrenadoresEnDeadlock = list_filter(entrenadores, (void*)noCumplioObjetivo);
 		int cantEntrenadoresEnDeadlock = list_size(entrenadoresEnDeadlock);
+		log_info(logger,"CANT ENTRENADORES EN DEADLOCK: %d",cantEntrenadoresEnDeadlock);
 		int i;
 		for(i = 0; i<cantEntrenadoresEnDeadlock; i++){
 			t_entrenador* entrenadorEnDeadlock = list_get(entrenadoresEnDeadlock, i);
+			log_error(logger,"ENTRENADOR EN DEADLOCK %d",entrenadorEnDeadlock->idEntrenador);
 			int index = list_get_index(entrenadores, entrenadorEnDeadlock, (void*)comparadorDeEntrenadores);
+			log_error(logger,"INDICE DEL ENTRENADOR %d es %d",entrenadorEnDeadlock->idEntrenador,index);
 			//MODIFICO EL ENTRENADOR QUE ESTA EN LA LISTA DE ENTRENADORES ORIGINAL
+			//t_entrenador *entrenadorAModificar;
 			entrenadorEnDeadlock = list_get(entrenadores,index);
-			pokemonesQueFaltan(entrenadorEnDeadlock);
+			log_error(logger,"ANTES DE AGREGAR POKE");
+			agregarPokemonesQueFaltan(entrenadorEnDeadlock);
 		}
 }
 
-void pokemonesQueFaltan(t_entrenador* unEntrenador){
+void agregarPokemonesQueFaltan(t_entrenador* unEntrenador){
 	int cantPokemones = list_size(unEntrenador->pokemones);
 	int i;
 	for (i=0; i<cantPokemones; i++){
-		t_pokemon* unPokemonObjetivo = list_get(unEntrenador->objetivo, i);
+		char *unPokemonObjetivo = list_get(unEntrenador->objetivo, i);
 		bool estaAtrapado = false;
 		int j;
 		for (j=0; j<cantPokemones; j++){
-			t_pokemon* unPokemonAtrapado = list_get(unEntrenador->pokemones, i);
-			if(strcmp(unPokemonObjetivo->nombrePokemon,unPokemonAtrapado->nombrePokemon)==0){
+			char* unPokemonAtrapado = list_get(unEntrenador->pokemones, i);
+			if(strcmp(unPokemonObjetivo,unPokemonAtrapado)==0){
 				estaAtrapado = true;
 			}
 		}

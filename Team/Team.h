@@ -99,7 +99,7 @@ sem_t semaforoPlanificacionExec;
 pthread_mutex_t mutexPokemonesEnMapa;
 pthread_mutex_t mutexPlanificacionReady;
 pthread_mutex_t mutexPlanificacionEntrenadores;
-pthread_mutex_t mutexEjecucionEntrenadores;
+pthread_mutex_t mutexEntrenadoresReady;
 
 //METRICAS
 int ciclosTotales = 0;
@@ -182,7 +182,6 @@ void capturarPokemon(t_entrenador* entrenadorAEjecutar);
 void atraparPokemon(t_entrenador* entrenadorAEjecutar, t_pokemon* pokemonAAtrapar);
 void moverEntrenador(t_entrenador* entrenadorAEjecutar, t_pokemon* pokemonAAtrapar);
 t_pokemon* pokemonMasCercanoA(t_entrenador* unEntrenador);
-t_pokemon* comparadorDistancia(t_pokemon* unPokemon, t_pokemon* otroPokemon);
 void completarCatch(t_entrenador* unEntrenador, bool resultadoCaught);
 void completarCatchNormal(t_entrenador* unEntrenador);
 void completarCatchSinBroker(t_entrenador* unEntrenador);
@@ -229,16 +228,16 @@ void revisionDeadlocks();
 bool cumplioObjetivoTeam();
 bool noCumplioObjetivo(t_entrenador* unEntrenador);
 void detectarDeadlocks();
-t_entrenador* informarDeadlocks(t_entrenador* unEntrenador, t_pokemon* unPokemon);
+t_entrenador* obtenerEntrenadorQueTieneMiPokemon(t_entrenador* unEntrenador,char *unPokemon);
 void generarPokemonesFaltantes();
-void pokemonesQueFaltan(t_entrenador* unEntrenador);
+void agregarPokemonesQueFaltan(t_entrenador* unEntrenador);
 
 void intercambiarPokemon(t_entrenador* entrenadorAEjecutar);
 bool comparadorNombrePokemones(t_pokemon* unPokemon, t_pokemon* otroPokemon);
-t_pokemon* pokemonQueNoNecesito(t_entrenador* unEntrenador);
+char *pokemonQueNoNecesito(t_entrenador* unEntrenador);
 bool estaEnObjetivo(char* unPokemon, t_entrenador* unEntrenador);
 void moverEntrenadorParaIntercambio(t_entrenador* entrenadorAEjecutar, t_entrenador* otroEntrenador);
-void realizarIntercambio(t_entrenador* entrenadorAEjecutar, t_entrenador*entrenadorAIntercambiar, t_pokemon* pokemonQueElOtroNoNecesita,  t_pokemon* pokemonQueYoNoNecesito);
+void realizarIntercambio(t_entrenador* entrenadorAEjecutar, t_entrenador*entrenadorAIntercambiar, char* pokemonQueElOtroNoNecesita,  char* pokemonQueYoNoNecesito);
 
 void imprimirMetricas();
 void metricas();
@@ -248,9 +247,11 @@ bool stringComparator(void *unString, void *otroString);
 void transicionAReady(t_entrenador *entrenador,t_FLAG estado);
 void transicionDeBlockedAReady(t_entrenador *entrenador);
 void transicionDeNewAReady(t_entrenador *entrenador);
-t_entrenador *entrenadorQueVaAReady();
+t_entrenador *entrenadorQueVaAReady(t_list *,int);
 t_list *obtenerEntrenadoresDisponibles();
 void mostrarContenidoLista(t_list* lista,void(*printer)(void *));
 void imprimirString(void *contenidoAMostrar);
+void imprimirNumero(void *);
+t_pokemon *crearPokemon(char *,uint32_t,uint32_t);
 
 #endif
