@@ -196,7 +196,7 @@ void LRU();
 t_particion *firstFit(uint32_t);
 t_particion *bestFit(uint32_t);
 uint32_t *obtenerOffsetParticion(t_particion *);
-bool tieneMenorID(void *,void *);
+bool tieneMenorIDMensaje(void *,void *);
 char *obtenerIDSuscriptor(t_suscriptor *);
 bool existeSuscriptor(char *,t_list *);
 void agregarSuscriptor(t_suscriptor *,t_list *,char *);
@@ -211,5 +211,27 @@ bool tieneMenorTamanio(void *,void *);
 void recorrerParticionesYLiberar(t_list *,char *);
 t_list *obtenerColaMensaje(char *);
 void dumpDeCache(int);
+void mostrarEstadoDeMemoria();
+void dumpDeCache(int);
+t_nodo* crearNodo(t_particion *);
+void limpiarNodo(t_nodo *);
+void crearNodoPadre();
+void asignarPadre(t_nodo *, t_nodo *);
+void asignarHijos(t_nodo *, t_nodo *,t_nodo *);
+void escribirEnMemoria(void*,uint32_t,uint32_t);
+int obtenerExponente(int);
+int obtenerTamanioMinimoBuddy(int);
+bool existeParticionLibreDelMismoTamanioQue(uint32_t);
+int crearHijos(t_nodo *);
+t_nodo* buscarNodo(t_nodo *,t_particion *);
+void ocuparNodo(t_nodo *,t_particion*);
+void liberarNodo(t_nodo *);
+bool hermanoLibre(t_nodo *);
+void matarNodo(t_nodo *);
+void reunirHermanos(t_nodo *);
+t_nodo *obtenerHermano(t_nodo *);
+void consolidarBuddy(t_nodo *);
+uint32_t dividirYObtenerIDParticionExacta(t_nodo *, uint32_t);
+
 
 #endif

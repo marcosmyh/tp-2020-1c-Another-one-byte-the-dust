@@ -71,8 +71,6 @@ int iniciar_servidor(char *ip, char *puerto){
 
     freeaddrinfo(servinfo);
 
-    log_info(logger, "Listo para recibir procesos!");
-
     return socket_servidor;
 }
 
@@ -184,7 +182,7 @@ void procesar_solicitud(Header header,int cliente_fd){
      		    uint32_t ID_LOCALIZED_Correlativo = unpackID(paquete);
 
      		    if(existeRespuestaEnCola(ID_LOCALIZED_Correlativo,LOCALIZED_POKEMON)){
-     		    	log_info(logger,"El mensaje con ID Correlativo [%d] ya existe en la cola LOCALIZED_POKEMON",ID_LOCALIZED_Correlativo);
+     		    	//log_info(logger,"El mensaje con ID Correlativo [%d] ya existe en la cola LOCALIZED_POKEMON",ID_LOCALIZED_Correlativo);
      		    	free(paquete);
      		    }
      		    else{
@@ -256,7 +254,7 @@ void procesar_solicitud(Header header,int cliente_fd){
      		    uint32_t ID_APPEARED_Correlativo = unpackID(paquete);
 
      		    if(existeRespuestaEnCola(ID_APPEARED_Correlativo,APPEARED_POKEMON)){
-     		    	log_info(logger,"El mensaje con ID Correlativo [%d] ya existe en la cola APPEARED POKEMON",ID_APPEARED_Correlativo);
+     		    	//log_info(logger,"El mensaje con ID Correlativo [%d] ya existe en la cola APPEARED POKEMON",ID_APPEARED_Correlativo);
      		    	free(paquete);
      		    }
      		    else{
@@ -332,7 +330,7 @@ void procesar_solicitud(Header header,int cliente_fd){
      			uint32_t ID_CAUGHT_Correlativo = unpackID(paquete);
 
      			if(existeRespuestaEnCola(ID_CAUGHT_Correlativo,CAUGHT_POKEMON)){
-     				log_error(logger,"El mensaje con ID_Correlativo [%d] ya existe en la cola CAUGHT POKEMON",ID_CAUGHT_Correlativo);
+     				//log_error(logger,"El mensaje con ID_Correlativo [%d] ya existe en la cola CAUGHT POKEMON",ID_CAUGHT_Correlativo);
      				free(paquete);
      			}
      			else{
@@ -431,7 +429,6 @@ t_particion *obtenerParticionLibre(uint32_t tamPaquete){
 		particion = obtenerParticion(*IDParticion,PARTITION_ID);
 		uint32_t tamanioParticion = particion->tamanioParticion;
 		if(tamanioParticion >= tamPaquete){
-			log_info(logger,"Encontré una particion :D! SU ID es %d",*IDParticion);
 			return particion;
 		}
 	}
@@ -444,7 +441,7 @@ t_particion *firstFit(uint32_t tamPaquete){
 
 	ordenarParticionesLibresSegun(OFFSET);
 
-	mostrarContenidoLista(particionesLibres,imprimirNumero);
+	//mostrarContenidoLista(particionesLibres,imprimirNumero);
 
     particion = obtenerParticionLibre(tamPaquete);
 
@@ -457,11 +454,11 @@ char *getHorario(){
 	return hora;
 }
 
-bool tieneMenorID(void *particion1,void *particion2){
+bool tieneMenorIDMensaje(void *particion1,void *particion2){
 	t_particion *unaParticion = particion1;
 	t_particion *otraParticion = particion2;
 
-	return unaParticion->ID_Particion < otraParticion->ID_Particion;
+	return unaParticion->ID_mensaje < otraParticion->ID_mensaje;
 }
 
 void recorrerParticionesYLiberar(t_list *particionesOrdenadas,char *funcionCorrespondencia){
@@ -469,8 +466,9 @@ void recorrerParticionesYLiberar(t_list *particionesOrdenadas,char *funcionCorre
 		t_particion *particion = list_get(particionesOrdenadas,i);
 
 		if(!estaLibre(particion)){
-			log_error(logger,"%s: LA PARTICION CON ID %d SE ACABA DE LIBERAR",funcionCorrespondencia,particion->ID_Particion);
-
+			printf("\033[1;34m");
+			log_info(logger,"%s: Se procederá a elimnar la partición que tiene por offset %d",funcionCorrespondencia,particion->offset);
+			printf("\033[0m");
 			eliminarMensaje(particion->ID_mensaje,obtenerColaMensaje(particion->colaDeMensaje),particion->colaDeMensaje,REPLACEMENT_ALGORITHM);
 			liberarParticion(particion,algoritmo_memoria);
 
@@ -510,7 +508,7 @@ void FIFO(){
 
 	t_list *particionesOrdenadas = list_create();
 
-	particionesOrdenadas = list_sorted(particiones,tieneMenorID);
+	particionesOrdenadas = list_sorted(particiones,tieneMenorIDMensaje);
 
 	recorrerParticionesYLiberar(particionesOrdenadas,"FIFO");
 }
@@ -532,7 +530,7 @@ t_particion *bestFit(uint32_t tamPaquete){
 	ordenarParticionesLibresSegun(SIZE_PARTITION);
 
 	//Nada más se usa para testear
-	mostrarContenidoLista(particionesLibres,imprimirNumero);
+	//mostrarContenidoLista(particionesLibres,imprimirNumero);
 
 	particion = obtenerParticionLibre(tamPaquete);
 
@@ -561,7 +559,7 @@ void liberarParticionParticionesDinamicas(t_particion *particion){
 
 	list_add(particionesLibres,&(particion->ID_Particion));
 
-	log_error(logger,"EL ID DEL MENSAJE QUE GUARDA LA PARTICION: %d",particion->ID_mensaje);
+	//log_error(logger,"EL ID DEL MENSAJE QUE GUARDA LA PARTICION: %d",particion->ID_mensaje);
 
 	FILE *arch = fopen("/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/Broker/Cache","rw+");
 
@@ -609,9 +607,6 @@ void consolidarParticion(t_particion *particionActual){
 	uint32_t posAnterior = posActual-1;
 	uint32_t posSiguiente = posActual+1;
 
-	log_error(logger,"POS ANTERIOR %d",posAnterior);
-	log_error(logger,"POS SIGUIENTE: %d",posSiguiente);
-
 	t_particion *particionAnterior = list_get(particiones,posAnterior);
 	t_particion *particionSiguiente = list_get(particiones,posSiguiente);
 
@@ -621,9 +616,9 @@ void consolidarParticion(t_particion *particionActual){
 			uint32_t offsetAnterior = particionAnterior->offset;
 			uint32_t tamanioTotal = tamanioParticion + tamanioParticionAnterior;
 			t_particion *particionConsolidadaIzquierda = crearParticion(tamanioTotal);
-			log_error(logger,"ID PARTICION CONSOLIDADIZQUIERDA: %d",particionConsolidadaIzquierda->ID_Particion);
+
 			setearOffset(offsetAnterior,particionConsolidadaIzquierda);
-			log_error(logger,"VOY A BORRAR LA PARTICION: %d, QUE SE ENCUENTRA EN %d",particionActual->ID_Particion,posActual);
+
 			list_remove(particiones,posActual);
 			list_remove(particionesLibres,obtenerPosicionIDParticion(particionActual->ID_Particion));
 		    list_replace(particiones,posAnterior,particionConsolidadaIzquierda);
@@ -636,14 +631,12 @@ void consolidarParticion(t_particion *particionActual){
 		    }
 
 
-		    log_error(logger,"TAMANIO PARTICION CONSOLIDADA IZQUIERDA: %d",tamanioTotal);
 
 		}
 	}
 
 	if(particionSiguiente != NULL){
 		if(estaLibre(particionSiguiente)){
-			log_info(logger,"CONSOLIDO A DER");
 
             uint32_t tamanioParticionSiguiente = particionSiguiente->tamanioParticion;
             uint32_t tamanioTotal = tamanioParticion + tamanioParticionSiguiente;
@@ -692,30 +685,36 @@ void mostrarEstadoDeMemoria(){
 	time_t horaDelSistema = time(NULL);
 	struct tm *tiempo;
 	tiempo = localtime(&horaDelSistema);
-	int tamanio = 0;
-	printf("\033[1;36m");
-	printf("---------------------------------------------------\n");
-	printf("Dump: %d/%d/%d %d:%d:%d\n",tiempo->tm_mday,tiempo->tm_mon+1,tiempo->tm_year+1900,tiempo->tm_hour,tiempo->tm_min,tiempo->tm_sec);
+
+	FILE* dump = fopen("Dump.txt","a");
+
+
+	fprintf(dump,"------------------------------------------------------------------------------------------------------------------------------------------------------------------\n");
+	fprintf(dump,"Dump: %d/%d/%d %d:%d:%d\n",tiempo->tm_mday,tiempo->tm_mon+1,tiempo->tm_year+1900,tiempo->tm_hour,tiempo->tm_min,tiempo->tm_sec);
 
 
 	list_sort(particiones,tieneMenorOffset);
 	for(i = 0 ;  i < list_size(particiones); i++){
-		t_particion *particion = calloc(1,sizeof(t_particion*));
-		particion = list_get(particiones,i);
+		t_particion *particion = list_get(particiones,i);
 		if(estaLibre(particion)){
-			printf("Partición %d: 0x%08X-0x%08X [L] Size:%dB\n",(i+1),tamanio,tamanio + particion->tamanioParticion - 1,particion->tamanioParticion);
+
+			fprintf(dump,"Partición %d: 0x%08X-0x%08X [L] Size:%dB\n",(i+1),particion->offset,(particion->offset + particion->tamanioParticion - 1),particion->tamanioParticion);
 		}else{
-			printf("Partición %d: 0x%08X-0x%08X [X] Size:%dB LRU:%s Cola:%s ID:%d\n",(i+1),tamanio,tamanio + particion->tamanioParticion - 1,particion->tamanioParticion,particion->ultimoAcceso,particion->colaDeMensaje,particion->ID_mensaje);
+
+			fprintf(dump,"Partición %d: 0x%08X-0x%08X [X] Size:%dB LRU:%s Cola:%s ID:%d\n",(i+1),particion->offset,(particion->offset + particion->tamanioParticion - 1),particion->tamanioParticion,particion->ultimoAcceso,particion->colaDeMensaje,particion->ID_mensaje);
 		}
-		tamanio += particion->tamanioParticion;
+		//tamanio += particion->tamanioParticion;
 	}
-	printf("---------------------------------------------------\n");
-	printf("\033[0m");
+	fprintf(dump,"------------------------------------------------------------------------------------------------------------------------------------------------------------------\n");
+	fclose(dump);
 }
 
 void dumpDeCache(int signal){
 
 	pthread_mutex_lock(&semaforoMensajes);
+	printf("\033[1;36m");
+	log_info(logger,"Se solicitó un dump de la caché");
+	printf("\033[0m");
 	mostrarEstadoDeMemoria();
 	pthread_mutex_unlock(&semaforoMensajes);
 }
@@ -752,13 +751,11 @@ void asignarHijos(t_nodo* padre, t_nodo* hijoIzquierdo,t_nodo* hijoDerecho){
 	padre->hijoDerecho = hijoDerecho;
 }
 
-void escribirPosicionandoOffset(void *paquete,uint32_t tamanioAEscribir,int offset){
+void escribirEnMemoria(void *paquete,uint32_t tamanioAEscribir,uint32_t offset){
 
 	FILE *arch = fopen("/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/Broker/Cache","rw+");
 
 	fseek(arch,offset,SEEK_CUR);
-
-	log_error(logger,"Posición de inicio de la partición: %d",offset);
 
 	fwrite(paquete,tamanioAEscribir,1,arch);
 
@@ -815,7 +812,6 @@ int crearHijos(t_nodo* nodoPadre){
 	t_particion *particionPadre = obtenerParticion(nodoPadre->id,PARTITION_ID);
 
 	uint32_t tamanioDeHijo = particionPadre->tamanioParticion/2;
-	printf("Tamanio de mis hijos %d \n",tamanioDeHijo);
 
 	t_particion *particionPrimerHijo = crearParticion(tamanioDeHijo);
 	t_particion *particionSegundoHijo = crearParticion(tamanioDeHijo);
@@ -908,7 +904,7 @@ void matarNodo(t_nodo* unNodo){
 
 void reunirHermanos(t_nodo* nodoPadre){
 	// Matar hijos.
-	log_info(logger,"Se reunen los buddys");
+	//log_info(logger,"Se reunen los buddys");
 
 	// FREE?
 	matarNodo(nodoPadre->hijoDerecho);
@@ -926,7 +922,7 @@ void reunirHermanos(t_nodo* nodoPadre){
 
 	list_add(particiones,particionPadre);
 	list_add(particionesLibres,particionPadre);
-	log_info(logger,"buddys reunidos su nuevo id es: %d, su tamaño es :%d y su off: %d",nodoPadre->id,nodoPadre->tamanioQueOcupa,nodoPadre->offset);
+	//log_info(logger,"buddys reunidos su nuevo id es: %d, su tamaño es :%d y su off: %d",nodoPadre->id,nodoPadre->tamanioQueOcupa,nodoPadre->offset);
 }
 
 t_nodo *obtenerHermano(t_nodo *unNodo){
@@ -947,13 +943,15 @@ void consolidarBuddy(t_nodo *unNodo){
 	//log_info(logger,"Se procede a ver si el nodo con id %d se va a consolidar con su buddy",unNodo->id);
 
 	if(!hermanoLibre(unNodo)){
-		log_info(logger,"Su buddy no se encuentra libre");
+		//log_info(logger,"Su buddy no se encuentra libre");
 		return;
 	}
 	t_nodo *hermano = obtenerHermano(unNodo);
 
+	printf("\033[1;31m");
+	log_info(logger,"El bloque %d con offset %d y su buddy %d con offset %d se encuentran libres. Se procede a consolidar",unNodo->id,unNodo->offset,hermano->id,hermano->offset);
+	printf("\033[0m");
 
-	log_info(logger,"Su buddy está libre y su id es %d, se procede a consolidar",hermano->id);
 	uint32_t posicionParticionNodo = obtenerPosicionIDParticion(unNodo->id);
 	uint32_t posicionParticionHermano = obtenerPosicionIDParticion(hermano->id);
 
@@ -967,7 +965,7 @@ void consolidarBuddy(t_nodo *unNodo){
 	uint32_t posParticionHermano = obtenerPosicionParticion(hermano->id);
 
 	list_remove(particiones,posParticionHermano);
-	log_info(logger,"Se quitaron de las particiones de particiones");
+	//log_info(logger,"Se quitaron de las particiones de particiones");
 	t_nodo *nodoPadre = unNodo->padre;
 
 	//log_info(logger,"El contenido del padre es id: %d tam: %d off: %d",nodoPadre->id,nodoPadre->tamanioQueOcupa,nodoPadre->offset);
@@ -1007,12 +1005,12 @@ void buddySystem(t_mensaje *mensaje,char *nombreCola,void (*algoritmoReemplazo)(
 	uint32_t tamPaqueteAuxiliar = obtenerTamanioMinimoBuddy(tamPaquete);
 
 	if(tamPaqueteAuxiliar > tamanio_memoria){
-		log_error(logger,"El tamaño excede al tamaño de la memoria");
+		//log_error(logger,"El tamaño excede al tamaño de la memoria");
 	}
 
 	if(!existeParticionLibreParaCachearMensaje(tamPaqueteAuxiliar)){
 
-		log_error(logger,"No hay espacio");
+		//log_error(logger,"No hay espacio");
 		//   llamar a FIFO/LRU
 		algoritmoReemplazo();
 
@@ -1032,15 +1030,15 @@ void buddySystem(t_mensaje *mensaje,char *nombreCola,void (*algoritmoReemplazo)(
 
 		if(tamanioRestante == 0){
 
-			log_error(logger,"La particion tiene el tamaño exacto");
-
 			modificarParticion(particionLibre,IDMensaje,nombreCola);
 
-			escribirPosicionandoOffset(paqueteACachear,tamPaqueteAuxiliar,offsetParticionLibre);
+			escribirEnMemoria(paqueteACachear,tamPaqueteAuxiliar,offsetParticionLibre);
+
+			printf("\033[1;32m");
+		    log_info(logger,"Se cacheó correctamente el mensaje con BROKER ID [%d]. La posición de inicio de la particion es %d",mensaje->ID_mensaje,offsetParticionLibre);
+		    printf("\033[0m");
 
 			setearHorarioAcceso(particionLibre);
-
-			// Hasta aca
 
 			list_remove(particionesLibres,posicionParticionLibre);
 
@@ -1052,7 +1050,7 @@ void buddySystem(t_mensaje *mensaje,char *nombreCola,void (*algoritmoReemplazo)(
 			//Escribir en esa particion y marcarla como ocupada
 
 		}else{
-			log_error(logger,"No hay particion con tamaño exacto");
+			//log_error(logger,"No hay particion con tamaño exacto");
 
 			t_nodo* nodoParticion = buscarNodo(nodoRaiz,particionLibre);
 
@@ -1066,22 +1064,20 @@ void buddySystem(t_mensaje *mensaje,char *nombreCola,void (*algoritmoReemplazo)(
 
 			modificarParticion(particionNuevaAEscribir,IDMensaje,nombreCola);
 
-			// usar funcion escribirPosicionandoOffset(paqueteACachear,particionLibre,offsetParticionLibre);
-			//todo
+			escribirEnMemoria(paqueteACachear,tamPaqueteAuxiliar,offsetParticionLibre);
 
-			escribirPosicionandoOffset(paqueteACachear,tamPaqueteAuxiliar,offsetParticionLibre);
+			printf("\033[1;32m");
+		    log_info(logger,"Se cacheó correctamente el mensaje con BROKER ID [%d]. La posición de inicio de la particion es %d",mensaje->ID_mensaje,offsetParticionLibre);
+		    printf("\033[0m");
 
 			setearHorarioAcceso(particionNuevaAEscribir);
 
-			//Hasta aca
 
 			list_remove(particionesLibres,obtenerPosicionIDParticion(idParticionLibre));
 
 			t_nodo* nodoParticionNueva = buscarNodo(nodoRaiz,particionNuevaAEscribir);
 
 			ocuparNodo(nodoParticionNueva,particionNuevaAEscribir);
-
-			//log_error(logger,"El nodo editado es el de id %d y tamaño %d",nodoParticionNueva->id,nodoParticionNueva->tamanioQueOcupa);
 		}
 
 	}
@@ -1143,7 +1139,7 @@ void liberarParticionBuddySystem(t_particion *particion){
 
 	void *paqueteVacio = calloc(1,tamanioParticion);
 
-	escribirPosicionandoOffset(paqueteVacio,tamanioParticion,offset);
+	escribirEnMemoria(paqueteVacio,tamanioParticion,offset);
 
     list_sort(particiones,tieneMenorOffset);
 
@@ -1180,12 +1176,17 @@ void particionesDinamicas(t_mensaje *mensaje,char *nombreCola,void (*algoritmoRe
 
 		if(frecuenciaLocal == 0)
 		{
+			printf("\033[1;31m");
+			log_info(logger,"Frecuencia de compactación: %d. Se procederá a compactar la memoria",frecuenciaLocal);
+			printf("\033[0m");
+
 			compactarMemoria();
+
+			//printf("\033[1;31m");
+			//log_info(logger,"Compactación finalizada");
+			//printf("\033[0m");
+
 			frecuenciaLocal = frecuencia_compactacion;
-			log_error(logger,"OFFSETS LUEGO DE COMPACTAR");
-			list_sort(particiones,tieneMenorOffset);
-		    t_list *offsets = list_map(particiones,(void *) obtenerOffsetParticion);
-			mostrarContenidoLista(offsets,imprimirNumero);
 		}
 
 		particionesDinamicas(mensaje,nombreCola,algoritmoReemplazo,funcionCorrespondencia,frecuenciaLocal);
@@ -1208,9 +1209,11 @@ void particionesDinamicas(t_mensaje *mensaje,char *nombreCola,void (*algoritmoRe
 
 			fseek(arch,offsetParticionLibre,SEEK_CUR);
 
-		    log_error(logger,"Posición de inicio de la partición obtenida por la función de correspondencia: %d",offsetParticionLibre);
-
 		    fwrite(paqueteACachear,tamPaqueteAuxiliar,1,arch);
+
+			printf("\033[1;32m");
+		    log_info(logger,"Se cacheó correctamente el mensaje con BROKER ID [%d]. La posición de inicio de la particion es %d",mensaje->ID_mensaje,offsetParticionLibre);
+		    printf("\033[0m");
 
 		    setearHorarioAcceso(particionLibre);
 
@@ -1225,22 +1228,19 @@ void particionesDinamicas(t_mensaje *mensaje,char *nombreCola,void (*algoritmoRe
 
 			fseek(arch,offsetParticionLibre,SEEK_CUR);
 
-			log_error(logger,"Posición de inicio de la partición obtenida por la funcion de Correspondencia: %d",offsetParticionLibre);
-
 			fwrite(paqueteACachear,tamPaqueteAuxiliar,1,arch);
 
-		    setearHorarioAcceso(particionLibre);
+			printf("\033[1;32m");
+		    log_info(logger,"Se cacheó correctamente el mensaje con BROKER ID [%d]. La posición de inicio de la particion es %d",mensaje->ID_mensaje,offsetParticionLibre);
+		    printf("\033[0m");
 
-			log_error(logger,"OCUPE LA PARTICION CON ID %d el mensaje con ID %d",particionLibre->ID_Particion,IDMensaje);
+		    setearHorarioAcceso(particionLibre);
 
 			fclose(arch);
 
 			particionLibre->tamanioParticion = tamPaqueteAuxiliar;
 
 			t_particion *nuevaParticion = crearParticion(tamanioRestante);
-			log_error(logger,"ID PARTICION OBTENIDA POR FUNCION CORRESPONDENCIA: %d",particionLibre->ID_Particion);
-			log_error(logger,"ID NUEVA PARTICION: %d",nuevaParticion->ID_Particion);
-			log_error(logger,"TAMANIO PARTICION LIBRE: %d",tamanioRestante);
 
 			list_add(particiones,nuevaParticion);
 			list_replace(particionesLibres,posicionParticionLibre,&(nuevaParticion->ID_Particion));
@@ -1262,7 +1262,6 @@ void construirFuncionCacheo(){
 		funcionCacheo->algoritmoMemoria = particionesDinamicas;
 	}else{
 		funcionCacheo->algoritmoMemoria = buddySystem;
-		log_info(logger,"Se inicio Buddy system");
 		crearNodoPadre();
 	}
 
@@ -1285,17 +1284,10 @@ void construirFuncionCacheo(){
 void agregarMensajeACola(t_mensaje *mensaje,t_list *colaDeMensajes,char *nombreCola){
 	pthread_mutex_lock(&semaforoMensajes);
 	list_add(colaDeMensajes,mensaje);
-	log_info(logger,"Un nuevo mensaje fue agregado a la cola %s",nombreCola);
-	log_info(logger,"La cola %s tiene %d mensajes",nombreCola,list_size(colaDeMensajes));
+	log_info(logger,"Un nuevo mensaje fue agregado a la cola %s. Su BROKER ID es [%d]",nombreCola,mensaje->ID_mensaje);
+	//log_info(logger,"La cola %s tiene %d mensajes",nombreCola,list_size(colaDeMensajes));
 
 	cachearMensaje(mensaje,nombreCola);
-
-	//Esto está para testear nada más.
-	for(int i = 0; i < list_size(particionesLibres);i++){
-		uint32_t *ID = list_get(particionesLibres,i);
-		t_particion *particion = obtenerParticion(*ID,PARTITION_ID);
-		printf("TAMANIO DE LA PARTICION %d: %d \n",particion->ID_Particion,particion->tamanioParticion);
-	}
 
 	pthread_mutex_unlock(&semaforoMensajes);
 }
@@ -1351,6 +1343,7 @@ void compactarMemoria(){
 				uint32_t posParticionLibre = obtenerPosicionParticion(particionActual->ID_Particion);
 
 				list_remove(particiones,posParticionLibre);
+
 			}
 			else{
 				offsetLocalCache += tamParticionActual;
@@ -1385,15 +1378,14 @@ void compactarMemoria(){
 
 			list_remove(particiones,posParticionLibre);
 
-			//log_error(logger,"OFFSET LOCAL CACHE: %d",offsetLocalCache);
 
 		}else{
+
+			setearOffset(offsetLocalCache,particionActual);
 			offsetLocalCache += tamParticionActual;
-			//log_error(logger,"OFFSET LOCAL CACHE: %d",offsetLocalCache);
 		}
 	}
 
-	//log_error(logger,"OFFSET LOCAL CACHE: %d",offsetLocalCache);
 
 	list_clean(particionesLibres);
 
@@ -1436,11 +1428,11 @@ void eliminarMensaje(uint32_t ID, t_list *colaDeMensajes,char *nombreCola,t_FLAG
 	list_remove_and_destroy_element(colaDeMensajes,posicionMensaje,(void *) destruirMensaje);
 
 	if(flag == ACK){
-		log_info(logger,"El mensaje con BROKER_ID [%d] se eliminó de la cola %s. Motivo: Todos los suscriptores recibieron el mensaje.",ID,nombreCola);
+		//log_info(logger,"El mensaje con BROKER_ID [%d] se eliminó de la cola %s. Motivo: Todos los suscriptores recibieron el mensaje.",ID,nombreCola);
 	}
 
 	if(flag == REPLACEMENT_ALGORITHM){
-		log_info(logger,"El mensaje con BROKER_ID [%d] se eliminó de la cola %s. Motivo: Fue seleccionado para su reemplazo.",ID,nombreCola);
+		//log_info(logger,"El mensaje con BROKER_ID [%d] se eliminó de la cola %s. Motivo: Fue seleccionado para su reemplazo.",ID,nombreCola);
 	}
 
 }
@@ -1467,7 +1459,7 @@ void iniciarMemoria(){
 	particiones = list_create();
 
 	t_particion *particionInicial = crearParticion(tamanio_memoria);
-	log_error(logger,"Se inició la memoria cache!");
+
 	setearOffset(0,particionInicial);
 
 	list_add(particiones,particionInicial);
@@ -1702,14 +1694,14 @@ t_mensaje *obtenerMensaje(uint32_t ID,t_list *colaDeMensajes,t_FLAG flag){
 	if(flag == BROKER_ID){
 		mensaje = obtenerMensajeDeCola(ID,colaDeMensajes,obtenerIDMensaje);
 		if(mensaje == NULL){
-			log_error(logger,"No se pudo obtener el mensaje con BROKER ID [%d]",ID);
+			//log_error(logger,"No se pudo obtener el mensaje con BROKER ID [%d]",ID);
 		}
 	}
 
 	if(flag == CORRELATIVE_ID){
 		mensaje = obtenerMensajeDeCola(ID,colaDeMensajes,obtenerIDCorrelativo);
 		if(mensaje == NULL){
-			log_error(logger,"No se pudo obtener el mensaje con ID CORRELATIVO [%d]",ID);
+			//log_error(logger,"No se pudo obtener el mensaje con ID CORRELATIVO [%d]",ID);
 		}
 	}
 
