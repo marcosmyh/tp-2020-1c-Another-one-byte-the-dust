@@ -854,7 +854,7 @@ void planificarEntrenadores(){
 
 			sem_wait(&semaforoPlanificacionExec);
 
-			if (list_is_empty(pokemonesEnMapa)){
+			if (list_is_empty(pokemonesEnMapa) && !planificacionCompleta){
 				//ESTO ES PARA CUANDO ME QUEDO SIN POKEMONES EN READY PARA QUE NO SE BLOQUEE
 				sem_post(&semaforoPlanificacionExec);
 			}
@@ -947,8 +947,6 @@ void ejecutarEntrenador(t_entrenador* entrenadorAEjecutar){
 
 //ACA EMPIEZAN LAS FUNCIONES NUEVAS
 
-//intercambiarPokemonCon(t_entrenador *entrenador
-
 void intercambiarPokemon(t_entrenador* entrenadorAEjecutar){
 	entrenadorAEjecutar->ocupado = true;
 	char *pokemonQueNecesito = list_get(entrenadorAEjecutar->pokemonesQueFaltan,0);
@@ -957,15 +955,18 @@ void intercambiarPokemon(t_entrenador* entrenadorAEjecutar){
 	char *pokemonQueElOtroNoNecesita;
 	char *pokemonQueYoNoNecesito;
 
-	if (entrenadorAEjecutar->entrenadorAIntercambiar == NULL){
-		entrenadorAIntercambiar = obtenerEntrenadorQueTieneMiPokemon(entrenadorAEjecutar, pokemonQueNecesito);
-		pokemonQueElOtroNoNecesita = pokemonQueNoNecesito(entrenadorAIntercambiar);
-		pokemonQueYoNoNecesito = pokemonQueNoNecesito(entrenadorAEjecutar);
-	}
-
-	int distanciaAEntrenador = (abs(entrenadorAEjecutar->coordenadaX - entrenadorAIntercambiar->coordenadaX) + abs(entrenadorAEjecutar->coordenadaY - entrenadorAIntercambiar->coordenadaY));
-
 	if(strcmp(algoritmo_planificacion,"RR")==0){
+
+		//NO ESTOY MUY CONVENCIDO DE ESTA CONDICION
+		if (entrenadorAEjecutar->entrenadorAIntercambiar == NULL){
+			entrenadorAIntercambiar = obtenerEntrenadorQueTieneMiPokemon(entrenadorAEjecutar, pokemonQueNecesito);
+			entrenadorAEjecutar->entrenadorAIntercambiar = entrenadorAIntercambiar;
+			pokemonQueElOtroNoNecesita = pokemonQueNoNecesito(entrenadorAIntercambiar);
+			pokemonQueYoNoNecesito = pokemonQueNoNecesito(entrenadorAEjecutar);
+		}
+		int distanciaAEntrenador = (abs(entrenadorAEjecutar->coordenadaX - entrenadorAEjecutar->entrenadorAIntercambiar->coordenadaX) +
+				abs(entrenadorAEjecutar->coordenadaY - entrenadorAEjecutar->entrenadorAIntercambiar->coordenadaY));
+
 		//EJECUTAR CON QUANTUM
 		entrenadorAIntercambiar = entrenadorAEjecutar->entrenadorAIntercambiar;
 		pokemonQueElOtroNoNecesita = pokemonQueNoNecesito(entrenadorAIntercambiar);
@@ -992,24 +993,42 @@ void intercambiarPokemon(t_entrenador* entrenadorAEjecutar){
 	}
 	else{
 		//EJECUTAR SIN QUANTUM
+
+		entrenadorAIntercambiar = obtenerEntrenadorQueTieneMiPokemon(entrenadorAEjecutar, pokemonQueNecesito);
+		log_info(logger,"El entrenador %d  hara un intercambio con el entrenador %d", entrenadorAEjecutar->idEntrenador, entrenadorAIntercambiar->idEntrenador);
+		pokemonQueElOtroNoNecesita = pokemonQueNoNecesito(entrenadorAIntercambiar);
+		pokemonQueYoNoNecesito = pokemonQueNoNecesito(entrenadorAEjecutar);
+		int distanciaAEntrenador = (abs(entrenadorAEjecutar->coordenadaX - entrenadorAIntercambiar->coordenadaX) + abs(entrenadorAEjecutar->coordenadaY - entrenadorAIntercambiar->coordenadaY));
+
 		moverEntrenadorParaIntercambio(entrenadorAEjecutar, entrenadorAIntercambiar);
-		sleep((retardo_ciclo_cpu*distanciaAEntrenador)+1);
-		ciclosTotales += distanciaAEntrenador+1;
-		entrenadorAEjecutar->ciclosEjecutados += distanciaAEntrenador+1;
-		entrenadorAEjecutar->rafagasEjecutadas = distanciaAEntrenador + 1; //Una rafaga por cada unidad de distancia que se mueve + una rafaga para mandar un mensaje al broker
+		sleep((retardo_ciclo_cpu*distanciaAEntrenador));
+		ciclosTotales += distanciaAEntrenador;
+		entrenadorAEjecutar->ciclosEjecutados += distanciaAEntrenador;
+		entrenadorAEjecutar->rafagasEjecutadas = distanciaAEntrenador;
 		int index = list_get_index(entrenadorAIntercambiar->pokemones, pokemonQueElOtroNoNecesita, (void*)comparadorNombrePokemones);
 		list_remove(entrenadorAIntercambiar->pokemones, index);
-		realizarIntercambio(entrenadorAEjecutar, entrenadorAIntercambiar, pokemonQueElOtroNoNecesita, pokemonQueYoNoNecesito);
+		log_info(loggerObligatorio, "Se comenzará el intercambio entre el entrenador %d  y el entrenador %d", entrenadorAEjecutar->idEntrenador, entrenadorAIntercambiar->idEntrenador);
+		log_info(logger, "El entrenador %d recibira a %s  y el entrenador %d recibira a %s", entrenadorAEjecutar->idEntrenador, pokemonQueElOtroNoNecesita,
+				entrenadorAIntercambiar->idEntrenador, pokemonQueYoNoNecesito);
 		sleep(retardo_ciclo_cpu*5);  //CONSUME 5 CICLOS DE CPU
 		ciclosTotales += 5;
 		entrenadorAEjecutar->ciclosEjecutados += 5;
-		list_remove(colaExec,0);
-		entrenadorAEjecutar->blockeado = true;
-		list_add(colaBlocked,entrenadorAEjecutar);
-		log_info(loggerObligatorio, "Se cambió un entrenador de EXEC a BLOCKED, Razon: Esta a la espera de un mensaje CAUGHT");
-		//CUANDO SALGO DE EXEC HAGO EL POST
-		sem_post(&semaforoPlanificacionExec);
-		cambiosDeContexto++;
+
+		realizarIntercambio(entrenadorAEjecutar, entrenadorAIntercambiar, pokemonQueElOtroNoNecesita, pokemonQueYoNoNecesito);
+		if(conexionAppeared){
+			//INTERCAMBIO CON EL BROKER
+			list_remove(colaExec,0);
+			entrenadorAEjecutar->blockeado = true;
+			list_add(colaBlocked,entrenadorAEjecutar);
+			log_info(loggerObligatorio, "Se cambió un entrenador de EXEC a BLOCKED, Razon: Esta a la espera de un mensaje CAUGHT");
+			//CUANDO SALGO DE EXEC HAGO EL POST
+			sem_post(&semaforoPlanificacionExec);
+			cambiosDeContexto++;
+		}
+		else{
+			completarCatch(entrenadorAEjecutar, 1);
+			completarCatch(entrenadorAIntercambiar, 1);
+		}
 	}
 
 }
@@ -1026,49 +1045,65 @@ t_pokemon *crearPokemon(char *nombrePokemon,uint32_t coordX,uint32_t coordY){
 
 
 void realizarIntercambio(t_entrenador* entrenadorAEjecutar, t_entrenador* entrenadorAIntercambiar, char* pokemonQueElOtroNoNecesita, char* pokemonQueYoNoNecesito){
-	log_info(loggerObligatorio, "Se comenzará el intercambio entre el entrenador %d  y el entrenador %d", entrenadorAEjecutar->idEntrenador, entrenadorAIntercambiar->idEntrenador);
-
+	t_pokemon *pokemonQueCedo = crearPokemon(pokemonQueYoNoNecesito,entrenadorAEjecutar->coordenadaX,entrenadorAEjecutar->coordenadaY);
 	t_pokemon *pokemonQueRecibo = crearPokemon(pokemonQueElOtroNoNecesita,entrenadorAIntercambiar->coordenadaX,entrenadorAIntercambiar->coordenadaY);
 
-	atraparPokemon(entrenadorAEjecutar,pokemonQueRecibo); //ATRAPO UN POKEMON QUE EL OTRO NO NECESITA
-
-	while(1){
-		if(llegoRespuesta){
-			//CUANDO LLEGA LA RESPUESTA HABILITO LA EJECUCION
-			sem_wait(&semaforoRespuestaCatch);
-			llegoRespuesta = 0;
-			//ME TRAIGO EL ULTIMO ELEMENTO DE LA LISTA DE MENSAJES CATCH, ADD AGREGA AL FINAL DE LA LISTA
-			int sizeMensajesCatch = list_size(mensajesCATCH);
-			int index = sizeMensajesCatch-1;
-			uint32_t* IDCATCH = list_get(mensajesCATCH,index);
-			entrenadorAEjecutar->IdCatch = *IDCATCH;
-			break;
+	if(conexionAppeared){
+		atraparPokemon(entrenadorAEjecutar,pokemonQueRecibo); //ATRAPO UN POKEMON QUE EL OTRO NO NECESITA
+		while(1){
+			if(llegoRespuesta){
+				//CUANDO LLEGA LA RESPUESTA HABILITO LA EJECUCION
+				sem_wait(&semaforoRespuestaCatch);
+				llegoRespuesta = 0;
+				//ME TRAIGO EL ULTIMO ELEMENTO DE LA LISTA DE MENSAJES CATCH, ADD AGREGA AL FINAL DE LA LISTA
+				int sizeMensajesCatch = list_size(mensajesCATCH);
+				int index = sizeMensajesCatch-1;
+				uint32_t* IDCATCH = list_get(mensajesCATCH,index);
+				entrenadorAEjecutar->IdCatch = *IDCATCH;
+				break;
+			}
 		}
-	}
-	int index2 = list_get_index(entrenadorAEjecutar->pokemones, pokemonQueYoNoNecesito, (void*)comparadorNombrePokemones);
-	list_remove(entrenadorAEjecutar->pokemones, index2);
+		//ELIMINO EL POKEMON QUE VOY A DAR AL OTRO
+		int index2 = list_get_index(entrenadorAEjecutar->pokemones, pokemonQueYoNoNecesito, (void*)comparadorNombrePokemones);
+		list_remove(entrenadorAEjecutar->pokemones, index2);
 
-	t_pokemon *pokemonQueCedo = crearPokemon(pokemonQueYoNoNecesito,entrenadorAEjecutar->coordenadaX,entrenadorAEjecutar->coordenadaY);
 
-	atraparPokemon(entrenadorAIntercambiar,pokemonQueCedo); //EL OTRO ATRAPA UN POKEMON QUE YO NO NECESITO
-
-	while(1){
-		if(llegoRespuesta){
-			//CUANDO LLEGA LA RESPUESTA HABILITO LA EJECUCION
-			sem_wait(&semaforoRespuestaCatch);
-			llegoRespuesta = 0;
-			//ME TRAIGO EL ULTIMO ELEMENTO DE LA LISTA DE MENSAJES CATCH, ADD AGREGA AL FINAL DE LA LISTA
-			int sizeMensajesCatch = list_size(mensajesCATCH);
-			int index = sizeMensajesCatch-1;
-			uint32_t* IDCATCH = list_get(mensajesCATCH,index);
-			entrenadorAEjecutar->IdCatch = *IDCATCH;
-			break;
+		atraparPokemon(entrenadorAIntercambiar,pokemonQueCedo); //EL OTRO ATRAPA UN POKEMON QUE YO NO NECESITO
+		while(1){
+			if(llegoRespuesta){
+				//CUANDO LLEGA LA RESPUESTA HABILITO LA EJECUCION
+				sem_wait(&semaforoRespuestaCatch);
+				llegoRespuesta = 0;
+				//ME TRAIGO EL ULTIMO ELEMENTO DE LA LISTA DE MENSAJES CATCH, ADD AGREGA AL FINAL DE LA LISTA
+				int sizeMensajesCatch = list_size(mensajesCATCH);
+				int index = sizeMensajesCatch-1;
+				uint32_t* IDCATCH = list_get(mensajesCATCH,index);
+				entrenadorAEjecutar->IdCatch = *IDCATCH;
+				break;
+			}
 		}
+		//EL OTRO ENTRENADOR ELIMINA EL POKEMON QUE LE DIO AL OTRO ENTRENADOR
+		int index3 = list_get_index(entrenadorAIntercambiar->pokemones, pokemonQueElOtroNoNecesita, (void*)comparadorNombrePokemones);
+		list_remove(entrenadorAEjecutar->pokemones, index3);
 	}
+	else{
+		log_info(loggerObligatorio, "No se puedo establecer conexion con el broker, el intercambio se hara segun la accion por default");
+
+		//SACO EL POKEMON QUE YO NO NECESITO Y SE LO ASIGNO AL OTRO COMO POKEMON A ATRAPAR
+		int index2 = list_get_index(entrenadorAEjecutar->pokemones, pokemonQueYoNoNecesito, (void*)comparadorNombrePokemones);
+		list_remove(entrenadorAEjecutar->pokemones, index2);
+		entrenadorAIntercambiar->pokemonAAtrapar = pokemonQueCedo;
+
+		//EL OTRO ENTRENADOR SACA EL POKEMON QUE YA NO NECESITA Y SE LO ASIGNA EL PRIMERO COMO EL POKEMON A ATRAPAR
+		int index3 = list_get_index(entrenadorAIntercambiar->pokemones, pokemonQueElOtroNoNecesita, (void*)comparadorNombrePokemones);
+		list_remove(entrenadorAIntercambiar->pokemones, index3);
+		entrenadorAEjecutar->pokemonAAtrapar = pokemonQueRecibo;
+	}
+
 }
 
-bool comparadorNombrePokemones(t_pokemon* unPokemon, t_pokemon* otroPokemon){
-	if(strcmp(unPokemon->nombrePokemon, otroPokemon->nombrePokemon)== 0){
+bool comparadorNombrePokemones(char* unPokemon, char* otroPokemon){
+	if(strcmp(unPokemon, otroPokemon)== 0){
 		return true;
 	}
 	else{
@@ -1076,7 +1111,7 @@ bool comparadorNombrePokemones(t_pokemon* unPokemon, t_pokemon* otroPokemon){
 	}
 }
 
-char *pokemonQueNoNecesito(t_entrenador* unEntrenador){
+char *pokemonQueNoNecesito(t_entrenador* unEntrenador){ //TODO ESTA FUNCION POR AHI TENDRIA QUE VER QUE EL OTRO TAMBIEN LO NECESITE SI ES POSIBLE, SINO LE DOY CUALQUIERA
 	char *pokemonQueNoNecesito;
 	int cantPokemons = list_size(unEntrenador->pokemones);
 	for(int i=0; i<cantPokemons; i++){
@@ -1118,6 +1153,8 @@ void capturarPokemon(t_entrenador* entrenadorAEjecutar){
 
 	if(strcmp(algoritmo_planificacion,"RR")==0){
 		//EJECUTAR CON QUANTUM
+
+		//NO ESTOY MUY CONVENCIDO DE ESTA CONDICION
 		if (entrenadorAEjecutar->pokemonAAtrapar == NULL){
 			//ESTO ME PERMITE RECORDAR EL NOMBRE DEL POKEMON QUE ESTOY ATRAPANDO EN RR
 			entrenadorAEjecutar->pokemonAAtrapar = pokemonMasCercanoA(entrenadorAEjecutar);
@@ -1373,11 +1410,10 @@ void completarCatchSinBroker(t_entrenador* unEntrenador){
 			//sem_post(&semaforoPlanificacionExec);
 			}
 		else{
-			log_error(logger,"ANTES DE HACER EL REMOVE EXEC");
 			t_entrenador* unEntrenador = list_remove(colaExec,0);
 			unEntrenador->pokemonAAtrapar = NULL;
 			list_add(colaBlocked, unEntrenador);
-			log_info(logger, "El entrenador %d atrapo el pokemon, no puede atrapar mas y no cumplio el objetivo, esperara al algoritmo de Deadlock", unEntrenador->idEntrenador);
+			log_info(logger, "El entrenador %d atrapo el pokemon, no puede atrapar mas y no cumplio el objetivo se cambio de EXEC a BLOCKED donde esperara al algoritmo de Deadlock", unEntrenador->idEntrenador);
 			//LOS ENTRENADORES QUE NO COMPLETEN EL OBJETIVO Y PROBABLEMENTE ESTEN EN DEADLOCK QUEDAN BLOCKED Y EN ESTADO OCUPADO
 			//CUANDO SALGO DE EXEC HAGO EL POST
 			//sem_post(&semaforoPlanificacionExec);
@@ -1419,9 +1455,16 @@ void completarIntercambioSinBroker(t_entrenador* unEntrenador){
 		deadlocksResueltos++;
 	}
 	else{
+		if(!list_is_empty(colaExec)){
+			t_entrenador* unEntrenador = list_remove(colaExec,0);
+			unEntrenador->pokemonAAtrapar = NULL;
+			list_add(colaBlocked, unEntrenador);
+			log_info(logger, "El entrenador %d atrapo el pokemon, no puede atrapar mas y no cumplio el objetivo, se cambio de EXEC a BLOCKED donde esperara al algoritmo de Deadlock", unEntrenador->idEntrenador);
+			sem_post(&semaforoPlanificacionExec);  //PORQUE ACA PASO DE EXEC A BLOQUEADO
+			deadlocksResueltos++;
+		}
 		unEntrenador->pokemonAAtrapar = NULL;
-		list_add(colaBlocked, unEntrenador);
-		log_info(logger, "El entrenador %d atrapo el pokemon con la rutina por default, no puede atrapar mas y no cumplio el objetivo, esperara al algoritmo de Deadlock", unEntrenador->idEntrenador);
+		log_info(logger, "El entrenador %d atrapo el pokemon, no puede atrapar mas y no cumplio el objetivo, permanece en BLOCKED donde esperara al algoritmo de Deadlock", unEntrenador->idEntrenador);
 		deadlocksResueltos++;
 	}
 }
@@ -1811,9 +1854,6 @@ void revisionDeadlocks(){
 	detectarDeadlocks();
 	*/
 
-
-
-	//TODO FIJATE DE USAR ESTA VERSION NUEVA, VERIFICAR SI HAY QUE PONER UN SEMAFORO
 	//VERSION NUEVA
 
 	//list_is_empty(colaExec) && list_is_empty(colaReady)
@@ -1831,7 +1871,9 @@ void revisionDeadlocks(){
 				if(cumplioObjetivoTeam()){
 					log_info(loggerObligatorio, "El %s cumplio el objetivo, se pasara a imprimir sus metricas",identificadorProceso);
 					log_error(logger,"Imprimo metricas xd");
-					//TODO imprimirmetricas;
+
+					//TODO imprimirmetricas();
+
 					return;
 				}
 				//SINO, ME PONGO A BUSCAR DEADLOCKS
@@ -1871,41 +1913,43 @@ void detectarDeadlocks(){
 	//t_list *idsEntrenadores = list_create();
 
 	while(list_size(colaExit) < list_size(entrenadores)){
-		t_list* entrenadoresEnDeadlock = list_filter(entrenadores, (void*)noCumplioObjetivo);
-		int cantEntrenadoresEnDeadlock = list_size(entrenadoresEnDeadlock);
-		int i;
-		for(i = 0; i<cantEntrenadoresEnDeadlock; i++){
-			t_entrenador* entrenadorEnDeadlock = list_get(entrenadoresEnDeadlock, i);
-			int j;
-			int cantPokemonesFaltantes = list_size(entrenadorEnDeadlock->pokemonesQueFaltan);
-			log_error(logger,"CANT POKEMONES FALTANTES PARA EL ENTRENADOR %d: %d",entrenadorEnDeadlock->idEntrenador,cantPokemonesFaltantes);
-			for(j=0; j<cantPokemonesFaltantes; j++){
-				char *pokemonFaltante = list_get(entrenadorEnDeadlock->pokemonesQueFaltan,j);
-				log_error(logger,"ANTES DE OBTENER EL ENTRENADOR");
-				t_entrenador* entrenadorEnConflicto = obtenerEntrenadorQueTieneMiPokemon(entrenadorEnDeadlock, pokemonFaltante);
-				log_info(loggerObligatorio, "El entrenador %d ,esta en deadlock, necesita un %s que lo posee el entrenador %d", entrenadorEnDeadlock->idEntrenador, pokemonFaltante,
-						entrenadorEnConflicto->idEntrenador);
-				deadlocksProducidos++;
-				//CUANDO ENCUENTRO UN ENTRENADOR QUE TIENE MI POKEMON, SE LO VOY A INTERCAMBIAR POR UNO QUE NO ME SIRVA
-				//LO BUSCO EN LOS BLOQUEADOS, LE CAMBIO LA BANDERA DE LA OPERACION Y LO MANDO A READY PARA QUE SEA PLANIFICADO POR EL PLANIFICADO
-			}
+		if(!list_is_empty(colaBlocked)){
+			t_list* entrenadoresEnDeadlock = list_filter(entrenadores, (void*)noCumplioObjetivo);
+			int cantEntrenadoresEnDeadlock = list_size(entrenadoresEnDeadlock);
+			int i;
+			for(i = 0; i<cantEntrenadoresEnDeadlock; i++){
+				t_entrenador* entrenadorEnDeadlock = list_get(entrenadoresEnDeadlock, i);
+				int j;
+				int cantPokemonesFaltantes = list_size(entrenadorEnDeadlock->pokemonesQueFaltan);
+				log_error(logger,"CANT POKEMONES FALTANTES PARA EL ENTRENADOR %d: %d",entrenadorEnDeadlock->idEntrenador,cantPokemonesFaltantes);
+				for(j=0; j<cantPokemonesFaltantes; j++){
+					char *pokemonFaltante = list_get(entrenadorEnDeadlock->pokemonesQueFaltan,j);
+					log_error(logger,"ANTES DE OBTENER EL ENTRENADOR");
+					t_entrenador* entrenadorEnConflicto = obtenerEntrenadorQueTieneMiPokemon(entrenadorEnDeadlock, pokemonFaltante);
+					log_info(loggerObligatorio, "El entrenador %d ,esta en deadlock, necesita un %s que lo posee el entrenador %d", entrenadorEnDeadlock->idEntrenador, pokemonFaltante,
+							entrenadorEnConflicto->idEntrenador);
+					deadlocksProducidos++;
+					//CUANDO ENCUENTRO UN ENTRENADOR QUE TIENE MI POKEMON, SE LO VOY A INTERCAMBIAR POR UNO QUE NO ME SIRVA
+					//LO BUSCO EN LOS BLOQUEADOS, LE CAMBIO LA BANDERA DE LA OPERACION Y LO MANDO A READY PARA QUE SEA PLANIFICADO POR EL PLANIFICADO
+				}
 
-			if(!list_is_empty(colaBlocked)){
-
-			int indexEntrenador = list_get_index(colaBlocked, entrenadorEnDeadlock, (void*)comparadorDeEntrenadores);
-			log_error(logger,"indexEntrenador: %d",indexEntrenador);
-			//si !saliste...salis xd
-			t_entrenador* entrenadorEnDeadlock = list_get(colaBlocked,i);
-			log_error(logger,"XDD");
-			log_error(logger,"ID ENTRENADOR ANTES DEL REMOVE: %d",entrenadorEnDeadlock->idEntrenador);
-			entrenadorEnDeadlock->blockeado = false;
-			entrenadorEnDeadlock->ocupado = false;
-			entrenadorEnDeadlock->operacionEntrenador = t_intercambiarPokemon;
-			//sem_signal(&semaforoPlanificacionReady);
-			list_remove(colaBlocked, indexEntrenador);
-			list_add(colaReady,entrenadorEnDeadlock);
-			log_info(loggerObligatorio, "Se cambio un entrenador de BLOCKED a READY, Razon: Seleccionado por el algoritmo de deteccion de deadlocks para que lo resuelva");
-			//list_add(idsEntrenadores,&(entrenadorEnDeadlock->idEntrenador));
+				if(!list_is_empty(colaBlocked)){
+				log_error(logger, "TAMAÑO DE LA COLA BLOCKED %d", list_size(colaBlocked));
+				int indexEntrenador = list_get_index(colaBlocked, entrenadorEnDeadlock, (void*)comparadorDeEntrenadores);
+				log_error(logger,"indexEntrenador: %d",indexEntrenador);
+				//si !saliste...salis xd
+				t_entrenador* entrenadorEnDeadlock = list_get(colaBlocked,indexEntrenador);
+				log_error(logger,"XDD");
+				log_error(logger,"ID ENTRENADOR ANTES DEL REMOVE: %d",entrenadorEnDeadlock->idEntrenador);
+				entrenadorEnDeadlock->blockeado = false;
+				entrenadorEnDeadlock->ocupado = false;
+				entrenadorEnDeadlock->operacionEntrenador = t_intercambiarPokemon;
+				//sem_signal(&semaforoPlanificacionReady);
+				list_remove(colaBlocked, indexEntrenador);
+				list_add(colaReady,entrenadorEnDeadlock);
+				log_info(loggerObligatorio, "Se cambio un entrenador de BLOCKED a READY, Razon: Seleccionado por el algoritmo de deteccion de deadlocks para que lo resuelva");
+				//list_add(idsEntrenadores,&(entrenadorEnDeadlock->idEntrenador));
+				}
 			}
 		}
 	}
@@ -1980,10 +2024,6 @@ void imprimirMetricas(){
 		}
 	}
 	*/
-
-	//TODO ACA CREO QUE HABRIA QUE METER UN SEMAFORO QUE ESPERE A QUE SE RESUELVAN TODOS LOS DEADLOCKS
-
-
 }
 
 void metricas(){

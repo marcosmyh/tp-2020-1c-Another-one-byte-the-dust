@@ -232,7 +232,7 @@ void generarPokemonesFaltantes();
 void agregarPokemonesQueFaltan(t_entrenador* unEntrenador);
 
 void intercambiarPokemon(t_entrenador* entrenadorAEjecutar);
-bool comparadorNombrePokemones(t_pokemon* unPokemon, t_pokemon* otroPokemon);
+bool comparadorNombrePokemones(char* unPokemon, char* otroPokemon);
 char *pokemonQueNoNecesito(t_entrenador* unEntrenador);
 bool estaEnObjetivo(char* unPokemon, t_entrenador* unEntrenador);
 void moverEntrenadorParaIntercambio(t_entrenador* entrenadorAEjecutar, t_entrenador* otroEntrenador);
