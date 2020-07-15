@@ -17,7 +17,6 @@
 #include <unistd.h>
 #include <netdb.h>
 #include <semaphore.h>
-//
 #include "../Serializacion/Serializacion.h"
 
 
@@ -145,8 +144,8 @@ int socket_localized;
 
 
 //FUNCIONES
-bool hayPokemones = false;
-bool hayEntrenadores = false;
+bool hayPokemones = 0;
+bool hayEntrenadores = 0;
 int tamArray (char** puntero);
 bool charContains(char *cadena,char caracter);
 void crearLogger();
