@@ -569,7 +569,7 @@ void discriminarMensaje(t_infoPackGB *infoPack){
 				void* paquete = infoPack->paquete;
 				uint32_t id = unpackID(paquete);
 
-				envioDelACK(id,tipoDeOperacion);
+				//envioDelACK(id,tipoDeOperacion);
 				switch (tipoDeOperacion) {
 						case t_GET:;
 							//log_info(logger,"Me llegaron mensajes de la cola Get");

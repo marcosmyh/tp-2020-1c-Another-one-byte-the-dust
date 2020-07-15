@@ -101,12 +101,10 @@ void procesar_solicitud(Header header,int cliente_fd){
     	 int socket = suscriptor->socket_suscriptor;
     	 char *identificadorProceso = suscriptor->identificadorProceso;
     	 packAndSend(socket,paquete,sizePaquete,codigo_operacion);
-
     	 char *idAAgregar = string_duplicate(identificadorProceso);
-
     	 list_add(mensaje->suscriptoresALosQueMandeMensaje,idAAgregar);
 
-    	 log_info(logger,"Le mande un mensaje as %s",idAAgregar);
+    	 log_info(logger,"Le mande un mensaje a %s",idAAgregar);
      }
 
      switch (codigo_operacion) {
@@ -921,7 +919,7 @@ void reunirHermanos(t_nodo* nodoPadre){
 	//nodoPadre->ocupado = 0;
 
 	list_add(particiones,particionPadre);
-	list_add(particionesLibres,particionPadre);
+	list_add(particionesLibres,&particionPadre->ID_Particion);
 	//log_info(logger,"buddys reunidos su nuevo id es: %d, su tamaño es :%d y su off: %d",nodoPadre->id,nodoPadre->tamanioQueOcupa,nodoPadre->offset);
 }
 
@@ -1322,22 +1320,26 @@ void compactarMemoria(){
 	uint32_t espacioLibre = 0;
 	uint32_t offsetLocalCache = 0;
 
-	list_sort(particiones,tieneMenorOffset);
+	t_list *listaAux = list_sorted(particiones,tieneMenorOffset);
 
-	for(int i = 0; i < list_size(particiones);i++){
+	for(int i = 0; i < list_size(listaAux);i++){
 
-		particionActual = list_get(particiones,i);
+		particionActual = list_get(listaAux,i);
 
-		uint32_t tamParticionActual = particionActual->tamanioParticion;
 
-		if(i+1 == list_size(particiones)){
+		if( i+1 >= list_size(listaAux)){
+
 			particionSiguiente = NULL;
 		}else{
-			particionSiguiente = list_get(particiones,i+1);
+
+			particionSiguiente = list_get(listaAux,i+1);
+
 		}
 
+		uint32_t tamParticionActual = particionActual->tamanioParticion;
 		if(particionSiguiente == NULL){
 			if(estaLibre(particionActual)){
+
 				espacioLibre += tamParticionActual;
 
 				uint32_t posParticionLibre = obtenerPosicionParticion(particionActual->ID_Particion);
@@ -1346,6 +1348,7 @@ void compactarMemoria(){
 
 			}
 			else{
+
 				offsetLocalCache += tamParticionActual;
 			}
 
@@ -1358,12 +1361,15 @@ void compactarMemoria(){
 
 			uint32_t offsetSiguiente = particionSiguiente->offset;
 
+			fseek(arch,0,SEEK_SET);
 			fseek(arch,offsetSiguiente,SEEK_CUR);
 
+			//void *particion = calloc(1,tamParticionSiguiente);
 			void *particion = malloc(tamParticionSiguiente);
 
 			fread(particion,tamParticionSiguiente,1,arch);
 
+			fseek(arch,0,SEEK_SET);
 			fseek(arch,offsetLocalCache,SEEK_CUR);
 
 			fwrite(particion,tamParticionSiguiente,1,arch);
@@ -1377,9 +1383,24 @@ void compactarMemoria(){
 			uint32_t posParticionLibre = obtenerPosicionParticion(particionActual->ID_Particion);
 
 			list_remove(particiones,posParticionLibre);
-
-
+			i++;
+			free(particion);
 		}else{
+
+			//void *particion = calloc(1,particionActual->tamanioParticion);
+			void *particion = malloc(particionActual->tamanioParticion);
+			fseek(arch,0,SEEK_SET);
+			fseek(arch,particionActual->offset,SEEK_CUR);
+
+
+			fread(particion,particionActual->tamanioParticion,1,arch);
+
+			fseek(arch,0,SEEK_SET);
+			fseek(arch,offsetLocalCache,SEEK_CUR);
+
+			fwrite(particion,offsetLocalCache,1,arch);
+
+			free(particion);
 
 			setearOffset(offsetLocalCache,particionActual);
 			offsetLocalCache += tamParticionActual;
@@ -1391,9 +1412,11 @@ void compactarMemoria(){
 
 	t_particion *nuevaParticion = crearParticion(espacioLibre);
 
+	fseek(arch,0,SEEK_SET);
 	fseek(arch,offsetLocalCache,SEEK_CUR);
 
-	char *paquete = calloc(1,espacioLibre);
+	//char *paquete = calloc(1,espacioLibre);
+	void *paquete = malloc(espacioLibre);
 
 	fwrite(paquete,espacioLibre,1,arch);
 
@@ -1582,13 +1605,9 @@ void *descachearPaquete(t_mensaje *mensaje,char *colaDePokemon){
 
 	t_particion *particionMensaje = obtenerParticion(IDMensaje,BROKER_ID);
 
-	uint32_t offset = particionMensaje->offset;
-
-	//log_error(logger,"TAM PAQUETE: %d y su offset :D %d",tamPaquete,offset);
-
 	FILE *arch = fopen("/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/Broker/Cache","r");
 
-	fseek(arch,offset,SEEK_CUR);
+	fseek(arch,particionMensaje->offset,SEEK_CUR);
 
 	void *paquete = malloc(tamPaquete);
 
@@ -1819,8 +1838,8 @@ void validarRecepcionMensaje(uint32_t ID_mensaje,t_operacion nombreCola,char *ID
                     log_info(logger,"%s recibió satisfactoriamente el mensaje con ID %d de CAUGHT",ID_proceso,ID_mensaje);
 
                     if(todosRecibieronElMensaje(mensaje,suscriptores_CAUGHT_POKEMON)){
-                    	//eliminarMensaje(ID_mensaje,CAUGHT_POKEMON,"CAUGHT_POKEMON",ACK);
-                    	//liberarParticion(obtenerParticion(ID_mensaje,BROKER_ID),algoritmo_memoria);
+                    	eliminarMensaje(ID_mensaje,CAUGHT_POKEMON,"CAUGHT_POKEMON",ACK);
+                    	liberarParticion(obtenerParticion(ID_mensaje,BROKER_ID),algoritmo_memoria);
                     }
 
 	     			break;
@@ -2050,7 +2069,9 @@ void enviarMensajesCacheados(t_suscriptor *suscriptor,t_list *colaMensajes,char 
 				mensaje = list_get(colaMensajes,i);
 				tamPaquete = mensaje->tamanioPaquete;
 				paqueteAEnviar = descachearPaquete(mensaje,nombreCola);
+
 				packAndSend(socketSuscriptor,paqueteAEnviar,tamPaquete+tamID,operacion);
+				log_info(logger,"Le mandé a %s el mensaje con BROKER ID [%d] de la cola %s",suscriptor->identificadorProceso,mensaje->ID_mensaje,nombreCola);
 			}
 	}else{
 			for(int i = 0; i < list_size(colaMensajes);i++){
