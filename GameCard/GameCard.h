@@ -143,7 +143,7 @@ int bloquesNecesariosParaEscribir(char* datos);
 
 // Manipulacion de archivos
 int esDirectorio(char* ruta);
-char* obtener_contenido_de_bloque(char* nroDeBloque);
+char* obtenerContenidoDeBloque(char* nroDeBloque);
 bool contieneEstaPosicion(char* lineas,char* arrayPosicion);
 int escribirBloquePosicionandoPuntero(char* nombreDeBloque,char* stringAEscribir,int desplazamiento);
 void crearDirectorio(char* pathDeDirectorio);
@@ -162,7 +162,7 @@ void disminuirCantidad(char* posiciones,char* posicionBuscada,char* bloquesStrin
 
 
 // Utilidades para pokemon
-t_config* obtener_metadata_de_pokemon(char *nombrePokemon);
+t_config* obtenerFCB(char *nombrePokemon);
 int existePokemon(char* nombrePokemon);
 void crearPokemon(char* nombrePokemon);
 bool archivoAbierto(char* nombrePokemon);
@@ -170,7 +170,7 @@ void abrirArchivo(char* nombrePokemon);
 void cerrarArchivo(char* nombrePokemon);
 void editarTamanioPokemon(char* nombrePokemon,int cantidad);
 void agregarBloqueAPokemon(char* nombrePokemon,int numeroDeBloque);
-char* obtenerArrayDebloques(char* pokemon);
+char* obtenerBloquesDelPokemon(char* pokemon);
 int obtenerTamanioDePokemon(char* pokemon);
 
 // PROCEDIMIENTOS

@@ -9,6 +9,7 @@ int main(int argc,char* argv[]){
 	sem_init(&conexionRecuperadaDeNew,0,0);
 	sem_init(&conexionRecuperadaDeCatch,0,0);
 	sem_init(&conexionRecuperadaDeGet,0,0);
+
 	crearLogger();
 	crearLoggerObligatorio();
 
@@ -1206,7 +1207,7 @@ int solicitarBloquesParaPokemon(char* pokemon,int cantidadDeBloques){
 }
 
 void quitarUltimoBloqueAPokemon(char* nombrePokemon){
-	t_config* pokemon = obtener_metadata_de_pokemon(nombrePokemon);
+	t_config* pokemon = obtenerFCB(nombrePokemon);
 
 	char** bloques = config_get_array_value(pokemon,"BLOCKS");
 	int ultimaPosicion = length_punteroAPuntero(bloques);
@@ -1258,7 +1259,7 @@ void liberarBloquesParaPokemon(char* pokemon, int cantidadDeBloques){
 // Retorna el metada de un pokemon
 // dado solo su nombre (Puede retornar el metadata del directorio, cuidado)
 //
-t_config* obtener_metadata_de_pokemon(char *nombrePokemon){
+t_config* obtenerFCB(char *nombrePokemon){
 	char *ruta_pokemon;
 	t_config* configPokemon;
 
@@ -1272,7 +1273,7 @@ t_config* obtener_metadata_de_pokemon(char *nombrePokemon){
 // Retorna si existe el pokemon: NO GENERA LEAKS
 int existePokemon(char* nombrePokemon){
 
-	t_config* config_pokemon = obtener_metadata_de_pokemon(nombrePokemon);
+	t_config* config_pokemon = obtenerFCB(nombrePokemon);
 
 	if(config_pokemon == NULL){
 		return 0;
@@ -1290,7 +1291,7 @@ void crearPokemon(char* nombrePokemon){
 	mkdir(path_pokemon,0777);
 
 	string_append(&path_pokemon,"/Metadata.bin");
-	FILE *archivoVacioMetadata = fopen(path_pokemon,"a");
+	FILE *archivoVacioMetadata = fopen(path_pokemon,"w");
 	fclose(archivoVacioMetadata);
 
 	t_config* metaPokemon = config_create(path_pokemon);
@@ -1307,7 +1308,7 @@ void crearPokemon(char* nombrePokemon){
 //Abre el archiv ode pokemon
 void abrirArchivo(char* nombrePokemon){
 	// CAPAZ UN MUTEX
-	t_config* metaPokemon = obtener_metadata_de_pokemon(nombrePokemon);
+	t_config* metaPokemon = obtenerFCB(nombrePokemon);
 	config_set_value(metaPokemon,"OPEN","Y");
 	config_save(metaPokemon);
 	config_destroy(metaPokemon);
@@ -1316,19 +1317,21 @@ void abrirArchivo(char* nombrePokemon){
 // Cierra el archivo de pokemon
 void cerrarArchivo(char* nombrePokemon){
 	// CAPAZ UN MUTEX
-	t_config* metaPokemon = obtener_metadata_de_pokemon(nombrePokemon);
+	sem_wait(&aperturaDeArchivo);
+	t_config* metaPokemon = obtenerFCB(nombrePokemon);
 	config_set_value(metaPokemon,"OPEN","N");
 	config_save(metaPokemon);
 	config_destroy(metaPokemon);
+	sem_post(&aperturaDeArchivo);
 }
 // Dice si el archivo del pokemon esta abierto o no
 bool archivoAbierto(char* nombrePokemon){
 	int valor;
-	t_config* metaPokemon = obtener_metadata_de_pokemon(nombrePokemon);
+	t_config* metaPokemon = obtenerFCB(nombrePokemon);
 	char *estaAbierto = config_get_string_value(metaPokemon,"OPEN");
 	if(string_equals_ignore_case(estaAbierto,"Y")) valor = 1;
 	else valor = 0;
-
+	free(estaAbierto);
 	config_destroy(metaPokemon);
 	return valor;
 }
@@ -1347,7 +1350,7 @@ void *reintentoAbrir(void* argumentos){
 }
 
 // RETORNA LOS BLOQUES DEL METADATA FUNCIONA COMO STRING: NO DA LEAKS
-char* obtenerArrayDebloques(char* pokemon){
+char* obtenerBloquesDelPokemon(char* pokemon){
 			char* direccion = string_from_format("%s/%s/Metadata.bin",RUTA_DE_POKEMON,pokemon);
 
 			t_config* archiPokemon = config_create(direccion);
@@ -1361,7 +1364,7 @@ char* obtenerArrayDebloques(char* pokemon){
 
 // Retorna el tamaño del pokemon (Lee el size del metadata del pokemon)
 int obtenerTamanioDePokemon(char* pokemon){
-	t_config* configDeArchivo = obtener_metadata_de_pokemon(pokemon);
+	t_config* configDeArchivo = obtenerFCB(pokemon);
 	int tamanio = config_get_int_value(configDeArchivo,"SIZE");
 	config_destroy(configDeArchivo);
 	return tamanio;
@@ -1371,7 +1374,7 @@ int obtenerTamanioDePokemon(char* pokemon){
 // lo que hace es recibir un char con el numero del archivo
 // y llena un string con el contenido que tiene dicho archivo
 // Se debe agregar al final \0 NO GENERA LEAKS
-char* obtener_contenido_de_bloque(char* nroDeBloque){
+char* obtenerContenidoDeBloque(char* nroDeBloque){
 	char* rutaDeFile = string_from_format("%s/%s.bin",RUTA_DE_BLOQUES,nroDeBloque);
 
 	FILE* archi = fopen(rutaDeFile,"r");
@@ -1399,7 +1402,7 @@ char* obtenerContenidoDeArchivo(char* bloques){
 	char* contenidoAux;
 
 	while(arrayBloques[i] != NULL){
-		contenidoAux = obtener_contenido_de_bloque(arrayBloques[i]);
+		contenidoAux = obtenerContenidoDeBloque(arrayBloques[i]);
 		//	La linea obtenida es concatenada
 		//	asi forma un string largo con todo el contenido del archivo
 		string_append(&arrayDeArchivo,contenidoAux);
@@ -1458,7 +1461,7 @@ int espacioLibreDeBloque(char* nombreDeBloque){
 //Recibe el nombre del pokemon y un numero de bloque que va a ser
 // añadido BLOCKS de su metadata
 void agregarBloqueAPokemon(char* nombrePokemon,int numeroDeBloque){
-	t_config* pokemon = obtener_metadata_de_pokemon(nombrePokemon);
+	t_config* pokemon = obtenerFCB(nombrePokemon);
 
 	char** bloques = config_get_array_value(pokemon,"BLOCKS");
 	int i = 0;
@@ -1487,7 +1490,7 @@ void agregarBloqueAPokemon(char* nombrePokemon,int numeroDeBloque){
 }
 // Agrega la cantidad a size. Si es negativo el resta
 void editarTamanioPokemon(char* nombrePokemon,int cantidad){
-	t_config* pokemon = obtener_metadata_de_pokemon(nombrePokemon);
+	t_config* pokemon = obtenerFCB(nombrePokemon);
 	int tamanioViejo = config_get_int_value(pokemon,"SIZE");
 	tamanioViejo += cantidad;
 
@@ -1509,7 +1512,7 @@ void escribirEnFinDeArchivo(char* nombrePokemon,char* datos){
 	int cantidadEscrita = 0;
 
 
-	char* bloques = obtenerArrayDebloques(nombrePokemon);
+	char* bloques = obtenerBloquesDelPokemon(nombrePokemon);
 	char** bloquesSeparados = string_get_string_as_array(bloques);
 
 	if(espacioLibreDeBloque(bloquesSeparados[posDeBloque]) != 0){
@@ -1602,7 +1605,7 @@ void actualizacionDeBloques(int desplazamientoDeCambio,char* posiciones,char* po
 	int posicionBloque = bloqueAfectado(desplazamientoDeCambio);
 
 
-	char* bloquesArray = obtenerArrayDebloques(pokemon);
+	char* bloquesArray = obtenerBloquesDelPokemon(pokemon);
 	char** bloques = string_get_string_as_array(bloquesArray);
 
 	char* bloqueAfectado = bloques[posicionBloque];
@@ -1711,7 +1714,7 @@ void truncarUltimoBloque(char* nombrePokemon){
 	int tamanio = obtenerTamanioDePokemon(nombrePokemon);
 	int offset = desplazamientoEnBloque(tamanio);
 
-	t_config* pokemon = obtener_metadata_de_pokemon(nombrePokemon);
+	t_config* pokemon = obtenerFCB(nombrePokemon);
 	char** bloques = config_get_array_value(pokemon,"BLOCKS");
 	int ultimaPosicion = length_punteroAPuntero(bloques);
 
@@ -1816,10 +1819,11 @@ int verificarYAbrirArchivo(char* pokemon){
 	sem_wait(&aperturaDeArchivo);
 	int resultado;
 	if(!archivoAbierto(pokemon)){
-		log_info(logger,"Se puede abrir el archivo %s.",pokemon);
 		// Si no está abierto lo abre
 		abrirArchivo(pokemon);
+		printf("\033[0;33m");
 		log_info(logger,"Archivo %s abierto.",pokemon);
+		printf("\033[0m");
 		resultado = 1;
 	}else resultado = 0;
 
@@ -1832,11 +1836,13 @@ int verificarYAbrirArchivo(char* pokemon){
 int procedimientoNEW(char* pokemon,uint32_t posx,uint32_t posy,uint32_t cantidad){
 	int resultado;
 
+	sem_wait(&aperturaDeArchivo);
 	if(!existePokemon(pokemon)){
 		log_error(logger,"El pokemon %s no existe. Procediendo a crearlo",pokemon);
 		crearPokemon(pokemon);
 
 	}else log_info(logger,"Existe el pokemon %s",pokemon);
+	sem_post(&aperturaDeArchivo);
 
 	if(verificarYAbrirArchivo(pokemon) == 0){
 		log_error(logger,"El archivo %s no se puede abrir",pokemon);
@@ -1857,7 +1863,7 @@ int procedimientoNEW(char* pokemon,uint32_t posx,uint32_t posy,uint32_t cantidad
 	//log_info(logger,"Se puede abrir el archivo %s",pokemon);
 	//abrirArchivo(pokemon);
 
-	char* bloques = obtenerArrayDebloques(pokemon);
+	char* bloques = obtenerBloquesDelPokemon(pokemon);
 
 	char* posiciones = obtenerContenidoDeArchivo(bloques);
 	char* posXEnString = string_itoa(posx);
@@ -1884,7 +1890,10 @@ int procedimientoNEW(char* pokemon,uint32_t posx,uint32_t posy,uint32_t cantidad
 		resultado = anadirCantidad(posiciones,posicionBuscada,cantidad,bloques,pokemon);
 
 	}
+
+	printf("\033[1;34m");
 	log_info(logger,"Aplicando %d segundos de retardo",tiempo_de_retardo);
+	printf("\033[0m");
 	sleep(tiempo_de_retardo);
 
 	cerrarArchivo(pokemon);
@@ -1898,11 +1907,14 @@ int procedimientoNEW(char* pokemon,uint32_t posx,uint32_t posy,uint32_t cantidad
 // EN FASE DE PRUEBA
 int procedimientoCATCH(char* pokemon,uint32_t posx,uint32_t posy){
 	int resultado;
+
+	sem_wait(&aperturaDeArchivo);
 	if(!existePokemon(pokemon)){
 		log_error(loggerObligatorio,"No existe el pokemon %s",pokemon);
+		sem_post(&aperturaDeArchivo);
 		return -1;
 	}else log_info(logger,"Existe el pokemon %s",pokemon);
-
+	sem_post(&aperturaDeArchivo);
 
 
 
@@ -1925,7 +1937,7 @@ int procedimientoCATCH(char* pokemon,uint32_t posx,uint32_t posy){
 	//abrirArchivo(pokemon);
 
 
-	char* bloques = obtenerArrayDebloques(pokemon);
+	char* bloques = obtenerBloquesDelPokemon(pokemon);
 
 	char* posiciones = obtenerContenidoDeArchivo(bloques);
 	char* posXEnString = string_itoa(posx);
@@ -1945,7 +1957,11 @@ int procedimientoCATCH(char* pokemon,uint32_t posx,uint32_t posy){
 		disminuirCantidad(posiciones,posicionBuscada,bloques,pokemon);
 		resultado = 0;
 	}
+
+
+		printf("\033[1;34m");
 		log_info(logger,"Aplicando %d segundos de retardo",tiempo_de_retardo);
+		printf("\033[0m");
 		sleep(tiempo_de_retardo);
 
 		cerrarArchivo(pokemon);
@@ -1959,13 +1975,19 @@ int procedimientoCATCH(char* pokemon,uint32_t posx,uint32_t posy){
 
 int procedimientoGET(uint32_t idMensaje,char* pokemon){
 
+	int resultado;
 	log_info(logger,"comienza a ejecutar GET");
-	if(!existePokemon(pokemon)){
-		crearPokemon(pokemon);
-		}else log_info(logger,"Existe el pokemon");
+	sem_wait(&aperturaDeArchivo);
+	if(existePokemon(pokemon)){
+		sem_post(&aperturaDeArchivo);
+		log_info(logger,"Existe el pokemon");
+		//crearPokemon(pokemon); Esto no lo debería hacer
+		//Hay que sacar el ! y enviar el mensaje sin posicion ni cantidad
+		//Cuando no existe el pokemon
 
 
-	if(archivoAbierto(pokemon)){
+
+	if(verificarYAbrirArchivo(pokemon) == 0){
 		log_error(logger,"Archivo no se puede abrir");
 
 		// MATAR HILO
@@ -1980,10 +2002,10 @@ int procedimientoGET(uint32_t idMensaje,char* pokemon){
 
 			pthread_join(hiloDelReintento,NULL);
 		}
-		log_info(logger,"Se puede abrir el archivo");
-		abrirArchivo(pokemon);
+		//log_info(logger,"Se puede abrir el archivo");
+		//abrirArchivo(pokemon);
 
-		char* bloques = obtenerArrayDebloques(pokemon);
+		char* bloques = obtenerBloquesDelPokemon(pokemon);
 
 		char* arrayDeArchivo = obtenerContenidoDeArchivo(bloques);
 		char** posicionesConCantidad = string_split(arrayDeArchivo,"\n");
@@ -2006,18 +2028,24 @@ int procedimientoGET(uint32_t idMensaje,char* pokemon){
 
 		uint32_t coordenadasAEnviar[cantidadParesCoordenadas*2];
 		insertarCoordenadas(coordenadasSeparadas,coordenadasAEnviar);
+		 cerrarArchivo(pokemon);
+		resultado = envioDeMensajeLocalized(pokemon,idMensaje,cantidadParesCoordenadas,coordenadasAEnviar);
+		log_info(logger,"Archivo cerrado");
+		free(arrayDeArchivo);
+		free(bloques);
+		free(posicionesSeparadas);
 
 
+	}else{
+		sem_post(&aperturaDeArchivo);
+		log_error(loggerObligatorio,"No existe el pokemon %s",pokemon);
 
-		int resultado = envioDeMensajeLocalized(pokemon,idMensaje,cantidadParesCoordenadas,coordenadasAEnviar);
+		uint32_t coordenadasVacias[] = {};
 
-		    cerrarArchivo(pokemon);
-			log_info(logger,"Archivo cerrado");
-			free(arrayDeArchivo);
-			free(bloques);
-			free(posicionesSeparadas);
+		resultado = envioDeMensajeLocalized(pokemon,idMensaje,0,coordenadasVacias);
 
-			return resultado;
+	}
+	return resultado;
 }
 
 char *getToken(char *unString,char delimitador){
