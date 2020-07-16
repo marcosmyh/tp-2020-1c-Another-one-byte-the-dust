@@ -91,6 +91,7 @@ sem_t semaforoRespuestaCatch;
 sem_t conexionRecuperadaDeAppeared;
 sem_t conexionRecuperadaDeCaught;
 sem_t conexionRecuperadaDeLocalized;
+sem_t semaforoMetricas;
 
 sem_t semaforoPlanificacionReady;
 sem_t semaforoPlanificacionExec;
@@ -99,6 +100,8 @@ pthread_mutex_t mutexPokemonesEnMapa;
 pthread_mutex_t mutexPlanificacionReady;
 pthread_mutex_t mutexPlanificacionEntrenadores;
 pthread_mutex_t mutexEntrenadoresReady;
+pthread_mutex_t mutexDeadlock;
+pthread_mutex_t mutexRevisionDeadlock;
 
 //METRICAS
 int ciclosTotales = 0;
@@ -252,5 +255,15 @@ void mostrarContenidoLista(t_list* lista,void(*printer)(void *));
 void imprimirString(void *contenidoAMostrar);
 void imprimirNumero(void *);
 t_pokemon *crearPokemon(char *,uint32_t,uint32_t);
+char *obtenerPokemonParaIntercambiar(t_entrenador *,t_entrenador *);
+t_list *obtenerParejasEnDeadlock(t_list *);
+t_entrenador *obtenerEntrenadorQueTieneElPokemon(char *pokemon,t_list *entrenadoresEnDeadlock,t_entrenador *entrenador);
+bool existeID(void *ID_a_buscar, t_list *lista,bool(*comparator)(void *,void *));
+int *obtenerIDEntrenador(t_entrenador *entrenador);
+bool intComparator(void *unNumero,void *otroNumero);
+bool estaRepetidoPokemon(char *pokemon,t_entrenador *entrenador);
+void quitarParejasRepetidas(t_list *parejasEnDeadlock);
+void cambiarOperacionEntrenadores(t_list *,int);
+void modificarContadorDeadlocks(int);
 
 #endif
