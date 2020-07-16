@@ -2,7 +2,7 @@
 
 int main(int argc,char* argv[]){
 	setearValoresDefaultfs(argc,argv);
-	bloquesLibres = 0;
+
 	sem_init(&semDeBloques,0,1);
 	sem_init(&aperturaDeArchivo,0,1);
 	sem_init(&reconexion,0,1);
@@ -14,7 +14,7 @@ int main(int argc,char* argv[]){
 	crearLoggerObligatorio();
 
 	leerArchivoDeConfiguracion();
-	//doy inicio a mi servidor y obtengo el socket
+
 	socket_servidor = iniciar_servidor(ip_gc,puerto_gc,logger);
 	//Servidor iniciado
 	log_info(logger,"Server ready for action!");
@@ -27,17 +27,6 @@ int main(int argc,char* argv[]){
     pthread_create(&hiloMensajes,NULL,(void *)iniciarGestionMensajesGC,NULL);
 
     pthread_join(hiloMensajes,NULL);
-
-	// Trabajar con el servidor acá
-	//while(1){
-	//int cliente = esperar_cliente(socket_servidor,logger);
-	//if(pthread_create(&thread,NULL,(void*)atender_cliente,&cliente) == 0){
-	//	pthread_detach(thread);
-	//	}
-
-	//}
-	//config_destroy(archivoConfig);
-	//log_destroy(logger);
 
     sem_destroy(&conexionRecuperadaDeNew);
     sem_destroy(&conexionRecuperadaDeCatch);
@@ -264,7 +253,7 @@ void procedimientoMensajeNew(t_infoPack *infoNew){
 		}
 
 	int resultadoNew = procedimientoNEW(pokemon,posX,posY,cantPokemon);
-	log_info(logger,"Pokemon: %s posX: %d posY: %d cantidad: %d id: %d",pokemon,posX,posY,cantPokemon, id);
+	//log_info(logger,"Pokemon: %s posX: %d posY: %d cantidad: %d id: %d",pokemon,posX,posY,cantPokemon, id);
 	//mostrarBitmap();
 	//
 	// Procedimiento NEW casi terminado
@@ -281,10 +270,10 @@ void procedimientoMensajeNew(t_infoPack *infoNew){
 void procedimientoMensajeGet(t_infoPack *infoGet){
 	void *paqueteGet= infoGet->paquete;
 	char* pokemon = unpackPokemonGet(paqueteGet);
-	uint32_t tamanioPokemon = strlen(pokemon) + 1;
+
 	uint32_t id = unpackID(paqueteGet);
 
-	log_info(logger,"Pokemon: %s id: %d",pokemon,id);
+	//log_info(logger,"Pokemon: %s id: %d",pokemon,id);
 
 
 	procedimientoGET(id,pokemon);
@@ -308,7 +297,7 @@ void procedimientoMensajeCatch(t_infoPack *infoCatch){
 	}
 
 	int resultadoCatch = procedimientoCATCH(pokemon,posX,posY);
-	log_info(logger,"Pokemon: %s posX: %d posY: %d id: %d",pokemon,posX,posY,id);
+	//log_info(logger,"Pokemon: %s posX: %d posY: %d id: %d",pokemon,posX,posY,id);
 
 //
 	//
@@ -320,6 +309,7 @@ void procedimientoMensajeCatch(t_infoPack *infoCatch){
 	else resultado = 1;
 
 	int seEnvioCaught = envioDeMensajeCaught(resultado,id); // Prueba
+	if(seEnvioCaught == -1) log_error(loggerObligatorio,"Error al enviar el mensaje");
 	free(pokemon);
 	destruirInfoPaquete(infoCatch);
 }
@@ -532,7 +522,7 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 		switch (headerRecibido.operacion) {
 
 		case t_GET:
-			log_info(logger,"Me llegaron mensajes de Suscriber get");
+			log_info(logger,"Llegó un mensaje del tipo GET del GameBoy");
 
 			void* paqueteGet = receiveAndUnpack(cliente_fd, tamanio);
 			pokemon = unpackPokemonGet(paqueteGet);
@@ -540,17 +530,17 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 			id = unpackID(paqueteGet);
 
 
-			log_info(logger,"Pokemon: %s id: %d",pokemon,id);
+			//log_info(logger,"Pokemon: %s id: %d",pokemon,id);
 
 
-			int seEnvioGet = procedimientoGET(id,pokemon);
+			procedimientoGET(id,pokemon);
 
 
 			free(paqueteGet);
 			break;
 
 		case t_CATCH:
-			log_info(logger,"Me llegaron mensajes de Suscriber Catch");
+			log_info(logger,"Llegó un mensaje del tipo CATCH del GameBoy");
 			void* paqueteCatch = receiveAndUnpack(cliente_fd, tamanio);
 			pokemon = unpackPokemonCatch(paqueteCatch);
 			tamanioPokemon = strlen(pokemon);
@@ -560,7 +550,7 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 			posX = unpackCoordenadaX_Catch(paqueteCatch, tamanioPokemon);
 			posY = unpackCoordenadaY_Catch(paqueteCatch, tamanioPokemon);
 			int resultadoCatch = procedimientoCATCH(pokemon,posX,posY);
-			log_info(logger,"Pokemon: %s posX: %d posY: %d id: %d",pokemon,posX,posY,id);
+			//log_info(logger,"Pokemon: %s posX: %d posY: %d id: %d",pokemon,posX,posY,id);
 
 //
 			//
@@ -571,14 +561,14 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 			if(resultadoCatch == -1) resultado = 0;
 			else resultado = 1;
 
-			int seEnvioCaught = envioDeMensajeCaught(resultado,id); // Prueba
+			envioDeMensajeCaught(resultado,id); // Prueba
 			free(pokemon);
 			free(paqueteCatch);
 			break;
 
 
 		case t_NEW:
-			log_info(logger,"Me llegaron mensajes de Suscriber New");
+			log_info(logger,"Llegó un mensaje del tipo NEW del GameBoy");
 			void* paqueteNew = receiveAndUnpack(cliente_fd, tamanio);
 			pokemon = unpackPokemonNew(paqueteNew);
 			tamanioPokemon = strlen(pokemon);
@@ -591,7 +581,7 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 
 
 			int resultadoNew = procedimientoNEW(pokemon,posX,posY,cantPokemon);
-			log_info(logger,"Pokemon: %s posX: %d posY: %d cantidad: %d id: %d",pokemon,posX,posY,cantPokemon, id);
+			//log_info(logger,"Pokemon: %s posX: %d posY: %d cantidad: %d id: %d",pokemon,posX,posY,cantPokemon, id);
 			//mostrarBitmap();
 			//
 			// Procedimiento NEW casi terminado
@@ -1195,8 +1185,12 @@ int solicitarBloquesParaPokemon(char* pokemon,int cantidadDeBloques){
 
 			for(i = 0; i < cantidadDeBloques ; i++){
 		int numeroDeBloqueVacio = solicitarBloqueVacio();
-	//	printf("Voy a agregar el nuevo bloque\n");
+
+		printf("\033[1;35m");
+		log_info(loggerObligatorio,"Voy a agregar el bloque %d al pokemon %s",numeroDeBloqueVacio,pokemon);
+		printf("\033[0m");
 		agregarBloqueAPokemon(pokemon,numeroDeBloqueVacio);
+
 			}
 			resultado = 0;
 		}else resultado = -1;
@@ -1232,6 +1226,11 @@ void quitarUltimoBloqueAPokemon(char* nombrePokemon){
 	fclose(archivoDeBloque);
 	free(rutaDelBloque);
 	bitarray_clean_bit(bitmap,atoi(bloques[ultimaPosicion-1])-1);
+
+	printf("\033[1;35m");
+	log_info(loggerObligatorio,"El bloque %s que pertenecia al pokemon %s va a liberarse",bloques[ultimaPosicion-1],nombrePokemon);
+	printf("\033[0m");
+
 
 	char* bloqueNuevo = string_from_format("[%s]",bloquesActualizados);
 
@@ -1323,6 +1322,9 @@ void cerrarArchivo(char* nombrePokemon){
 	config_save(metaPokemon);
 	config_destroy(metaPokemon);
 	sem_post(&aperturaDeArchivo);
+	printf("\033[0;32m");
+	log_info(logger,"Archivo %s cerrado",nombrePokemon);
+	printf("\033[0m");
 }
 // Dice si el archivo del pokemon esta abierto o no
 bool archivoAbierto(char* nombrePokemon){
@@ -1331,7 +1333,7 @@ bool archivoAbierto(char* nombrePokemon){
 	char *estaAbierto = config_get_string_value(metaPokemon,"OPEN");
 	if(string_equals_ignore_case(estaAbierto,"Y")) valor = 1;
 	else valor = 0;
-	free(estaAbierto);
+
 	config_destroy(metaPokemon);
 	return valor;
 }
@@ -1343,7 +1345,10 @@ void *reintentoAbrir(void* argumentos){
 	if(verificarYAbrirArchivo(valores->nombrePokemon) == 1){
 		pthread_exit(NULL);
 		}
-	log_error(logger,"Esperando %d segundos para reintentar abrir %s",valores->tiempo,valores->nombrePokemon);
+	printf("\033[0;31m");
+	log_info(logger,"Esperando %d segundos para reintentar abrir %s",valores->tiempo,valores->nombrePokemon);
+	printf("\033[0m");
+
 	sleep(valores->tiempo);
 	}
 
@@ -1726,6 +1731,8 @@ void truncarUltimoBloque(char* nombrePokemon){
 	ftruncate(fd,offset);
 
 	fclose(archi);
+	free(rutaArchi);
+	config_destroy(pokemon);
 }
 
 // Funcion que se encarga de disminuir la cantidad de pokemon
@@ -1742,10 +1749,10 @@ void disminuirCantidad(char* posiciones,char* posicionBuscada,char* bloquesStrin
 		// sumo la cantidad con esta funcion. Me retorna la linea actualizada.
 
 		int cantidadDePokemones = obtenerCantidad(posicionesSeparadas[posContenida]);
-		char* nuevaLineaPokemon = string_new();
+		char* nuevaLineaPokemon;
 
 		if(cantidadDePokemones <= 1){
-			log_info(logger,"Hay que eliminar la linea");
+			//log_info(logger,"Hay que eliminar la linea");
 			string_append(&nuevaLineaPokemon,"");
 		} else{
 		nuevaLineaPokemon = sumarCantidadPokemon(posicionesSeparadas[posContenida],-1);
@@ -1838,7 +1845,11 @@ int procedimientoNEW(char* pokemon,uint32_t posx,uint32_t posy,uint32_t cantidad
 
 	sem_wait(&aperturaDeArchivo);
 	if(!existePokemon(pokemon)){
-		log_error(logger,"El pokemon %s no existe. Procediendo a crearlo",pokemon);
+
+		printf("\033[0;31m");
+		log_info(loggerObligatorio,"El pokemon %s no existe. Procediendo a crearlo",pokemon);
+		printf("\033[0m");
+
 		crearPokemon(pokemon);
 
 	}else log_info(logger,"Existe el pokemon %s",pokemon);
@@ -1854,14 +1865,10 @@ int procedimientoNEW(char* pokemon,uint32_t posx,uint32_t posy,uint32_t cantidad
 		argumentos.tiempo = tiempo_de_reintento_operacion;
 
 		pthread_t hiloDelReintento;
-		if(!pthread_create(&hiloDelReintento,NULL,&reintentoAbrir,(void*)&argumentos)) printf("hilo Creadu \n");
+		pthread_create(&hiloDelReintento,NULL,&reintentoAbrir,(void*)&argumentos);
 
-			pthread_join(hiloDelReintento,NULL);
+		pthread_join(hiloDelReintento,NULL);
 	}
-
-
-	//log_info(logger,"Se puede abrir el archivo %s",pokemon);
-	//abrirArchivo(pokemon);
 
 	char* bloques = obtenerBloquesDelPokemon(pokemon);
 
@@ -1897,7 +1904,7 @@ int procedimientoNEW(char* pokemon,uint32_t posx,uint32_t posy,uint32_t cantidad
 	sleep(tiempo_de_retardo);
 
 	cerrarArchivo(pokemon);
-	log_info(logger,"Archivo %s cerrado",pokemon);
+
 	free(posicionBuscada);
 	free(posiciones);
 	free(bloques);
@@ -1929,13 +1936,10 @@ int procedimientoCATCH(char* pokemon,uint32_t posx,uint32_t posy){
 		argumentos.tiempo = tiempo_de_reintento_operacion;
 
 		pthread_t hiloDelReintento;
-		if(!pthread_create(&hiloDelReintento,NULL,&reintentoAbrir,(void*)&argumentos)) printf("Creadu \n");
+		pthread_create(&hiloDelReintento,NULL,&reintentoAbrir,(void*)&argumentos);
 
-			pthread_join(hiloDelReintento,NULL);
+		pthread_join(hiloDelReintento,NULL);
 	}
-	//log_info(logger,"Se puede abrir el archivo %s",pokemon);
-	//abrirArchivo(pokemon);
-
 
 	char* bloques = obtenerBloquesDelPokemon(pokemon);
 
@@ -1946,7 +1950,6 @@ int procedimientoCATCH(char* pokemon,uint32_t posx,uint32_t posy){
 	free(posXEnString);
 	free(posYEnString);
 
-	//printf("Posicion buscada: %s\n",posicionBuscada);
 	if(!contieneEstaPosicion(posiciones,posicionBuscada)){
 
 		log_error(loggerObligatorio,"No existe la posicion %s del pokemon %s",posicionBuscada,pokemon);
@@ -1965,7 +1968,7 @@ int procedimientoCATCH(char* pokemon,uint32_t posx,uint32_t posy){
 		sleep(tiempo_de_retardo);
 
 		cerrarArchivo(pokemon);
-		log_info(logger,"Archivo %s cerrado",pokemon);
+
 		free(posicionBuscada);
 		free(posiciones);
 		free(bloques);
@@ -1981,10 +1984,6 @@ int procedimientoGET(uint32_t idMensaje,char* pokemon){
 	if(existePokemon(pokemon)){
 		sem_post(&aperturaDeArchivo);
 		log_info(logger,"Existe el pokemon");
-		//crearPokemon(pokemon); Esto no lo debería hacer
-		//Hay que sacar el ! y enviar el mensaje sin posicion ni cantidad
-		//Cuando no existe el pokemon
-
 
 
 	if(verificarYAbrirArchivo(pokemon) == 0){
@@ -1998,9 +1997,9 @@ int procedimientoGET(uint32_t idMensaje,char* pokemon){
 		argumentos.tiempo = tiempo_de_reintento_operacion;
 
 		pthread_t hiloDelReintento;
-		if(!pthread_create(&hiloDelReintento,NULL,&reintentoAbrir,(void*)&argumentos)) printf("Creadu \n");
+		pthread_create(&hiloDelReintento,NULL,&reintentoAbrir,(void*)&argumentos);
 
-			pthread_join(hiloDelReintento,NULL);
+		pthread_join(hiloDelReintento,NULL);
 		}
 		//log_info(logger,"Se puede abrir el archivo");
 		//abrirArchivo(pokemon);
@@ -2028,7 +2027,7 @@ int procedimientoGET(uint32_t idMensaje,char* pokemon){
 
 		uint32_t coordenadasAEnviar[cantidadParesCoordenadas*2];
 		insertarCoordenadas(coordenadasSeparadas,coordenadasAEnviar);
-		 cerrarArchivo(pokemon);
+		cerrarArchivo(pokemon);
 		resultado = envioDeMensajeLocalized(pokemon,idMensaje,cantidadParesCoordenadas,coordenadasAEnviar);
 		log_info(logger,"Archivo cerrado");
 		free(arrayDeArchivo);

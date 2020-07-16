@@ -42,7 +42,7 @@ int tiempo_de_reconexion;
 int tiempo_de_reintento_operacion;
 int tiempo_de_retardo;
 char* path_de_tallgrass;
-int bloquesLibres; 
+int bloquesLibres = 0;
 
 
 int socket_new;
