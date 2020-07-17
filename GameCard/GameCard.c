@@ -115,8 +115,9 @@ void gestionMensajesGet(){
 
 				case t_GET:
 					log_info(loggerObligatorio,"Llego un mensaje GET del BROKER");
-					void *paqueteGet = receiveAndUnpack(socket_catch,tamanio);
+					void *paqueteGet = receiveAndUnpack(socket_get,tamanio);
 					t_infoPack *infoGet = crearInfoDePaquete(socket_get,paqueteGet);
+
 					pthread_create(&hiloGet,NULL,(void *)procedimientoMensajeGet,infoGet);
 					pthread_detach(hiloGet);
 					break;
@@ -273,7 +274,7 @@ void procedimientoMensajeGet(t_infoPack *infoGet){
 
 	uint32_t id = unpackID(paqueteGet);
 
-	//log_info(logger,"Pokemon: %s id: %d",pokemon,id);
+	log_info(logger,"Pokemon: %s id: %d",pokemon,id);
 
 
 	procedimientoGET(id,pokemon);
@@ -535,7 +536,7 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 
 			procedimientoGET(id,pokemon);
 
-
+			free(pokemon);
 			free(paqueteGet);
 			break;
 
@@ -628,6 +629,7 @@ int envioDeMensajeCaught(uint32_t atrapado, uint32_t idmensaje){
 		void* paqueteCaught = pack_Caught(idmensaje,atrapado);
 		uint32_t tamPaquete =  2*sizeof(uint32_t);
 		int resultado = packAndSend(socket,paqueteCaught,tamPaquete,t_CAUGHT);
+		log_info(logger,"Le envié un mensaje CAUGHT con id correlativo %d al broker",idmensaje);
 		close(socket);
 		free(paqueteCaught);
 		return resultado;
@@ -641,6 +643,7 @@ int envioDeMensajeAppeared(char* pokemon, uint32_t posx, uint32_t posy, uint32_t
 	void* paqueteAppeared = pack_Appeared(idmensaje,pokemon,posx,posy);
 	uint32_t tamPaquete = strlen(pokemon) + 4*sizeof(uint32_t);
 	int resultado = packAndSend(socket,paqueteAppeared,tamPaquete,t_APPEARED);
+	log_info(logger,"Le envié un mensaje APPEARED con id correlativo %d al broker",idmensaje);
 	close(socket);
 	free(paqueteAppeared);
   	return resultado;
@@ -650,11 +653,17 @@ int envioDeMensajeLocalized(char* pokemon,uint32_t idmensaje,uint32_t cantidadPa
 	void* paqueteGet = pack_Localized(idmensaje,pokemon,cantidadParesCoordenadas,arrayCoordenadas);
 
 	int socket = crear_conexion(ip_broker,puerto_broker);
+
+
+	if(socket != -1){
 	uint32_t tamPaquete = strlen(pokemon) + 3*sizeof(uint32_t) + cantidadParesCoordenadas*2*sizeof(uint32_t);
 	int resultado = packAndSend(socket,paqueteGet,tamPaquete,t_LOCALIZED);
+	log_info(logger,"Le envié un mensaje LOCALIZED con id correlativo %d al broker",idmensaje);
 	close(socket);
 	free(paqueteGet);
 	return resultado;
+	} return -1;
+
 }
 
 //////////////////////////////////////////////////
@@ -1409,7 +1418,7 @@ char* obtenerContenidoDeArchivo(char* bloques){
 	while(arrayBloques[i] != NULL){
 		contenidoAux = obtenerContenidoDeBloque(arrayBloques[i]);
 		//	La linea obtenida es concatenada
-		//	asi forma un string largo con todo el contenido del archivo
+		//	asi forma un string largo con all del contenido del archivo
 		string_append(&arrayDeArchivo,contenidoAux);
 
 		//printf("arrayDeArchivo: %s \n",arrayDeArchivo);
@@ -1425,7 +1434,7 @@ char* obtenerContenidoDeArchivo(char* bloques){
 
 }
 // Dice que si el arrayPosicion pertenece a las array de lineas(Que es la informacion de los bloques en un array)
-// Hay que ver otra manera porque supongo que genera mucha carga a la memoria cargar todo un archivo completo
+// Hay que ver otra manera porque supongo que genera mucha carga a la memoria cargar un archivo completo
 // El array posicion debe ser "2-2=" o "2-2" por ejemplo
 bool contieneEstaPosicion(char* lineas,char* arrayPosicion){
 			return string_contains(lineas,arrayPosicion);
@@ -1641,7 +1650,7 @@ void actualizacionDeBloques(int desplazamientoDeCambio,char* posiciones,char* po
 }
 
 // Funcion que se encarga de añadir la cantidad al pokemon
-//	Recibe el string que contiene todas las posiciones(todo el contenido del archivo), la posicion que se busca modificar
+//	Recibe el string que contiene todas las posiciones(all del contenido del archivo), la posicion que se busca modificar
 //	la cantidad que se desea sumar en esa posicion, el string que contiene los bloques y un nombre pokemon
 // retorna 0 si sucedio todo con exito. -1 si falló (No hay espacio en disco)
 int anadirCantidad(char* posiciones,char* posicionBuscada,int cantidadASumar,char* bloquesString,char* pokemon){
@@ -1753,8 +1762,9 @@ void disminuirCantidad(char* posiciones,char* posicionBuscada,char* bloquesStrin
 
 		if(cantidadDePokemones <= 1){
 			//log_info(logger,"Hay que eliminar la linea");
+			nuevaLineaPokemon = string_new();
 			string_append(&nuevaLineaPokemon,"");
-		} else{
+		} else{//todo
 		nuevaLineaPokemon = sumarCantidadPokemon(posicionesSeparadas[posContenida],-1);
 		//printf("La nueva linea pokemon a  agregar es: %s\n",nuevaLineaPokemon);
 		}
@@ -2029,7 +2039,7 @@ int procedimientoGET(uint32_t idMensaje,char* pokemon){
 		insertarCoordenadas(coordenadasSeparadas,coordenadasAEnviar);
 		cerrarArchivo(pokemon);
 		resultado = envioDeMensajeLocalized(pokemon,idMensaje,cantidadParesCoordenadas,coordenadasAEnviar);
-		log_info(logger,"Archivo cerrado");
+
 		free(arrayDeArchivo);
 		free(bloques);
 		free(posicionesSeparadas);
