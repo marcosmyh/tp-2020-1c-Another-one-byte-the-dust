@@ -44,7 +44,11 @@ void inicializarSemaforosTeam(){
 	sem_init(&conexionRecuperadaDeCaught,0,0);
 	sem_init(&conexionRecuperadaDeLocalized,0,0);
 	sem_init(&semaforoMetricas,0,0);
+	sem_init(&semaforoControlAppeared,0,0);
+	sem_init(&semaforoAccesoNewReady,0,1);
+	sem_init(&semaforoAccesoExecReady,0,0);
 
+	sem_init(&semaforoReady,0,0);
 	sem_init(&semaforoPlanificacionReady,0,obtenerCantidadEntrenadores());
 	sem_init(&semaforoPlanificacionExec,0,1);
 
@@ -326,10 +330,16 @@ void procedimientoMensajeAppeared(t_infoPaquete *infoAppeared){
     			pokemonAAtrapar->coordenadaX = coordenadaX;
     			pokemonAAtrapar->coordenadaY = coordenadaY;
     			//pthread_mutex_lock(&mutexPokemonesEnMapa);
-    			list_add(pokemonesEnMapa, pokemonAAtrapar);
-    			//pthread_mutex_unlock(&mutexPokemonesEnMapa);
 
-    			log_info(loggerObligatorio,"Pokemon agregado: %s, ubicado en X:%d  Y:%d",pokemonAppeared, coordenadaX, coordenadaY);
+
+    			list_add(pokemonesEnMapa, pokemonAAtrapar);
+
+       			log_info(loggerObligatorio,"Pokemon agregado: %s, ubicado en X:%d  Y:%d",pokemonAppeared, coordenadaX, coordenadaY);
+    			//sleep(1);
+    			//hayPokemones = true;
+    			//sem_post(&semaforoReady);
+    			//sem_wait(&semaforoControlAppeared);
+    			//pthread_mutex_unlock(&mutexPokemonesEnMapa);
 
     			if(esSocketBroker(socket)){
     		    enviarACK(ID_APPEARED, t_APPEARED);
@@ -345,12 +355,10 @@ void procedimientoMensajeAppeared(t_infoPaquete *infoAppeared){
     			log_info(logger,"El mensaje de appeared del pokemon %s ya fue recibido o no necesita atraparse, queda descartado",pokemonAppeared);
     }
 
-    hayPokemones = true;
-
     pthread_mutex_unlock(&mutexPokemonesEnMapa);
     pthread_mutex_unlock(&mutexEntrenadoresReady);
 
-    //hayPokemones = true;
+    hayPokemones = true;
 
 }
 
@@ -691,9 +699,10 @@ void inicializarEntrenadores(){
 
 		int j = 0;
 		int tamPokemonEntrenador = tamArray(pokemon_entrenadores);
+		log_info(logger,"tam pokese ntrenador: %d\n",tamPokemonEntrenador);
 		if (tamPokemonEntrenador != 0){
 			if(cantidadPokemonesEntrenador < tamPokemonEntrenador){
-				if (charContains(pokemon_entrenadores[i], '|')){
+				if (!charContains(pokemon_entrenadores[i], '|')){
 					list_add(entrenadorNuevo->pokemones, pokemon_entrenadores[i]);
 				}
 				else{
@@ -713,7 +722,7 @@ void inicializarEntrenadores(){
 		int k = 0;
 		int tamObjetivoEntrenador = tamArray(objetivos_entrenadores);
 		if(cantidadPokemonesEntrenador < tamObjetivoEntrenador){
-			if (charContains(objetivos_entrenadores[i], '|')){
+			if (!charContains(objetivos_entrenadores[i], '|')){
 				list_add(entrenadorNuevo->objetivo, objetivos_entrenadores[i]);
 			}
 			else{
@@ -958,17 +967,21 @@ void planificarEntrenadores(){
 	}
 }
 
+//Sincronizar recepción de mensajes con la ejecución de entrenadores.
 void ejecutarEntrenador(t_entrenador* entrenadorAEjecutar){
 	// 0 = atrapar  1 = intercambiar
 	log_error(logger,"EJECUTANDO ENTRENADOR %d",entrenadorAEjecutar->idEntrenador);
 	//pthread_mutex_lock(&mutexEjecucionEntrenadores);
 	if (entrenadorAEjecutar->operacionEntrenador == 0){
+		//pthread_mutex_lock(&mutexPokemonesEnMapa);
 		capturarPokemon(entrenadorAEjecutar);
+		//pthread_mutex_unlock(&mutexPokemonesEnMapa);
 	}
 	else{
 		intercambiarPokemon(entrenadorAEjecutar);
 	}
 	log_error(logger,"FINALIZÓ LA EJECUCIÓN ENTRENADOR %d",entrenadorAEjecutar->idEntrenador);
+	//sem_post(&semaforoControlAppeared);
 }
 
 //ACA EMPIEZAN LAS FUNCIONES NUEVAS
@@ -1400,6 +1413,7 @@ void completarCatch(t_entrenador* unEntrenador, bool resultadoCaught){
 		//ESTE ES EL CASO DEL CAUGHT PARA ATRAPAR EL POKEMON NORMALMENTE
 		if(unEntrenador->operacionEntrenador == 0){
 			sacarPokemonDelMapa(pokemonAtrapado);
+			//sem_post(&semaforoControlAppeared);
 			list_add(pokemonesAtrapados,nombrePokemon);
 			list_add(unEntrenador->pokemones, nombrePokemon);
 			unEntrenador->cantPokemonesPorAtrapar = unEntrenador->cantPokemonesPorAtrapar - 1;
@@ -1482,10 +1496,21 @@ void completarCatchSinBroker(t_entrenador* unEntrenador){
 		unEntrenador->blockeado = false;
 		unEntrenador->ocupado = false;
 		unEntrenador->pokemonAAtrapar = NULL;
+
+		/*
+		if(!planificacionInicialReady){
+			sem_wait(&semaforoAccesoExecReady);
+			list_add(colaReady,unEntrenador);
+			sem_post(&semaforoAccesoNewReady);
+		}else{
+			list_add(colaReady,unEntrenador);
+		}
+		*/
+
 		list_add(colaReady,unEntrenador);
 		log_info(loggerObligatorio, "Se cambió al entrenador %d de EXEC a READY, Razon: Termino de atrapar un pokemon con la rutina por default", unEntrenador->idEntrenador);
 		//CUANDO SALGO DE EXEC HAGO EL POST
-		sem_post(&semaforoPlanificacionExec);
+		//sem_post(&semaforoPlanificacionExec);
 	}
 	else{
 		//SI NO LE QUEDAN POR ATRAPAR MAS VERIFICO SI CUMPLIÓ EL OBJETIVO O NO, SI CUMPLE MANDO A EXIT, SINO A BLOCKED
@@ -1502,14 +1527,27 @@ void completarCatchSinBroker(t_entrenador* unEntrenador){
 		else{
 			t_entrenador* unEntrenador = list_remove(colaExec,0);
 			unEntrenador->pokemonAAtrapar = NULL;
+
+			/*
+			if(!planificacionInicialReady){
+						sem_wait(&semaforoAccesoExecReady);
+		                list_add(colaBlocked, unEntrenador);
+						sem_post(&semaforoAccesoNewReady);
+			}
+			else{
+				list_add(colaBlocked, unEntrenador);
+			}
+			*/
 			list_add(colaBlocked, unEntrenador);
 			log_info(logger, "El entrenador %d atrapo el pokemon, no puede atrapar mas y no cumplio el objetivo se cambio de EXEC a BLOCKED donde esperara al algoritmo de Deadlock", unEntrenador->idEntrenador);
 			//LOS ENTRENADORES QUE NO COMPLETEN EL OBJETIVO Y PROBABLEMENTE ESTEN EN DEADLOCK QUEDAN BLOCKED Y EN ESTADO OCUPADO
 			//CUANDO SALGO DE EXEC HAGO EL POST
 			//sem_post(&semaforoPlanificacionExec);
 			}
-		sem_post(&semaforoPlanificacionExec);
+		//sem_post(&semaforoPlanificacionExec);
 	}
+
+	sem_post(&semaforoPlanificacionExec);
 	//sem_post(&semaforoPlanificacionExec);
 	//pthread_mutex_unlock(&mutexEjecucionEntrenadores);
 }
@@ -1645,6 +1683,7 @@ bool comparadorPokemones(t_pokemon* unPokemon, t_pokemon* otroPokemon){
 void aplicarFIFO(){
 	log_info(logger,"Se aplicara el algoritmo de planificacion FIFO");
 	if(list_is_empty(colaExec) && (!list_is_empty(colaReady))){
+		log_info(logger,"list size: %d",list_size(colaReady));
 		t_entrenador* entrenadorAEjecutar = (t_entrenador*) list_remove(colaReady, 0);
 		list_add(colaExec, entrenadorAEjecutar);
 		log_info(loggerObligatorio, "Se cambió un entrenador %d de READY a EXEC, Razon: Elegido del algoritmo de planificacion", entrenadorAEjecutar->idEntrenador);
@@ -1761,7 +1800,6 @@ t_list *obtenerEntrenadoresDisponibles(){
 		}
 	}
 
-
 	bool estaLibre(t_entrenador* unEntrenador){
 		return !estaOcupado(unEntrenador);
 	}
@@ -1793,9 +1831,15 @@ void transicionAReady(t_entrenador *entrenador,t_FLAG estado){
 t_entrenador *entrenadorQueVaAReady(t_list *entrenadoresLibres,int contadorPokemones){
 	t_entrenador *entrenadorAux;
 	//SACO EL PRIMER POKEMON DE LA LISTA
+	//pthread_mutex_lock(&mutexEntrenadoresReady);
+	log_info(logger,"CANT POKE: %d",contadorPokemones);
 	pthread_mutex_lock(&mutexEntrenadoresReady);
 	t_list* pokemones = list_duplicate(pokemonesEnMapa);
+	log_error(logger,"LIST SIZE:%d",list_size(pokemones));
 	t_pokemon* unPokemon = list_remove(pokemones,contadorPokemones);
+	//t_pokemon* unPokemon = list_remove(pokemones,contadorPokemones);
+
+	log_info(logger,"POKEMON QUE SAQUE DEL REMOVE: %s",unPokemon->nombrePokemon);
 
 	//CALCULO LA DISTANCIA DE TODOS A ESE POKEMON
 	calcularDistanciaA(entrenadoresLibres,unPokemon);
@@ -1821,7 +1865,9 @@ t_entrenador *entrenadorQueVaAReady(t_list *entrenadoresLibres,int contadorPokem
 void transicionDeNewAReady(t_entrenador *entrenador){
 	int index = list_get_index(colaNew,entrenador,(void*)comparadorDeEntrenadores);
 	t_entrenador* entrenadorElegido = (t_entrenador*) list_remove(colaNew, index);
+	//sem_wait(&semaforoAccesoNewReady);
 	list_add(colaReady,entrenadorElegido); //esto esta igual que en SJF, deberia estar bien
+	//sem_post(&semaforoAccesoExecReady);
 	log_info(loggerObligatorio, "Se pasó al entrenador %d de NEW a READY, Razon: Elegido por el planificador de entrada a ready", entrenadorElegido->idEntrenador);
 }
 
@@ -1861,7 +1907,7 @@ void planificarEntradaAReady(){
 
 					if(!list_is_empty(entrenadoresLibres)){
 
-					int pokes = abs(valorSemPlanificadorReady - 3);
+					int pokes = abs(valorSemPlanificadorReady - list_size(entrenadores));
 
 					entrenador = entrenadorQueVaAReady(entrenadoresLibres,pokes);
 
@@ -1872,6 +1918,7 @@ void planificarEntradaAReady(){
 					}
 
 					}
+					//sem_post(&semaforoControlAppeared);
 					hayEntrenadores = true;
 
 					//pthread_mutex_unlock(&mutexPlanificacionReady);
@@ -1884,6 +1931,9 @@ void planificarEntradaAReady(){
 		}
 
 	}
+
+
+	planificacionInicialReady = true;
 
 	pthread_exit(NULL);
 }

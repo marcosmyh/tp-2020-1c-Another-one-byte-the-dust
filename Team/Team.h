@@ -98,6 +98,10 @@ sem_t conexionRecuperadaDeAppeared;
 sem_t conexionRecuperadaDeCaught;
 sem_t conexionRecuperadaDeLocalized;
 sem_t semaforoMetricas;
+sem_t semaforoReady;
+sem_t semaforoControlAppeared;
+sem_t semaforoAccesoNewReady;
+sem_t semaforoAccesoExecReady;
 
 sem_t semaforoPlanificacionReady;
 sem_t semaforoPlanificacionExec;
@@ -115,6 +119,7 @@ int cambiosDeContexto = 0;
 int deadlocksProducidos = 0;
 int deadlocksResueltos = 0;
 
+bool planificacionInicialReady = 0;
 bool conexionAppeared = 0;
 bool conexionCaught = 0;
 bool conexionLocalized = 0;
