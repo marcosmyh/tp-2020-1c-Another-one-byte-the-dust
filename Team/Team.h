@@ -86,6 +86,12 @@ pthread_t hiloAtencionLocalized;
 pthread_t hiloAtencionGameBoy;
 pthread_t hiloSuscripcionBroker;
 
+pthread_t hiloMensajes;
+pthread_t hiloPlanificacionReady;
+pthread_t hiloPlanificacionEntrenadores;
+pthread_t hiloRevisionDeadlocks;
+pthread_t impresionDeMetricas;
+
 sem_t semaforoReconexion;
 sem_t semaforoRespuestaCatch;
 sem_t conexionRecuperadaDeAppeared;
@@ -147,6 +153,9 @@ int socket_localized;
 
 
 //FUNCIONES
+void destruirSemaforosTeam();
+void inicializarHilosTeam();
+void inicializarSemaforosTeam();
 bool hayPokemones = 0;
 bool hayEntrenadores = 0;
 int tamArray (char** puntero);
