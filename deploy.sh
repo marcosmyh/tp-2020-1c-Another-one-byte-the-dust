@@ -1,5 +1,4 @@
 cd /home/utnso/workspace
-git clone https://github.com/sisoputnfrba/tp-2020-1c-Another-one-byte-the-dust.git
 git clone https://github.com/sisoputnfrba/delibird-pruebas.git
 cd tp-2020-1c-Another-one-byte-the-dust
 cd Serializacion
