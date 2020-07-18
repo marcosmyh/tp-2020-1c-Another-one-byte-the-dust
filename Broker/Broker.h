@@ -59,14 +59,17 @@ typedef struct
 typedef void(*AlgoritmoMemoria)(t_mensaje *,char *,void(*)(),t_particion *(*)(uint32_t),uint32_t);
 typedef t_particion *(*FuncionCorrespondencia)(uint32_t);
 typedef void(*AlgoritmoReemplazo)();
+typedef void(*LiberadorDeParticiones)(t_particion *);
 
 typedef struct
 {
 	AlgoritmoMemoria algoritmoMemoria;
 	FuncionCorrespondencia funcionCorrespondencia;
 	AlgoritmoReemplazo algoritmoReemplazo;
+	LiberadorDeParticiones liberadorDeParticiones;
 
-}singletonMemoria;
+}t_esquemaMemoria;
+
 
 typedef struct nodo{
 	uint32_t id;
@@ -76,19 +79,19 @@ typedef struct nodo{
 	struct nodo *hijoIzquierdo;
 	struct nodo *hijoDerecho;
 	struct nodo *padre;
-}t_nodo;         					// <_---------------------- NUEVO
+}t_nodo;
 
 
-//Variables
 uint32_t offsetCache = 0;
 uint32_t contadorIDMensaje;
 uint32_t contadorIDTeam;
 uint32_t contadorIDGameCard;
 uint32_t contadorParticiones = 0;
-t_nodo* nodoRaiz; // <--------------------NUEVO
+t_nodo* nodoRaiz;
 
-singletonMemoria *funcionCacheo;
-t_log *logger;
+t_esquemaMemoria *singletonMemoria;
+t_log *logObligatorio;
+t_log *logExtra;
 t_config *config;
 char *ip;
 char *puerto;
@@ -121,8 +124,7 @@ pthread_mutex_t semaforoIDGameCard;
 pthread_mutex_t semaforoMensajes;
 pthread_mutex_t semaforoProcesamientoSolicitud[8];
 
-//Funciones
-t_log *crearLogger();
+t_log *crearLogger(char *);
 t_config *crearConfig();
 int iniciar_servidor(char *, char *);
 int esperar_cliente(int);
@@ -169,7 +171,6 @@ bool existeAlgunACK(t_suscriptor *,t_list *);
 bool existeACK(t_suscriptor *,t_list *);
 uint32_t *obtenerIDParticion(t_particion *);
 uint32_t *obtenerIDMensajeParticion(t_particion *);
-bool existeParticionLibreConTamanio(uint32_t);
 void destruirParticion(t_particion *);
 void setearOffset(uint32_t,t_particion *);
 void inicializarSemaforos();
@@ -187,10 +188,9 @@ void imprimirNumero(void *);
 void imprimirString(void *contenidoAMostrar);
 uint32_t obtenerPosicionIDParticion(uint32_t);
 void buddySystem(t_mensaje *,char *,void (*)(),t_particion *(*)(uint32_t),uint32_t);
-void construirFuncionCacheo();
+void construirSingletonMemoria();
 void liberarParticionParticionesDinamicas(t_particion *);
 void liberarParticionBuddySystem(t_particion *);
-void liberarParticion(t_particion *,char *);
 void FIFO();
 void LRU();
 t_particion *firstFit(uint32_t);
@@ -221,7 +221,6 @@ void asignarHijos(t_nodo *, t_nodo *,t_nodo *);
 void escribirEnMemoria(void*,uint32_t,uint32_t);
 int obtenerExponente(int);
 int obtenerTamanioMinimoBuddy(int);
-bool existeParticionLibreDelMismoTamanioQue(uint32_t);
 int crearHijos(t_nodo *);
 t_nodo* buscarNodo(t_nodo *,t_particion *);
 void ocuparNodo(t_nodo *,t_particion*);
@@ -232,6 +231,8 @@ void reunirHermanos(t_nodo *);
 t_nodo *obtenerHermano(t_nodo *);
 void consolidarBuddy(t_nodo *);
 uint32_t dividirYObtenerIDParticionExacta(t_nodo *, uint32_t);
+bool existeParticionLibreParaCachearMensaje(uint32_t);
+void enviarIDAlProductor(int,uint32_t,int);
 
 
 #endif
