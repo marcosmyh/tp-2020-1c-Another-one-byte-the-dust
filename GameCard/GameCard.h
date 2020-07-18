@@ -93,7 +93,7 @@ typedef struct{
 // Carga default del FS
 ////////////
 char* blocksizedefault = "64";
-char* blocksdefault =  "4096";
+char* blocksdefault =  "1024";
 
 
 ////////////
