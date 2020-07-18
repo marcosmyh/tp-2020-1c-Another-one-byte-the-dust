@@ -504,7 +504,6 @@ void FIFO(){
 	recorrerParticionesYLiberar(particionesOrdenadas,"FIFO");
 
 	list_clean(particionesOrdenadas);
-
 	list_destroy(particionesOrdenadas);
 }
 
@@ -1062,6 +1061,7 @@ void buddySystem(t_mensaje *mensaje,char *nombreCola,void (*algoritmoReemplazo)(
 
 
 void setearHorarioAcceso(t_particion *particion){
+	free(particion->ultimoAcceso);
 	particion->ultimoAcceso = getHorario();
 }
 
@@ -1957,6 +1957,7 @@ void setearValoresConfig(){
 
 }
 
+//TODO liberarNodos Buddy
 void liberarRecursosAdministracionMemoria(){
 	free(singletonMemoria);
 	list_destroy_and_destroy_elements(particiones,(void * )destruirParticion);
