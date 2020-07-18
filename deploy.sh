@@ -1,3 +1,7 @@
+cd /home/utnso/
+mkdir Escritorio
+cd /home/utnso/Escritorio
+mkdir tall-grass
 cd /home/utnso/workspace
 git clone https://github.com/sisoputnfrba/delibird-pruebas.git
 cd tp-2020-1c-Another-one-byte-the-dust
