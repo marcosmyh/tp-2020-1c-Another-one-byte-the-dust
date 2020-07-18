@@ -31,7 +31,6 @@
 //VARIABLES
 
 pthread_t thread;
-t_log *logger; // ALGO QUE NO ESTA TAN BIEN CREO CREER
 t_log *loggerObligatorio;
 t_config *archivoConfig;
 char* ip_gc;
