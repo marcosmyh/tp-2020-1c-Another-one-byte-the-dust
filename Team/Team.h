@@ -78,6 +78,7 @@ t_list* colaReady;
 t_list* colaExec;
 t_list* colaBlocked;
 t_list* colaExit;
+t_list *pokemonesDuranteEjecucion;
 
 //VARIABLES
 pthread_t hiloAtencionCaught;
@@ -100,9 +101,10 @@ sem_t conexionRecuperadaDeLocalized;
 sem_t semaforoMetricas;
 sem_t semaforoReady;
 sem_t semaforoMensajesAppeared;
-sem_t semaforoAccesoNewReady;
-sem_t semaforoAccesoExecReady;
+sem_t semaforoControlAppeared;
+sem_t semaforoAgregadoPokemones;
 sem_t semaforoExec;
+sem_t semaforoInicioDeadlock;
 
 sem_t semaforoPlanificacionReady;
 sem_t semaforoPlanificacionExec;
@@ -280,5 +282,6 @@ bool estaRepetidoPokemon(char *pokemon,t_entrenador *entrenador);
 void quitarParejasRepetidas(t_list *parejasEnDeadlock);
 void cambiarOperacionEntrenadores(t_list *,int);
 void modificarContadorDeadlocks(int);
+bool estaEnBlocked(t_entrenador *entrenador);
 
 #endif
