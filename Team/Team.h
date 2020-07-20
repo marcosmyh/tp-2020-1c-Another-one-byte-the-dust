@@ -49,6 +49,7 @@ struct t_entrenador{
 	t_list* objetivo;
 	t_list* pokemonesQueFaltan;
 	t_pokemon* pokemonAAtrapar;
+	t_pokemon* pokemonQueNecesito;
 	t_entrenador* entrenadorAIntercambiar;
 	sem_t semaforoEntrenador;
 	pthread_t hiloEntrenador;
@@ -283,5 +284,6 @@ void quitarParejasRepetidas(t_list *parejasEnDeadlock);
 void cambiarOperacionEntrenadores(t_list *,int);
 void modificarContadorDeadlocks(int);
 bool estaEnBlocked(t_entrenador *entrenador);
+bool hayPokemonesParaAtrapar();
 
 #endif

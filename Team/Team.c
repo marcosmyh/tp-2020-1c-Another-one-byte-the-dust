@@ -695,6 +695,8 @@ void inicializarEntrenadores(){
 		entrenadorNuevo->distancia = 0;
 		entrenadorNuevo->contadorRR = 0;
 		entrenadorNuevo->pokemonAAtrapar = NULL;
+		entrenadorNuevo->entrenadorAIntercambiar = NULL;
+		entrenadorNuevo->pokemonQueNecesito = NULL;
 		char** coordenadas = string_split(posiciones_entrenadores[i], "|");
 		int coordenadaX = atoi(coordenadas[0]);
 		int coordenadaY = atoi(coordenadas[1]);
@@ -886,7 +888,11 @@ char* obtenerPokemon(t_pokemon* unPokemon){
 	return unPokemon->nombrePokemon;
 }
 
-
+bool hayPokemonesParaAtrapar(){
+	int pokemonesAtrapados = list_size(pokemonesAtrapados);
+	int pokemonesPorAtrapar = list_size(objetivoTeam);
+	return (pokemonesAtrapados < pokemonesPorAtrapar);
+}
 
 //planificarEntradaReady
 //planificacionEntrenadores
@@ -906,7 +912,7 @@ void planificarEntrenadores(){
 
 			sem_wait(&semaforoPlanificacionExec);
 
-			if (list_is_empty(pokemonesEnMapa) && !planificacionCompleta){
+			if (list_is_empty(pokemonesEnMapa) && !planificacionCompleta && !hayPokemonesParaAtrapar()){
 				//ESTO ES PARA CUANDO ME QUEDO SIN POKEMONES EN READY PARA QUE NO SE BLOQUEE
 				sem_post(&semaforoPlanificacionExec);
 			}
@@ -941,8 +947,8 @@ void planificarEntrenadores(){
 						pthread_create(&hiloEntrenador,NULL,(void*)ejecutarEntrenador,entrenadorAEjecutar);
 					}
 				}
-
-				else if(!list_is_empty(colaReady) && list_is_empty(colaExec) && !planificacionCompleta && !list_is_empty(pokemonesEnMapa)){
+				// !list_is_empty(pokemonesEnMapa)
+				else if(!list_is_empty(colaReady) && list_is_empty(colaExec) && !planificacionCompleta && hayPokemonesParaAtrapar()){
 					log_info(logger, "Se comenzara la planificacion de los entrenadores");
 					if(strcmp(algoritmo_planificacion,"FIFO")==0){
 						aplicarFIFO();
@@ -976,8 +982,10 @@ void planificarEntrenadores(){
 						pthread_create(&hiloEntrenador,NULL,(void*)ejecutarEntrenador,entrenadorAEjecutar);
 					}
 				}
+				else if(hayPokemonesParaAtrapar()){
+					sem_post(&semaforoPlanificacionExec);
+				}
 			}
-			sem_post(&semaforoPlanificacionExec);
 		}
 	}
 }
@@ -1010,7 +1018,10 @@ void intercambiarPokemon(t_entrenador* entrenadorAEjecutar){
 		return existeID(pokemon,entrenador->pokemonesQueFaltan,stringComparator);
 	}
 	entrenadorAEjecutar->ocupado = true;
-	char *pokemonQueNecesito = list_remove(entrenadorAEjecutar->pokemonesQueFaltan,0);
+	if (entrenadorAEjecutar->pokemonQueNecesito == NULL){
+		char *pokemonQueNecesito = list_remove(entrenadorAEjecutar->pokemonesQueFaltan,0);
+		entrenadorAEjecutar->pokemonQueNecesito = pokemonQueNecesito;
+	}
 	t_entrenador* entrenadorAIntercambiar;
 
 	//char *pokemonQueElOtroNoNecesita;
@@ -1020,7 +1031,7 @@ void intercambiarPokemon(t_entrenador* entrenadorAEjecutar){
 
 		//NO ESTOY MUY CONVENCIDO DE ESTA CONDICION
 		if (entrenadorAEjecutar->entrenadorAIntercambiar == NULL){
-			entrenadorAIntercambiar = obtenerEntrenadorQueTieneMiPokemon(entrenadorAEjecutar, pokemonQueNecesito);
+			entrenadorAIntercambiar = obtenerEntrenadorQueTieneMiPokemon(entrenadorAEjecutar, entrenadorAEjecutar->pokemonQueNecesito);
 			entrenadorAEjecutar->entrenadorAIntercambiar = entrenadorAIntercambiar;
 			pokemonQueYoNoNecesito = obtenerPokemonParaIntercambiar(entrenadorAEjecutar,entrenadorAIntercambiar);
 		}
@@ -1041,13 +1052,13 @@ void intercambiarPokemon(t_entrenador* entrenadorAEjecutar){
 			ciclosTotales += distanciaAEntrenador;
 			entrenadorAEjecutar->ciclosEjecutados += distanciaAEntrenador;
 			log_info(loggerObligatorio, "Se comenzará el intercambio entre el entrenador %d  y el entrenador %d", entrenadorAEjecutar->idEntrenador, entrenadorAIntercambiar->idEntrenador);
-			log_info(logger, "El entrenador %d recibira a %s  y el entrenador %d recibira a %s", entrenadorAEjecutar->idEntrenador, pokemonQueNecesito,
+			log_info(logger, "El entrenador %d recibira a %s  y el entrenador %d recibira a %s", entrenadorAEjecutar->idEntrenador, entrenadorAEjecutar->pokemonQueNecesito,
 					entrenadorAIntercambiar->idEntrenador, pokemonQueYoNoNecesito);
 			sleep(retardo_ciclo_cpu*5);  //CONSUME 5 CICLOS DE CPU
 			ciclosTotales += 5;
 			entrenadorAEjecutar->ciclosEjecutados += 5;
 
-			realizarIntercambio(entrenadorAEjecutar, entrenadorAIntercambiar, pokemonQueNecesito, pokemonQueYoNoNecesito);
+			realizarIntercambio(entrenadorAEjecutar, entrenadorAIntercambiar, entrenadorAEjecutar->pokemonQueNecesito, pokemonQueYoNoNecesito);
 			if(conexionAppeared){
 				//INTERCAMBIO CON EL BROKER
 				list_remove(colaExec,0);
@@ -1063,18 +1074,20 @@ void intercambiarPokemon(t_entrenador* entrenadorAEjecutar){
 				completarCatch(entrenadorAIntercambiar, 1);
 			}
 		}
-		//SI TODAVIA NO COMPLETE ESE DELAY LO MANDO DE NUEVO A READY
-		list_remove(colaExec,0);
-		list_add(colaReady,entrenadorAEjecutar);
-		log_info(loggerObligatorio, "Se cambió un entrenador de EXEC a READY, Razon: Fin de quantum");
-		//CUANDO SALGO DE EXEC HAGO EL POST
-		sem_post(&semaforoPlanificacionExec);
-		cambiosDeContexto++;
+		else{
+			//SI TODAVIA NO COMPLETE ESE DELAY LO MANDO DE NUEVO A READY
+			list_remove(colaExec,0);
+			list_add(colaReady,entrenadorAEjecutar);
+			log_info(loggerObligatorio, "Se cambió un entrenador de EXEC a READY, Razon: Fin de quantum");
+			//CUANDO SALGO DE EXEC HAGO EL POST
+			sem_post(&semaforoPlanificacionExec);
+			cambiosDeContexto++;
+		}
 	}
 
 	else{
 		//EJECUTAR SIN QUANTUM
-		entrenadorAIntercambiar = obtenerEntrenadorQueTieneMiPokemon(entrenadorAEjecutar, pokemonQueNecesito);
+		entrenadorAIntercambiar = obtenerEntrenadorQueTieneMiPokemon(entrenadorAEjecutar, entrenadorAEjecutar->pokemonQueNecesito);
 		log_info(logger,"El entrenador %d  hara un intercambio con el entrenador %d", entrenadorAEjecutar->idEntrenador, entrenadorAIntercambiar->idEntrenador);
 		//pokemonQueElOtroNoNecesita = obtenerPokemonParaIntercambiar(entrenadorAIntercambiar,entrenadorAEjecutar);
 		pokemonQueYoNoNecesito = obtenerPokemonParaIntercambiar(entrenadorAEjecutar,entrenadorAIntercambiar);
@@ -1094,13 +1107,13 @@ void intercambiarPokemon(t_entrenador* entrenadorAEjecutar){
 		//int index = list_get_index(entrenadorAIntercambiar->pokemones, pokemonQueNecesito, (void*)comparadorNombrePokemones);
 		//list_remove(entrenadorAIntercambiar->pokemones, index);
 		log_info(loggerObligatorio, "Se comenzará el intercambio entre el entrenador %d  y el entrenador %d", entrenadorAEjecutar->idEntrenador, entrenadorAIntercambiar->idEntrenador);
-		log_info(logger, "El entrenador %d recibira a %s  y el entrenador %d recibira a %s", entrenadorAEjecutar->idEntrenador, pokemonQueNecesito,
+		log_info(logger, "El entrenador %d recibira a %s  y el entrenador %d recibira a %s", entrenadorAEjecutar->idEntrenador, entrenadorAEjecutar->pokemonQueNecesito,
 				entrenadorAIntercambiar->idEntrenador, pokemonQueYoNoNecesito);
 		sleep(retardo_ciclo_cpu*5);  //CONSUME 5 CICLOS DE CPU
 		ciclosTotales += 5;
 		entrenadorAEjecutar->ciclosEjecutados += 5;
 
-		realizarIntercambio(entrenadorAEjecutar, entrenadorAIntercambiar,pokemonQueNecesito, pokemonQueYoNoNecesito);
+		realizarIntercambio(entrenadorAEjecutar, entrenadorAIntercambiar,entrenadorAEjecutar->pokemonQueNecesito, pokemonQueYoNoNecesito);
 		if(conexionAppeared){
 			//INTERCAMBIO CON EL BROKER
 			list_remove(colaExec,0);
@@ -1272,8 +1285,11 @@ void capturarPokemon(t_entrenador* entrenadorAEjecutar){
 		//NO ESTOY MUY CONVENCIDO DE ESTA CONDICION
 		if (entrenadorAEjecutar->pokemonAAtrapar == NULL){
 			//ESTO ME PERMITE RECORDAR EL NOMBRE DEL POKEMON QUE ESTOY ATRAPANDO EN RR
-			entrenadorAEjecutar->pokemonAAtrapar = pokemonMasCercanoA(entrenadorAEjecutar);
+			t_pokemon* pokemonMasCercano = pokemonMasCercanoA(entrenadorAEjecutar);
+			entrenadorAEjecutar->pokemonAAtrapar = pokemonMasCercano;
+			sacarPokemonDelMapa(pokemonMasCercano);
 		}
+		sem_post(&semaforoControlAppeared);
 		int distanciaAPokemon = entrenadorAEjecutar->pokemonAAtrapar->distanciaAEntrenador;
 		log_info(logger, "POKEMON A ATRAPAR %s  y distancia  %d", entrenadorAEjecutar->pokemonAAtrapar->nombrePokemon, distanciaAPokemon);
 		entrenadorAEjecutar->contadorRR += quantum;
@@ -1323,8 +1339,19 @@ void capturarPokemon(t_entrenador* entrenadorAEjecutar){
 		}
 	}
 	else{
+		/*
+		 * ESTO COMENTADO IRIA PARA SJF Y TENGO QUE AGREGARLE EL SACAR POKEMON ACA ADENTRO
+		 *
+		if (entrenadorAEjecutar->pokemonAAtrapar == NULL){
+			//ESTO ME PERMITE RECORDAR EL NOMBRE DEL POKEMON QUE ESTOY ATRAPANDO
+			t_pokemon* pokemonMasCercano = pokemonMasCercanoA(entrenadorAEjecutar);
+			entrenadorAEjecutar->pokemonAAtrapar = pokemonMasCercano;
+			sacarPokemonDelMapa(pokemonMasCercano);
+		}
+		*/
 		//EJECUTAR SIN QUANTUM
 		pokemonAAtrapar = pokemonMasCercanoA(entrenadorAEjecutar);
+		sacarPokemonDelMapa(pokemonAAtrapar);
 		entrenadorAEjecutar->pokemonAAtrapar = pokemonAAtrapar;
 		sem_post(&semaforoControlAppeared);
 		//sem_post(&semaforoMensajesAppeared);
@@ -1436,7 +1463,7 @@ void completarCatch(t_entrenador* unEntrenador, bool resultadoCaught){
 	if (resultadoCaught){
 		//ESTE ES EL CASO DEL CAUGHT PARA ATRAPAR EL POKEMON NORMALMENTE
 		if(unEntrenador->operacionEntrenador == 0){
-			sacarPokemonDelMapa(pokemonAtrapado);
+			//sacarPokemonDelMapa(pokemonAtrapado);
 			//semaforo que de el ok
 
 			list_add(pokemonesAtrapados,nombrePokemon);
@@ -1590,6 +1617,7 @@ void completarIntercambioNormal(t_entrenador* unEntrenador){
 		unEntrenador->blockeado = false;
 		unEntrenador->ocupado = false;
 		unEntrenador->pokemonAAtrapar = NULL;
+		unEntrenador->pokemonQueNecesito = NULL;
 		list_add(colaExit, unEntrenador);
 		log_info(loggerObligatorio, "Se cambió al entrenador %d de BLOCKED a EXIT, Razon: Termino de atrapar un pokemon y cumplio con su objetivo", unEntrenador->idEntrenador);
 		//deadlocksResueltos++;
@@ -1616,6 +1644,7 @@ void completarIntercambioSinBroker(t_entrenador* unEntrenador){
 		unEntrenador->blockeado = false;
 		unEntrenador->ocupado = false;
 		unEntrenador->pokemonAAtrapar = NULL;
+		unEntrenador->pokemonQueNecesito = NULL;
 		list_add(colaExit, unEntrenador);
 		log_info(loggerObligatorio, "Se cambió al entrenador %d de EXEC a EXIT, Razon: Termino de atrapar un pokemon con la rutina por default y cumplio con su objetivo", unEntrenador->idEntrenador);
 		//CUANDO SALGO DE EXEC HAGO EL POST
