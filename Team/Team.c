@@ -933,6 +933,7 @@ void planificarEntrenadores(){
 						pthread_create(&hiloEntrenador,NULL,(void*)ejecutarEntrenador,entrenadorAEjecutar);
 					}
 					else if(strcmp(algoritmo_planificacion,"SJF-CD")==0){
+						log_info(logger,"Se aplicara el algoritmo de planificacion SJF con desalojo");
 						aplicarSJFConDesalojo();
 						t_entrenador* entrenadorAEjecutar = list_get(colaExec, 0);
 						pthread_t hiloEntrenador = entrenadorAEjecutar->hiloEntrenador;
@@ -941,6 +942,7 @@ void planificarEntrenadores(){
 						sem_wait(&semaforo);
 					}
 					else if(strcmp(algoritmo_planificacion,"SJF-SD")==0){
+						log_info(logger,"Se aplicara el algoritmo de planificacion SJF sin desalojo");
 						aplicarSJF();
 						t_entrenador* entrenadorAEjecutar = list_get(colaExec, 0);
 						pthread_t hiloEntrenador = entrenadorAEjecutar->hiloEntrenador;
@@ -1772,13 +1774,13 @@ void aplicarRR(){
 }
 
 void aplicarSJFConDesalojo(){
-	log_info(logger,"Se aplicara el algoritmo de planificacion SJF con desalojo");
 	if(!list_is_empty(colaExec)){
 		t_entrenador* entrenadorEnEjecucion = list_get(colaExec,0);
 		//ANTES DE SACAR AL ENTRENADOR LE BAJO EL SEMAFORO
 		sem_t semaforo = entrenadorEnEjecucion->semaforoEntrenador;
 		sem_wait(&semaforo);
 		list_remove(colaExec,0);
+		log_info(loggerObligatorio, "Se cambió un entrenador %d de EXEC a READY, Razon: Elegido del algoritmo de planificacion, ya que hay otro con menor rafaga", entrenadorEnEjecucion->idEntrenador);
 		list_add(colaReady, entrenadorEnEjecucion);
 		log_info(loggerObligatorio,"Se cambió un entrenador %d de READY a EXEC, Razon: Elegido del algoritmo de planificacion", entrenadorEnEjecucion->idEntrenador);
 		cambiosDeContexto++;
@@ -1787,7 +1789,7 @@ void aplicarSJFConDesalojo(){
 }
 
 void aplicarSJF(){
-	log_info(logger,"Se aplicara el algoritmo de planificacion SJF sin desalojo");
+
 	if(list_is_empty(colaExec) && (!list_is_empty(colaReady))){
 		t_list* aux = list_map(colaReady, (void*)calcularEstimacion);
 		list_sort(aux, (void*)comparadorDeRafagas);
