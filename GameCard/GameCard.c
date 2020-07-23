@@ -27,6 +27,7 @@ int main(int argc,char* argv[]){
 
     pthread_join(hiloMensajes,NULL);
 
+
     sem_destroy(&conexionRecuperadaDeNew);
     sem_destroy(&conexionRecuperadaDeCatch);
     sem_destroy(&conexionRecuperadaDeGet);
@@ -501,6 +502,16 @@ void atender_cliente(int* socket){
 	procesar_solicitud(headerRecibido, *socket);
 }
 
+void envioDeACKGB(int conexion, uint32_t id, t_operacion operacion){
+
+	void* paquete = pack_Ack(id, operacion, "GameCard");
+	uint32_t tamPaquete = sizeof(id) + sizeof(t_operacion) + strlen("Gamecard") + 1 + sizeof(uint32_t);
+	packAndSend(conexion, paquete, tamPaquete, t_ACK);
+	log_info(loggerObligatorio, "El envio del ACK del mensaje con ID [%d] se realizo con exito",id);
+
+	free(paquete);
+}
+
 void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 	//int size;
 	//void* msg;
@@ -518,11 +529,12 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 			log_info(loggerObligatorio,"Llegó un mensaje del tipo GET del GameBoy");
 
 			void* paqueteGet = receiveAndUnpack(cliente_fd, tamanio);
+
 			pokemon = unpackPokemonGet(paqueteGet);
 			tamanioPokemon = strlen(pokemon) + 1;
 			id = unpackID(paqueteGet);
 
-
+			envioDeACKGB(cliente_fd,id, t_GET);
 			//log_info(loggerObligatorio,"Pokemon: %s id: %d",pokemon,id);
 
 
@@ -542,6 +554,8 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 			id = unpackID(paqueteCatch);
 			posX = unpackCoordenadaX_Catch(paqueteCatch, tamanioPokemon);
 			posY = unpackCoordenadaY_Catch(paqueteCatch, tamanioPokemon);
+			envioDeACKGB(cliente_fd,id, t_CATCH);
+
 			int resultadoCatch = procedimientoCATCH(pokemon,posX,posY);
 			//log_info(loggerObligatorio,"Pokemon: %s posX: %d posY: %d id: %d",pokemon,posX,posY,id);
 
@@ -571,7 +585,7 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 			posX = unpackCoordenadaX_New(paqueteNew, tamanioPokemon);
 			posY = unpackCoordenadaY_New(paqueteNew, tamanioPokemon);
 			uint32_t cantPokemon = unpackCantidadPokemons_New(paqueteNew, tamanioPokemon);
-
+			envioDeACKGB(cliente_fd,id, t_NEW);
 
 			int resultadoNew = procedimientoNEW(pokemon,posX,posY,cantPokemon);
 			//log_info(loggerObligatorio,"Pokemon: %s posX: %d posY: %d cantidad: %d id: %d",pokemon,posX,posY,cantPokemon, id);
@@ -597,10 +611,10 @@ void leerArchivoDeConfiguracion(void){
 	char* path = "GameCard.config";
 	archivoConfig = config_create(path);
 	if (archivoConfig == NULL){
-		log_error(loggerObligatorio,"Archivo de configuracion no encontrado");
+		//log_error(loggerObligatorio,"Archivo de configuracion no encontrado");
 	}
 	setearValoresDeGame(archivoConfig);
-	log_info(loggerObligatorio,"La configuracion fue cargada exitosamente");
+	//log_info(loggerObligatorio,"La configuracion fue cargada exitosamente");
 }
 
 void setearValoresDeGame(t_config *config){
@@ -778,38 +792,39 @@ void carga_config_fs(){
 // en el bitmap 1 para indicar que esta ocupado ese bloque
 void actualizarBitmap(){
 	int i;
-	int tamanio;
+
 	for(i = 1; i <= CANTIDAD_DE_BLOQUES; i++){
-		FILE *bloque;
-		char* rutaDeBloque = string_from_format("%s/%d.bin",RUTA_DE_BLOQUES,i);
 
-		bloque = fopen(rutaDeBloque,"r");
-		fseek(bloque,0,SEEK_END);
-		tamanio = ftell(bloque);
-		if(tamanio != 0){
-
-			bitarray_set_bit(bitmap,i-1);
-		}else {
 			bitarray_clean_bit(bitmap,i-1);
 			bloquesLibres++;
-		}
-		fclose(bloque);
-		free(rutaDeBloque);
-
 	}
 
+}
+
+void recuperarEstadoBitmap(){
+	int i;
+
+	for(i = 1; i <= CANTIDAD_DE_BLOQUES; i++){
+			if(!bitarray_test_bit(bitmap,i-1)) bloquesLibres++;
+
+	}
 }
 
 // Inicia el bitmap si existe el archivo bitmap.bin, si no existe crea un bitmap basado en el metadata.
 void iniciarBitmap(){
 	FILE *archi;
-	int tamanio;
+	int tamanio = 0;
+	bool existenciaDeBitmap = 1;
 
 	char* directorioBitmap = string_from_format("%s/Bitmap.bin",RUTA_DE_METADATA_MONTAJE);
-	archi = fopen(directorioBitmap,"wb+");
+	archi = fopen(directorioBitmap,"rb+");
+
+	if(archi != NULL){
 	fseek(archi,0,SEEK_END);
 	tamanio = ftell(archi);
 	fseek(archi,0,SEEK_SET);
+	}
+
 	if(tamanio == 0){
 	//SE CREA EL BITMAP VACIO
 	archi = fopen(directorioBitmap,"wb+");
@@ -817,6 +832,7 @@ void iniciarBitmap(){
 	fwrite((void* )bitArray_vacio,((CANTIDAD_DE_BLOQUES+7)/8),1,archi);
 	//fclose(archi);
 	free(bitArray_vacio);
+	existenciaDeBitmap = 0;
 	}
 
 	int fd = fileno(archi);
@@ -829,7 +845,14 @@ void iniciarBitmap(){
 
 	bitmap = bitarray_create_with_mode(bitarray, tamanioArchi, LSB_FIRST);
 
-	actualizarBitmap();
+	if(!existenciaDeBitmap){
+
+		actualizarBitmap();
+	}else{
+
+		recuperarEstadoBitmap();
+	}
+
 	log_info(loggerObligatorio,"Bitmap cargado y actualizado");
 
 	free(directorioBitmap);
