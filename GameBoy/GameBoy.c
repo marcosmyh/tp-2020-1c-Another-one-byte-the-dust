@@ -46,6 +46,7 @@ int main(int argc,char* argv[]){
 				if(esUnTipoDeMensajeValido(nombreDeProceso,tipoDeMensaje)){
 								conexion = crear_conexion(IP_GAMECARD,PUERTO_GAMECARD,nombreDeProceso);
 								enviar_mensaje_a_gamecard(tipoDeMensaje,argc,argv);
+
 							} else log_error(logger,"No está definido el tipo de mensaje %s para %s",tipoDeMensaje,nombreDeProceso);
 				break;
 
@@ -62,9 +63,13 @@ int main(int argc,char* argv[]){
 								//packAndSend_Handshake(conexion, "GAMEBOY" , colaDeMensaje);
 								conectarmeACola(conexion,tiempo,tipoDeMensaje);
 
+								if(estadoDeConexion == -1){
+									log_info(logger,"La conexión finalizó. Razon: Broker se cayó");
+								}
 
-								printf("la cola a suscribirse es: %s \n",tipoDeMensaje);
-								printf("El tiempo es: %i \n",tiempo);
+								log_info(logger,"La cola solicitada para suscribirse fue : %s",tipoDeMensaje);
+								log_info(logger,"El tiempo solicitado fue: %i",tiempo);
+
 								}
 							} else log_error(logger,"No está definido el tipo de mensaje %s para %s",tipoDeMensaje,nombreDeProceso);
 
@@ -220,6 +225,23 @@ void cargarConfig(t_config* configuracion){
 
 }
 
+void recibirACK(int conexion, uint32_t id){
+
+	Header headerRecibido = receiveHeader(conexion);
+	uint32_t tamanio = headerRecibido.tamanioMensaje;
+
+	void *paquete = receiveAndUnpack(conexion,tamanio);
+	uint32_t idDeAck = unpackID(paquete);
+
+	if(id == idDeAck){
+		log_info(logger,"El proceso recibió con éxito el mensaje con ID %d",id);
+	}else{
+		log_info(logger,"El proceso no recibió el mensaje con ID %d",id);
+	}
+
+	free(paquete);
+}
+
 void terminar_programa()
 {
 	log_destroy(logger);
@@ -314,12 +336,12 @@ void enviar_mensaje_a_broker(char* tipo_de_mensaje,int cantidad_de_argumentos,ch
 						//Envio del mensaje
 						envioDeMensajeNew(pokemon,posx,posy,cantidad,-1);
 						//Envio del mensaje
-
-						printf("Aca envio el mensaje \n");
-						printf("Pokemon: %s \n",pokemon);
-						printf("PosX: %i \n",posx);
-						printf("PosY: %i \n",posy);
-						printf("Cantidad: %i \n",cantidad);
+						//recibirACK(conexion,-1);
+						//printf("Aca envio el mensaje \n");
+						//printf("Pokemon: %s \n",pokemon);
+						//printf("PosX: %i \n",posx);
+						//printf("PosY: %i \n",posy);
+						//printf("Cantidad: %i \n",cantidad);
 				}else printf("Faltan argumentos macho \n");
 			break;
 
@@ -334,12 +356,12 @@ void enviar_mensaje_a_broker(char* tipo_de_mensaje,int cantidad_de_argumentos,ch
 								// Envio del mensaje
 								envioDeMensajeAppeared(pokemon,posx,posy,idmensaje);
 								// envio del mensaje
-
-								printf("Aca envio el mensaje \n");
-								printf("Pokemon: %s \n",pokemon);
-								printf("PosX: %i \n",posx);
-								printf("PosY: %i \n",posy);
-								printf("id mensaje: %i \n",idmensaje);
+								//recibirACK(conexion,idmensaje);
+								//printf("Aca envio el mensaje \n");
+								//printf("Pokemon: %s \n",pokemon);
+								//printf("PosX: %i \n",posx);
+								//printf("PosY: %i \n",posy);
+								//printf("id mensaje: %i \n",idmensaje);
 								}else printf("Faltan argumentos macho \n");
 
 
@@ -356,11 +378,11 @@ void enviar_mensaje_a_broker(char* tipo_de_mensaje,int cantidad_de_argumentos,ch
 								// envio de mensaje
 								envioDeMensajeCatch(pokemon,posx,posy,idmensaje);
 								// envio de mensaje
-
-								printf("Aca envio el mensaje \n");
-								printf("Pokemon: %s \n",pokemon);
-								printf("PosX: %i \n",posx);
-								printf("PosY: %i \n",posy);
+								//recibirACK(conexion,idmensaje);
+								//printf("Aca envio el mensaje \n");
+								//printf("Pokemon: %s \n",pokemon);
+								//printf("PosX: %i \n",posx);
+								//printf("PosY: %i \n",posy);
 								}else printf("Faltan argumentos macho \n");
 			break;
 
@@ -381,9 +403,9 @@ void enviar_mensaje_a_broker(char* tipo_de_mensaje,int cantidad_de_argumentos,ch
 								// envio de mensaje
 								envioDeMensajeCaught(atrapado,idmensaje);
 								// envio de mensaje
-
-								printf("Atrapado: %i \n",atrapado);
-								printf("id mensaje: %i \n",idmensaje);
+								//recibirACK(conexion,idmensaje);
+								//printf("Atrapado: %i \n",atrapado);
+								//printf("id mensaje: %i \n",idmensaje);
 								}else printf("Faltan argumentos macho \n");
 			break;
 
@@ -396,8 +418,8 @@ void enviar_mensaje_a_broker(char* tipo_de_mensaje,int cantidad_de_argumentos,ch
 								// envio de mensaje
 								envioDeMensajeGet(pokemon,idmensaje);
 								// envio de mensaje
-
-								printf("pokemon: %s \n",pokemon);
+								//recibirACK(conexion,idmensaje);
+								//printf("pokemon: %s \n",pokemon);
 								}else printf("Faltan argumentos macho \n");
 			break;
 
@@ -425,11 +447,11 @@ void enviar_mensaje_a_team(char* tipo_de_mensaje,int cantidad_de_argumentos,char
 		int resultado = packAndSend(conexion,paqueteAEnviar,tamPaquete+sizeof(uint32_t),t_APPEARED);
 		if(resultado == -1)log_error(loggerObligatorio,"El envio del mensaje de APPEARED falló");
 		log_info(loggerObligatorio,"Mensaje de APPEARED enviado");
-
-		printf("Aca envio el mensaje \n");
-		printf("Pokemon: %s \n",pokemon);
-		printf("PosX: %i \n",posx);
-		printf("PosY: %i \n",posy);
+		//recibirACK(conexion,id);
+		//printf("Aca envio el mensaje \n");
+		//printf("Pokemon: %s \n",pokemon);
+		//printf("PosX: %i \n",posx);
+		//printf("PosY: %i \n",posy);
 	}else printf("Faltan argumentos macho \n");
 }
 
@@ -449,13 +471,13 @@ void enviar_mensaje_a_gamecard(char* tipo_de_mensaje,int cantidad_de_argumentos,
 					    	// Envio del mensaje
 							envioDeMensajeNew(pokemon,posx,posy,cantidad,idmensaje);
 							// Envio del mensaje
-
-							printf("Aca envio el mensaje \n");
-							printf("Pokemon: %s \n",pokemon);
-							printf("PosX: %i \n",posx);
-							printf("PosY: %i \n",posy);
-							printf("Cantidad: %i \n",cantidad);
-							printf("id mensaje: %i \n",idmensaje);
+							recibirACK(conexion,idmensaje);
+							//printf("Aca envio el mensaje \n");
+							//printf("Pokemon: %s \n",pokemon);
+							//printf("PosX: %i \n",posx);
+							//printf("PosY: %i \n",posy);
+							//printf("Cantidad: %i \n",cantidad);
+							//printf("id mensaje: %i \n",idmensaje);
 					}else printf("Faltan argumentos macho \n");
 				break;
 				// ./gameboy GAMECARD CATCH_POKEMON [POKEMON] [POSX] [POSY] [ID_MENSAJE]
@@ -469,12 +491,12 @@ void enviar_mensaje_a_gamecard(char* tipo_de_mensaje,int cantidad_de_argumentos,
 							    	// Envio del mensaje
 									envioDeMensajeCatch(pokemon,posx,posy,idmensaje);
 									// Envio del mensaje
-
-									printf("Aca envio el mensaje \n");
-									printf("Pokemon: %s \n",pokemon);
-									printf("PosX: %i \n",posx);
-									printf("PosY: %i \n",posy);
-									printf("id mensaje: %i \n",idmensaje);
+									recibirACK(conexion,idmensaje);
+									//printf("Aca envio el mensaje \n");
+									//printf("Pokemon: %s \n",pokemon);
+									//printf("PosX: %i \n",posx);
+									//printf("PosY: %i \n",posy);
+									//printf("id mensaje: %i \n",idmensaje);
 									}else printf("Faltan argumentos macho \n");
 				break;
 
@@ -488,13 +510,15 @@ void enviar_mensaje_a_gamecard(char* tipo_de_mensaje,int cantidad_de_argumentos,
 							    	// Envio del mensaje
 									envioDeMensajeGet(pokemon,id);
 									// Envio del mensaje
-
-									printf("pokemon: %s \n",pokemon);
+									recibirACK(conexion,id);
+									//printf("pokemon: %s \n",pokemon);
 									}else printf("Faltan argumentos macho \n");
 				break;
 				default:
 				break;
 				}
+
+
 }
 
 
@@ -557,6 +581,7 @@ void recepcionDeMensaje(){
 
 	 }else{
 		printf("Se cayó el broker \n");
+		estadoDeConexion = -1;
 		pthread_exit(NULL);
 	 }
 	}
@@ -649,6 +674,7 @@ void discriminarMensaje(t_infoPackGB *infoPack){
 void crearTimer(int *tiempo){
 	int i;
 	for(i = 0; i <= *tiempo; i++){
+		if(estadoDeConexion == -1) pthread_exit(NULL);
 		tiempoRestante = *tiempo - i;
 		sleep(1);
 	}
