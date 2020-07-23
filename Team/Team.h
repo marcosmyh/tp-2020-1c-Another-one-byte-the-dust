@@ -49,7 +49,7 @@ struct t_entrenador{
 	t_list* objetivo;
 	t_list* pokemonesQueFaltan;
 	t_pokemon* pokemonAAtrapar;
-	t_pokemon* pokemonQueNecesito;
+	char* pokemonQueNecesito;
 	t_entrenador* entrenadorAIntercambiar;
 	sem_t semaforoEntrenador;
 	pthread_t hiloEntrenador;
