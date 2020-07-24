@@ -26,6 +26,12 @@ typedef struct t_pokemon t_pokemon;
 typedef struct t_entrenador t_entrenador;
 
 typedef struct{
+	void(*planificar)();
+	void(*ejecutarRutinaCapturaPokemon)(t_entrenador *);
+	void(*ejecutarRutinaIntercambioPokemon)(t_entrenador *);
+}t_planificador;
+
+typedef struct{
 	int socket;
 	void *paquete;
 }t_infoPaquete;
@@ -53,9 +59,10 @@ struct t_entrenador{
 	t_entrenador* entrenadorAIntercambiar;
 	sem_t semaforoEntrenador;
 	pthread_t hiloEntrenador;
-	int rafagasEstimadas;
+	float rafagasEstimadas;
 	int rafagasEjecutadas;
 	int distancia;
+	int distanciaAPokemon;
 	int cantPokemonesPorAtrapar;
 	int contadorRR;
 	uint32_t IdCatch;
@@ -82,6 +89,7 @@ t_list* colaExit;
 t_list *pokemonesDuranteEjecucion;
 
 //VARIABLES
+t_planificador *planificador;
 pthread_t hiloAtencionCaught;
 pthread_t hiloAtencionAppeared;
 pthread_t hiloAtencionLocalized;
@@ -123,6 +131,7 @@ int cambiosDeContexto = 0;
 int deadlocksProducidos = 0;
 int deadlocksResueltos = 0;
 
+bool hayQueDesalojar = 0;
 bool planificacionInicialReady = 0;
 bool conexionAppeared = 0;
 bool conexionCaught = 0;
@@ -285,5 +294,14 @@ void cambiarOperacionEntrenadores(t_list *,int);
 void modificarContadorDeadlocks(int);
 bool estaEnBlocked(t_entrenador *entrenador);
 bool hayPokemonesParaAtrapar();
+t_planificador *construirPlanificador();
+void capturaPokemonFIFO(t_entrenador *);
+void capturaPokemonRR(t_entrenador *);
+void capturaPokemonSJFConDesalojo(t_entrenador *);
+void intercambioPokemonSinQuantum(t_entrenador *);
+void intercambioPokemonRR(t_entrenador *);
+void planificarEntrenadoresBis();
+void calcularDistanciaEntrenadorA(t_entrenador *entrenador,t_pokemon *pokemon);
+void moverEntrenadorConDesalojo(t_entrenador *,t_pokemon *);
 
 #endif
