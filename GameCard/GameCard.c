@@ -214,6 +214,10 @@ void recibirHandshake(int socket,uint32_t tamanioPaquete){
 	identificadorProcesoGC = unpackProceso(paqueteBroker);
 	config_set_value(archivoConfig,"ID",identificadorProcesoGC);
 	config_save(archivoConfig);
+	// CAMBIO
+	free(identificadorProcesoGC);
+	identificadorProcesoGC = config_get_string_value(archivoConfig,"ID");
+	//CAMBIO
 	free(paqueteBroker);
 	log_info(loggerObligatorio,"ID RECIBIDO: %s",identificadorProcesoGC);
 }
@@ -261,7 +265,7 @@ void procedimientoMensajeNew(t_infoPack *infoNew){
 	//
 	if(resultadoNew == 0){
 	envioDeMensajeAppeared(pokemon,posX,posY,id); // Prueba
-	}else log_error(loggerObligatorio,"No hay espacio en disco");
+	}else if(resultadoNew == -1)log_error(loggerObligatorio,"No hay espacio en disco");
 	// Preguntar que mensaje enviar en el caso que no haya espacio en disco
 	destruirInfoPaquete(infoNew);
 	free(pokemon);
@@ -270,12 +274,14 @@ void procedimientoMensajeNew(t_infoPack *infoNew){
 
 void procedimientoMensajeGet(t_infoPack *infoGet){
 	void *paqueteGet= infoGet->paquete;
+	int socket = infoGet->socket;
 	char* pokemon = unpackPokemonGet(paqueteGet);
 
 	uint32_t id = unpackID(paqueteGet);
 
-	log_info(loggerObligatorio,"Pokemon: %s id: %d",pokemon,id);
-
+	if(esSocketDeBroker(socket)){
+    envioDeACK(id, t_GET);
+	}
 
 	procedimientoGET(id,pokemon);
 
@@ -298,6 +304,7 @@ void procedimientoMensajeCatch(t_infoPack *infoCatch){
 	}
 
 	int resultadoCatch = procedimientoCATCH(pokemon,posX,posY);
+
 	//log_info(loggerObligatorio,"Pokemon: %s posX: %d posY: %d id: %d",pokemon,posX,posY,id);
 
 //
@@ -309,8 +316,10 @@ void procedimientoMensajeCatch(t_infoPack *infoCatch){
 	if(resultadoCatch == -1) resultado = 0;
 	else resultado = 1;
 
+	if(resultadoCatch != -2){
 	int seEnvioCaught = envioDeMensajeCaught(resultado,id); // Prueba
 	if(seEnvioCaught == -1) log_error(loggerObligatorio,"Error al enviar el mensaje");
+	}
 	free(pokemon);
 	destruirInfoPaquete(infoCatch);
 }
@@ -372,6 +381,8 @@ int conectarseAColaMensajes(int socket,char *identificador,t_operacion operacion
 	void *paquete = pack_Handshake(identificador,operacion);
 	uint32_t tamPaquete = strlen(identificador) + 1 + sizeof(uint32_t) + sizeof(t_operacion);
 	int resultado = packAndSend(socket,paquete,tamPaquete,t_HANDSHAKE);
+
+	free(paquete);
 	return resultado;
 
 }
@@ -534,7 +545,7 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 			tamanioPokemon = strlen(pokemon) + 1;
 			id = unpackID(paqueteGet);
 
-			envioDeACKGB(cliente_fd,id, t_GET);
+			//envioDeACKGB(cliente_fd,id, t_GET);
 			//log_info(loggerObligatorio,"Pokemon: %s id: %d",pokemon,id);
 
 
@@ -554,7 +565,7 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 			id = unpackID(paqueteCatch);
 			posX = unpackCoordenadaX_Catch(paqueteCatch, tamanioPokemon);
 			posY = unpackCoordenadaY_Catch(paqueteCatch, tamanioPokemon);
-			envioDeACKGB(cliente_fd,id, t_CATCH);
+			//envioDeACKGB(cliente_fd,id, t_CATCH);
 
 			int resultadoCatch = procedimientoCATCH(pokemon,posX,posY);
 			//log_info(loggerObligatorio,"Pokemon: %s posX: %d posY: %d id: %d",pokemon,posX,posY,id);
@@ -568,7 +579,9 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 			if(resultadoCatch == -1) resultado = 0;
 			else resultado = 1;
 
+			if(resultadoCatch != -2){
 			envioDeMensajeCaught(resultado,id); // Prueba
+			}
 			free(pokemon);
 			free(paqueteCatch);
 			break;
@@ -585,7 +598,7 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 			posX = unpackCoordenadaX_New(paqueteNew, tamanioPokemon);
 			posY = unpackCoordenadaY_New(paqueteNew, tamanioPokemon);
 			uint32_t cantPokemon = unpackCantidadPokemons_New(paqueteNew, tamanioPokemon);
-			envioDeACKGB(cliente_fd,id, t_NEW);
+			//envioDeACKGB(cliente_fd,id, t_NEW);
 
 			int resultadoNew = procedimientoNEW(pokemon,posX,posY,cantPokemon);
 			//log_info(loggerObligatorio,"Pokemon: %s posX: %d posY: %d cantidad: %d id: %d",pokemon,posX,posY,cantPokemon, id);
@@ -595,7 +608,8 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 			//
 			if(resultadoNew == 0){
 			envioDeMensajeAppeared(pokemon,posX,posY,id); // Prueba
-			}else log_error(loggerObligatorio,"No hay espacio en disco");
+			}else if(resultadoNew == -1) log_error(loggerObligatorio,"No hay espacio en disco");
+
 			// Preguntar que mensaje enviar en el caso que no haya espacio en disco
 			free(pokemon);
 			free(paqueteNew);
@@ -611,7 +625,7 @@ void leerArchivoDeConfiguracion(void){
 	char* path = "GameCard.config";
 	archivoConfig = config_create(path);
 	if (archivoConfig == NULL){
-		//log_error(loggerObligatorio,"Archivo de configuracion no encontrado");
+		log_error(loggerObligatorio,"Archivo de configuracion no encontrado");
 	}
 	setearValoresDeGame(archivoConfig);
 	//log_info(loggerObligatorio,"La configuracion fue cargada exitosamente");
@@ -770,10 +784,6 @@ void carpetas_iniciar(char* puntoDeMontaje){
 	RUTA_DE_FILES = string_from_format("%s/Files",puntoDeMontaje);
 	crearDirectorio(RUTA_DE_FILES);
 
-	// Se crea la carpeta pokemon dentro de files
-	RUTA_DE_POKEMON = string_from_format("%s/Files/Pokemon",puntoDeMontaje);
-	crearDirectorio(RUTA_DE_POKEMON);
-
 	// Se crea la carpeta de Blocks
 	RUTA_DE_BLOQUES = string_from_format("%s/Blocks",puntoDeMontaje);
 	mkdir(RUTA_DE_BLOQUES,0777);
@@ -917,28 +927,32 @@ t_config* obtener_metadata_de_ruta(char *path){
 	return metadata;
 }
 
-// Mediante una ruta retorna si es un directorio o registro
-// 1 si es registro
-// 2 si es directorio
+// Mediante una ruta retorna si es un directorio o archivo
+// 1 si es directorio
+// 0 si es archivo
 // -1 si es error
 
-int esDirectorio(char* ruta){
-	t_config* unMeta;
+bool esDirectorio(t_config* unMeta){
+	bool resultado;
+
 	char* tipoDeArchivo;
-	unMeta = obtener_metadata_de_ruta(ruta);
-	if(unMeta == NULL) return -1;
 
 	tipoDeArchivo = config_get_string_value(unMeta,"DIRECTORY");
 
 	if(string_equals_ignore_case(tipoDeArchivo,"Y")){
-		config_destroy(unMeta);
-		return 2;
+		resultado = 1;
 	}
 	if(string_equals_ignore_case(tipoDeArchivo,"N")){
-		config_destroy(unMeta);
-		return 1;
+		resultado = 0;
 	}
-	else return -1;
+	return resultado;
+}
+
+bool esDirectorioPokemon(char* unPokemon){
+	t_config* unConfig = obtenerFCB(unPokemon);
+	bool resultado = esDirectorio(unConfig);
+	config_destroy(unConfig);
+	return resultado;
 }
 
 // Funcion que sirve solo para orientarse. No es necesaria ni nada.
@@ -971,6 +985,15 @@ void limpiarPunteroAPuntero(char** puntero){
 		i++;
 	}
 	free(puntero);
+}
+
+void limpiarPunteroAPuntero2punto0(char** puntero,int cantidad){
+	int i = 0;
+
+	for(i = 0; i < cantidad ; i++){
+		free(puntero[i]);
+
+	}
 }
 
 // Recibe un arreglo de arrays y el arrayObjetivo.
@@ -1290,7 +1313,8 @@ t_config* obtenerFCB(char *nombrePokemon){
 	char *ruta_pokemon;
 	t_config* configPokemon;
 
-	ruta_pokemon = string_from_format("%s/Pokemon/%s/Metadata.bin",RUTA_DE_FILES,nombrePokemon);
+	ruta_pokemon = string_from_format("%s/%s/Metadata.bin",RUTA_DE_FILES,nombrePokemon);
+
 	configPokemon = config_create(ruta_pokemon);
 	free(ruta_pokemon);
 
@@ -1299,21 +1323,25 @@ t_config* obtenerFCB(char *nombrePokemon){
 
 // Retorna si existe el pokemon: NO GENERA LEAKS
 int existePokemon(char* nombrePokemon){
+	int resultado = 0;
+
 
 	t_config* config_pokemon = obtenerFCB(nombrePokemon);
 
 	if(config_pokemon == NULL){
-		return 0;
+		return resultado;
 	}
+
+	resultado = 1;
 	config_destroy(config_pokemon);
-	return 1;
+	return resultado;
 }
 
 //	Crea un archivo con su metadata del nombre del pokemon
 //	Obviamente el archivo va a estar vacio hasta ser llenado
 void crearPokemon(char* nombrePokemon){
 
-	char* path_pokemon = string_from_format("%s/%s",RUTA_DE_POKEMON,nombrePokemon);
+	char* path_pokemon = string_from_format("%s/%s",RUTA_DE_FILES,nombrePokemon);
 
 	mkdir(path_pokemon,0777);
 
@@ -1384,7 +1412,7 @@ void *reintentoAbrir(void* argumentos){
 
 // RETORNA LOS BLOQUES DEL METADATA FUNCIONA COMO STRING: NO DA LEAKS
 char* obtenerBloquesDelPokemon(char* pokemon){
-			char* direccion = string_from_format("%s/%s/Metadata.bin",RUTA_DE_POKEMON,pokemon);
+			char* direccion = string_from_format("%s/%s/Metadata.bin",RUTA_DE_FILES,pokemon);
 
 			t_config* archiPokemon = config_create(direccion);
 			char* auxBloques = string_duplicate(config_get_string_value(archiPokemon,"BLOCKS"));
@@ -1883,7 +1911,17 @@ int procedimientoNEW(char* pokemon,uint32_t posx,uint32_t posy,uint32_t cantidad
 
 		crearPokemon(pokemon);
 
-	}else log_info(loggerObligatorio,"Existe el pokemon %s",pokemon);
+	}else {
+
+		if(esDirectorioPokemon(pokemon)){
+			log_error(loggerObligatorio,"El nombre solicitado pertenece a un directorio con el nombre identico a %s",pokemon);
+			sem_post(&aperturaDeArchivo);
+			return -2;
+		}
+
+		log_info(loggerObligatorio,"Existe el pokemon %s",pokemon);
+
+	}
 	sem_post(&aperturaDeArchivo);
 
 	if(verificarYAbrirArchivo(pokemon) == 0){
@@ -1957,7 +1995,17 @@ int procedimientoCATCH(char* pokemon,uint32_t posx,uint32_t posy){
 		log_error(loggerObligatorio,"No existe el pokemon %s",pokemon);
 		sem_post(&aperturaDeArchivo);
 		return -1;
-	}else log_info(loggerObligatorio,"Existe el pokemon %s",pokemon);
+	}else {
+
+		if(esDirectorioPokemon(pokemon)){
+			log_error(loggerObligatorio,"El nombre solicitado pertenece a un directorio con el nombre identico a %s",pokemon);
+			sem_post(&aperturaDeArchivo);
+			return -2;
+		}
+
+		log_info(loggerObligatorio,"Existe el pokemon %s",pokemon);
+
+	}
 	sem_post(&aperturaDeArchivo);
 
 
@@ -2021,9 +2069,16 @@ int procedimientoGET(uint32_t idMensaje,char* pokemon){
 
 
 	int resultado;
-	log_info(loggerObligatorio,"comienza a ejecutar GET");
+
 	sem_wait(&aperturaDeArchivo);
 	if(existePokemon(pokemon)){
+
+		if(esDirectorioPokemon(pokemon)){
+			log_error(loggerObligatorio,"El nombre solicitado pertenece a un directorio con el nombre identico a %s",pokemon);
+			sem_post(&aperturaDeArchivo);
+			return -2;
+		}
+
 		sem_post(&aperturaDeArchivo);
 		log_info(loggerObligatorio,"Existe el pokemon %s",pokemon);
 
@@ -2070,19 +2125,39 @@ int procedimientoGET(uint32_t idMensaje,char* pokemon){
 
 		uint32_t coordenadasAEnviar[cantidadParesCoordenadas*2];
 		insertarCoordenadas(coordenadasSeparadas,coordenadasAEnviar);
+
+		printf("\033[1;34m");
+		log_info(loggerObligatorio,"Aplicando %d segundos de retardo",tiempo_de_retardo);
+		printf("\033[0m");
+		sleep(tiempo_de_retardo);
+
 		cerrarArchivo(pokemon);
 		resultado = envioDeMensajeLocalized(pokemon,idMensaje,cantidadParesCoordenadas,coordenadasAEnviar);
 
 		free(arrayDeArchivo);
 		free(bloques);
 		list_destroy_and_destroy_elements(coordenadasSeparadas,(void *) destruirCoordenadas);
-		limpiarPunteroAPuntero(posicionesSeparadas);
+
 		limpiarPunteroAPuntero(posicionesConCantidad);
+
+		//////// ULTIMO TEST
+		limpiarPunteroAPuntero2punto0(posicionesSeparadas,cantidadParesCoordenadas);
+		free(posicionesSeparadas);
+		//////// ULTIMO TEST
+
 		return resultado;
+
 	}else{
 
 		free(bloques);
-		log_error(loggerObligatorio,"El pokemon %s posee bloques asignados",pokemon);
+		log_error(loggerObligatorio,"El pokemon %s no posee bloques asignados",pokemon);
+
+		printf("\033[1;34m");
+		log_info(loggerObligatorio,"Aplicando %d segundos de retardo",tiempo_de_retardo);
+		printf("\033[0m");
+		sleep(tiempo_de_retardo);
+
+		cerrarArchivo(pokemon);
 	}
 	}else{
 		sem_post(&aperturaDeArchivo);

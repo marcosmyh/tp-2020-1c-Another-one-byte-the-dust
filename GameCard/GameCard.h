@@ -105,7 +105,6 @@ uint32_t CANTIDAD_DE_BLOQUES;
 char *MAGIC_NUMBER;
 char *RUTA_DE_BLOQUES;
 char *RUTA_DE_FILES;
-char *RUTA_DE_POKEMON;
 char *RUTA_DE_METADATA_MONTAJE;
 t_config *config_fs;
 t_bitarray* bitmap;
@@ -141,7 +140,7 @@ void sobreescribirUnCaracter(char* nombreDeBloque,int desplazamiento,char* carac
 int bloquesNecesariosParaEscribir(char* datos);
 
 // Manipulacion de archivos
-int esDirectorio(char* ruta);
+bool esDirectorio(t_config* unMeta);
 char* obtenerContenidoDeBloque(char* nroDeBloque);
 bool contieneEstaPosicion(char* lineas,char* arrayPosicion);
 int escribirBloquePosicionandoPuntero(char* nombreDeBloque,char* stringAEscribir,int desplazamiento);

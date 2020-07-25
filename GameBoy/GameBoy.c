@@ -471,7 +471,7 @@ void enviar_mensaje_a_gamecard(char* tipo_de_mensaje,int cantidad_de_argumentos,
 					    	// Envio del mensaje
 							envioDeMensajeNew(pokemon,posx,posy,cantidad,idmensaje);
 							// Envio del mensaje
-							recibirACK(conexion,idmensaje);
+							//recibirACK(conexion,idmensaje);
 							//printf("Aca envio el mensaje \n");
 							//printf("Pokemon: %s \n",pokemon);
 							//printf("PosX: %i \n",posx);
@@ -491,7 +491,7 @@ void enviar_mensaje_a_gamecard(char* tipo_de_mensaje,int cantidad_de_argumentos,
 							    	// Envio del mensaje
 									envioDeMensajeCatch(pokemon,posx,posy,idmensaje);
 									// Envio del mensaje
-									recibirACK(conexion,idmensaje);
+									//recibirACK(conexion,idmensaje);
 									//printf("Aca envio el mensaje \n");
 									//printf("Pokemon: %s \n",pokemon);
 									//printf("PosX: %i \n",posx);
@@ -510,7 +510,7 @@ void enviar_mensaje_a_gamecard(char* tipo_de_mensaje,int cantidad_de_argumentos,
 							    	// Envio del mensaje
 									envioDeMensajeGet(pokemon,id);
 									// Envio del mensaje
-									recibirACK(conexion,id);
+									//recibirACK(conexion,id);
 									//printf("pokemon: %s \n",pokemon);
 									}else printf("Faltan argumentos macho \n");
 				break;
