@@ -5,9 +5,9 @@ int main(void) {
 	signal(SIGUSR1,&dumpDeCache);
 
     config = crearConfig();
-    logObligatorio = crearLogger("/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/Broker/logObligatorioBroker.log");
-    logExtra = crearLogger("/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/Broker/logExtraBroker.log");
     setearValoresConfig();
+    logObligatorio = crearLogger(log_path_broker);
+    logExtra = crearLogger("/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/Broker/logExtraBroker.log");
     inicializarColas();
     inicializarListasSuscriptores();
     inicializarSemaforos();
@@ -347,7 +347,6 @@ void procesar_solicitud(Header header,int cliente_fd){
      		case t_ACK:
      			paquete = receiveAndUnpack(cliente_fd,sizePaquete);
      			uint32_t ID_mensaje = unpackID(paquete);
-     			log_info(logObligatorio,"me llego este mensaje :D! %d",ID_mensaje);
      			t_operacion nombreCola = unpackOperacionACK(paquete);
      			char *ID_proceso = unpackIdentificadorProcesoACK(paquete);
 
@@ -356,7 +355,6 @@ void procesar_solicitud(Header header,int cliente_fd){
      			pthread_mutex_unlock(&semaforoProcesamientoSolicitud[7]);
 
      			free(paquete);
-     			//free(ID_proceso);
 
      			break;
 
@@ -459,7 +457,7 @@ void recorrerParticionesYLiberar(t_list *particionesOrdenadas,char *funcionCorre
 
 		if(!estaLibre(particion)){
 			printf("\033[1;34m");
-			log_info(logObligatorio,"%s: Se procederá a elimnar la partición que tiene por offset %d",funcionCorrespondencia,particion->offset);
+			log_info(logObligatorio,"%s: Se procederá a eliminar la partición que tiene por offset %d",funcionCorrespondencia,particion->offset);
 			printf("\033[0m");
 			eliminarMensaje(particion->ID_mensaje,obtenerColaMensaje(particion->colaDeMensaje),particion->colaDeMensaje,REPLACEMENT_ALGORITHM);
 			singletonMemoria->liberadorDeParticiones(particion);
@@ -941,14 +939,6 @@ void consolidarBuddy(t_nodo *unNodo){
 
 	reunirHermanos(nodoPadre);
 
-	//LIBERAR MEMORIA DE PARTICION DENTRO DE REUNIR HERMANOS
-
-	//for(int i = 0; i < list_size(particionesLibres);i++){
-	//	uint32_t *ID = list_get(particionesLibres,i);
-	//	t_particion *particion = obtenerParticion(*ID,PARTITION_ID);
-	//	printf("TAMANIO DE LA PARTICION %d: %d \n",particion->ID_Particion,particion->tamanioParticion);
-	//}
-
 	return consolidarBuddy(nodoPadre);
 }
 
@@ -1114,7 +1104,7 @@ void liberarParticionBuddySystem(t_particion *particion){
 
     t_nodo *nodoALiberar = buscarNodo(nodoRaiz,particion);
 
-    liberarNodo(nodoALiberar); // hermanoLibre(nodoALiberar);
+    liberarNodo(nodoALiberar);
 
     consolidarBuddy(nodoALiberar);
 
@@ -1498,14 +1488,8 @@ t_particion *crearParticion(uint32_t tamanioParticion){
 }
 
 void destruirParticion(t_particion *particion){
-	//char *nombreCola = particion->colaDeMensaje;
-	log_info(logObligatorio,"XXXXX");
-	//log_info(logObligatorio,"NOMBRE COLA: %s",nombreCola);
-	//if(strlen(nombreCola) > 0) free(nombreCola);
 	char* horario = particion->ultimoAcceso;
-	log_info(logObligatorio,"XDD");
 	free(horario);
-	log_info(logObligatorio,"XC");
 	free(particion);
 }
 
@@ -1750,7 +1734,6 @@ void validarRecepcionMensaje(uint32_t ID_mensaje,t_operacion nombreCola,char *ID
 	t_mensaje *mensaje;
 
 	char *idAAgregar = string_duplicate(ID_proceso);
-	log_info(logObligatorio,"el char que voy a guardar: %s",idAAgregar);
 	free(ID_proceso);
 
 	pthread_mutex_lock(&semaforoMensajes);
@@ -2004,6 +1987,7 @@ void setearValoresConfig(){
     contadorIDMensaje = config_get_int_value(config,"CONTADOR_ID_MENSAJES");
     contadorIDTeam = config_get_int_value(config,"CONTADOR_ID_TEAM");
     contadorIDGameCard = config_get_int_value(config,"CONTADOR_ID_GAMECARD");
+    log_path_broker = config_get_string_value(config,"LOG_FILE");
 
 }
 
