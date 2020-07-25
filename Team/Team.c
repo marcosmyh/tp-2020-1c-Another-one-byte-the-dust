@@ -1,9 +1,9 @@
 #include "Team.h"
 
 int main(){
+	leerArchivoDeConfiguracion();
 	crearLogger();
 	crearLoggerObligatorio();
-	leerArchivoDeConfiguracion();
 	planificador = construirPlanificador();
 	socket_servidor = iniciar_servidor(ip_team, puerto_team, logger);
 	pokemonesDuranteEjecucion = list_create();
@@ -489,17 +489,17 @@ void conexionAColaLocalized(){
 }
 
 void crearLogger(){
-	char* logPath = "/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/Team/Team.log";
+	//char* logPath = "/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/Team/Team.log";
 	char* nombreArch = "Team";
-	logger = log_create(logPath, nombreArch, 0, LOG_LEVEL_INFO);
+	logger = log_create(team_log_file, nombreArch, 0, LOG_LEVEL_INFO);
 	log_info(logger, "El logger general se creo con exito!");
 }
 
 
 void crearLoggerObligatorio(){
-	char* logPath = "/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/Team/TeamObligatorio.log";
+	//char* logPath = "/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/Team/TeamObligatorio.log";
 	char* nombreArch = "Log_obligatorio";
-	loggerObligatorio = log_create(logPath, nombreArch, 1, LOG_LEVEL_INFO);
+	loggerObligatorio = log_create(team_log_obligatorio_file, nombreArch, 1, LOG_LEVEL_INFO);
 	log_info(logger, "El logger obligatorio se creo con exito");
 }
 
@@ -507,10 +507,10 @@ void leerArchivoDeConfiguracion(){
 	char* configPath = "/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/Team/Team.config";
 	archivoConfig = config_create(configPath);
 	if (archivoConfig == NULL){
-		log_error(logger,"Archivo de configuracion no encontrado");
+		//log_error(logger,"Archivo de configuracion no encontrado");
 	}
 	setearValores(archivoConfig);
-	log_info(logger,"La configuracion fue cargada exitosamente");
+	//log_info(logger,"La configuracion fue cargada exitosamente");
 }
 
 void setearValores(t_config* archConfiguracion){
@@ -528,6 +528,7 @@ void setearValores(t_config* archConfiguracion){
 	ip_team = config_get_string_value(archivoConfig, "IP_TEAM");
 	puerto_team = config_get_string_value(archivoConfig, "PUERTO_TEAM");
 	team_log_file = config_get_string_value(archivoConfig, "LOG_FILE");
+	team_log_obligatorio_file = config_get_string_value(archivoConfig, "LOG_OBLIGATORIO_FILE");
 	identificadorProceso = config_get_string_value(archivoConfig,"ID");
 }
 

@@ -30,6 +30,7 @@ int main(void) {
     destruirListasSuscriptores();
     config_destroy(config);
     log_destroy(logObligatorio);
+    log_destroy(logExtra);
 	return 0;
 }
 
