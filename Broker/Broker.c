@@ -347,6 +347,7 @@ void procesar_solicitud(Header header,int cliente_fd){
      		case t_ACK:
      			paquete = receiveAndUnpack(cliente_fd,sizePaquete);
      			uint32_t ID_mensaje = unpackID(paquete);
+     			log_info(logObligatorio,"me llego este mensaje :D! %d",ID_mensaje);
      			t_operacion nombreCola = unpackOperacionACK(paquete);
      			char *ID_proceso = unpackIdentificadorProcesoACK(paquete);
 
@@ -355,7 +356,7 @@ void procesar_solicitud(Header header,int cliente_fd){
      			pthread_mutex_unlock(&semaforoProcesamientoSolicitud[7]);
 
      			free(paquete);
-     			free(ID_proceso);
+     			//free(ID_proceso);
 
      			break;
 
@@ -497,9 +498,7 @@ t_list *obtenerColaMensaje(char *nombreCola){
 
 void FIFO(){
 
-	t_list *particionesOrdenadas = list_create();
-
-	particionesOrdenadas = list_sorted(particiones,tieneMenorIDMensaje);
+	t_list *particionesOrdenadas = list_sorted(particiones,tieneMenorIDMensaje);
 
 	recorrerParticionesYLiberar(particionesOrdenadas,"FIFO");
 
@@ -509,9 +508,7 @@ void FIFO(){
 
 void LRU(){
 
-	t_list *particionesOrdenadas = list_create();
-
-	particionesOrdenadas = list_sorted(particiones,seUsoMenosRecientemente);
+	t_list *particionesOrdenadas = list_sorted(particiones,seUsoMenosRecientemente);
 
 	recorrerParticionesYLiberar(particionesOrdenadas,"LRU");
 
@@ -809,6 +806,7 @@ int crearHijos(t_nodo* nodoPadre){
 	list_remove(particionesLibres,obtenerPosicionIDParticion(particionPadre->ID_Particion));
 	list_remove(particiones,posicionPadre);
 
+	log_info(logObligatorio,"antes de destruir");
 	destruirParticion(particionPadre);
 
 	return 0;
@@ -1121,6 +1119,8 @@ void liberarParticionBuddySystem(t_particion *particion){
     consolidarBuddy(nodoALiberar);
 
     list_sort(particiones,tieneMenorOffset);
+
+    free(paqueteVacio);
 }
 
 //Se puede evitar repetir lógica...
@@ -1498,10 +1498,14 @@ t_particion *crearParticion(uint32_t tamanioParticion){
 }
 
 void destruirParticion(t_particion *particion){
-	char *nombreCola = particion->colaDeMensaje;
-	if(strlen(nombreCola) > 0) free(nombreCola);
+	//char *nombreCola = particion->colaDeMensaje;
+	log_info(logObligatorio,"XXXXX");
+	//log_info(logObligatorio,"NOMBRE COLA: %s",nombreCola);
+	//if(strlen(nombreCola) > 0) free(nombreCola);
 	char* horario = particion->ultimoAcceso;
+	log_info(logObligatorio,"XDD");
 	free(horario);
+	log_info(logObligatorio,"XC");
 	free(particion);
 }
 
@@ -1746,13 +1750,22 @@ void validarRecepcionMensaje(uint32_t ID_mensaje,t_operacion nombreCola,char *ID
 	t_mensaje *mensaje;
 
 	char *idAAgregar = string_duplicate(ID_proceso);
+	log_info(logObligatorio,"el char que voy a guardar: %s",idAAgregar);
+	free(ID_proceso);
 
 	pthread_mutex_lock(&semaforoMensajes);
 	switch (nombreCola) {
 	         	case t_NEW:;
                     mensaje = obtenerMensaje(ID_mensaje,NEW_POKEMON,BROKER_ID);
+
+                    if(mensaje == NULL){
+                    	log_info(logObligatorio,"%s recibió satisfactoriamente el mensaje con ID %d de la cola NEW_POKEMON",idAAgregar,ID_mensaje);
+                    	log_error(logExtra,"El mensaje con BROKER ID [%d] ya no se encuentra en la cola NEW_POKEMON",ID_mensaje);
+                    	break;
+                    }
+
                     list_add(mensaje->suscriptoresQueRecibieronMensaje,idAAgregar);
-                    log_info(logObligatorio,"%s recibió satisfactoriamente el mensaje con ID %d de la cola NEW_POKEMON",ID_proceso,ID_mensaje);
+                    log_info(logObligatorio,"%s recibió satisfactoriamente el mensaje con ID %d de la cola NEW_POKEMON",idAAgregar,ID_mensaje);
 
                     if(todosRecibieronElMensaje(mensaje,suscriptores_NEW_POKEMON)){
                     	eliminarMensaje(ID_mensaje,NEW_POKEMON,"NEW_POKEMON",ACK);
@@ -1763,8 +1776,15 @@ void validarRecepcionMensaje(uint32_t ID_mensaje,t_operacion nombreCola,char *ID
 
 	         	case t_LOCALIZED:;
                     mensaje = obtenerMensaje(ID_mensaje,LOCALIZED_POKEMON,BROKER_ID);
+
+                    if(mensaje == NULL){
+                    	log_info(logObligatorio,"%s recibió satisfactoriamente el mensaje con ID %d de la cola LOCALIZED_POKEMON",idAAgregar,ID_mensaje);
+                    	log_error(logExtra,"El mensaje con BROKER ID [%d] ya no se encuentra en la cola LOCALIZED_POKEMON",ID_mensaje);
+                    	break;
+                    }
+
                     list_add(mensaje->suscriptoresQueRecibieronMensaje,idAAgregar);
-                    log_info(logObligatorio,"%s recibió satisfactoriamente el mensaje con ID %d de la cola LOCALIZED_POKEMON",ID_proceso,ID_mensaje);
+                    log_info(logObligatorio,"%s recibió satisfactoriamente el mensaje con ID %d de la cola LOCALIZED_POKEMON",idAAgregar,ID_mensaje);
 
                     if(todosRecibieronElMensaje(mensaje,suscriptores_LOCALIZED_POKEMON)){
                     	eliminarMensaje(ID_mensaje,LOCALIZED_POKEMON,"LOCALIZED_POKEMON",ACK);
@@ -1775,8 +1795,16 @@ void validarRecepcionMensaje(uint32_t ID_mensaje,t_operacion nombreCola,char *ID
 
 	         	case t_GET:;
                     mensaje = obtenerMensaje(ID_mensaje,GET_POKEMON,BROKER_ID);
+
+                    if(mensaje == NULL){
+                    	log_info(logObligatorio,"%s recibió satisfactoriamente el mensaje con ID %d de la cola GET_POKEMON",idAAgregar,ID_mensaje);
+                    	log_error(logExtra,"El mensaje con BROKER ID [%d] ya no se encuentra en la cola GET_POKEMON",ID_mensaje);
+                    	break;
+                    }
+
+
                     list_add(mensaje->suscriptoresQueRecibieronMensaje,idAAgregar);
-                    log_info(logObligatorio,"%s recibió satisfactoriamente el mensaje con ID %d de la cola GET_POKEMON",ID_proceso,ID_mensaje);
+                    log_info(logObligatorio,"%s recibió satisfactoriamente el mensaje con ID %d de la cola GET_POKEMON",idAAgregar,ID_mensaje);
 
                     if(todosRecibieronElMensaje(mensaje,suscriptores_GET_POKEMON)){
                     	eliminarMensaje(ID_mensaje,GET_POKEMON,"GET_POKEMON",ACK);
@@ -1786,9 +1814,17 @@ void validarRecepcionMensaje(uint32_t ID_mensaje,t_operacion nombreCola,char *ID
 	     			break;
 
 	         	case t_APPEARED:;
+
                     mensaje = obtenerMensaje(ID_mensaje,APPEARED_POKEMON,BROKER_ID);
+
+                    if(mensaje == NULL){
+                    	log_info(logObligatorio,"%s recibió satisfactoriamente el mensaje con ID %d de la cola APPEARED_POKEMON",idAAgregar,ID_mensaje);
+                    	log_error(logExtra,"El mensaje con BROKER ID [%d] ya no se encuentra en la cola APPEARED_POKEMON",ID_mensaje);
+                    	break;
+                    }
+
                     list_add(mensaje->suscriptoresQueRecibieronMensaje,idAAgregar);
-                    log_info(logObligatorio,"%s recibió satisfactoriamente el mensaje con ID %d de la cola APPEARED_POKEMON",ID_proceso,ID_mensaje);
+                    log_info(logObligatorio,"%s recibió satisfactoriamente el mensaje con ID %d de la cola APPEARED_POKEMON",idAAgregar,ID_mensaje);
 
                     if(todosRecibieronElMensaje(mensaje,suscriptores_APPEARED_POKEMON)){
                     	eliminarMensaje(ID_mensaje,APPEARED_POKEMON,"APPEARED_POKEMON",ACK);
@@ -1799,8 +1835,15 @@ void validarRecepcionMensaje(uint32_t ID_mensaje,t_operacion nombreCola,char *ID
 
 	         	case t_CATCH:;
                     mensaje = obtenerMensaje(ID_mensaje,CATCH_POKEMON,BROKER_ID);
+
+                    if(mensaje == NULL){
+                    	log_info(logObligatorio,"%s recibió satisfactoriamente el mensaje con ID %d de CATCH_POKEMON",idAAgregar,ID_mensaje);
+                    	log_error(logExtra,"El mensaje con BROKER ID [%d] ya no se encuentra en la cola CATCH_POKEMON",ID_mensaje);
+                    	break;
+                    }
+
                     list_add(mensaje->suscriptoresQueRecibieronMensaje,idAAgregar);
-                    log_info(logObligatorio,"%s recibió satisfactoriamente el mensaje con ID %d de CATCH_POKEMON",ID_proceso,ID_mensaje);
+                    log_info(logObligatorio,"%s recibió satisfactoriamente el mensaje con ID %d de CATCH_POKEMON",idAAgregar,ID_mensaje);
 
                     if(todosRecibieronElMensaje(mensaje,suscriptores_CATCH_POKEMON)){
                     	eliminarMensaje(ID_mensaje,CATCH_POKEMON,"CATCH_POKEMON",ACK);
@@ -1811,8 +1854,15 @@ void validarRecepcionMensaje(uint32_t ID_mensaje,t_operacion nombreCola,char *ID
 
 	         	case t_CAUGHT:;
                     mensaje = obtenerMensaje(ID_mensaje,CAUGHT_POKEMON,BROKER_ID);
+
+                    if(mensaje == NULL){
+                    	log_info(logObligatorio,"%s recibió satisfactoriamente el mensaje con ID %d de CAUGHT_POKEMON",idAAgregar,ID_mensaje);
+                    	log_error(logExtra,"El mensaje con BROKER ID [%d] ya no se encuentra en la cola CAUGHT_POKEMON",ID_mensaje);
+                    	break;
+                    }
+
                     list_add(mensaje->suscriptoresQueRecibieronMensaje,idAAgregar);
-                    log_info(logObligatorio,"%s recibió satisfactoriamente el mensaje con ID %d de CAUGHT_POKEMON",ID_proceso,ID_mensaje);
+                    log_info(logObligatorio,"%s recibió satisfactoriamente el mensaje con ID %d de CAUGHT_POKEMON",idAAgregar,ID_mensaje);
 
                     if(todosRecibieronElMensaje(mensaje,suscriptores_CAUGHT_POKEMON)){
                     	eliminarMensaje(ID_mensaje,CAUGHT_POKEMON,"CAUGHT_POKEMON",ACK);
