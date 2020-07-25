@@ -18,15 +18,16 @@ int main(int argc,char* argv[]){
 	// transforma el nombre del proceso en numeros
 	int hashDeProceso = convertir_nombre(nombreDeProceso);
 
+	leer_config();
 	iniciar_logger();
 	iniciar_logger_obligatorio();
-	leer_config();
+
 
 	switch(hashDeProceso){
 
 
 	case BROKER:
-				printf("Broker Omegalul \n");		//---------------------- QUITAR
+				//printf("Broker Omegalul \n");		//---------------------- QUITAR
 				if(esUnTipoDeMensajeValido(nombreDeProceso,tipoDeMensaje)){
 
 								conexion = crear_conexion(IP_BROKER,PUERTO_BROKER,nombreDeProceso);
@@ -35,14 +36,14 @@ int main(int argc,char* argv[]){
 				break;
 
 	case TEAM:
-				printf("Team omegalul \n");
+				//printf("Team omegalul \n");
 				if(esUnTipoDeMensajeValido(nombreDeProceso,tipoDeMensaje)){
 								conexion = crear_conexion(IP_TEAM,PUERTO_TEAM,nombreDeProceso);
 								enviar_mensaje_a_team(tipoDeMensaje,argc,argv);
 							} else log_error(logger,"No está definido el tipo de mensaje %s para %s",tipoDeMensaje,nombreDeProceso);
 				break;
 	case GAMECARD:
-				printf("Gamecard omegalul \n");
+				//printf("Gamecard omegalul \n");
 				if(esUnTipoDeMensajeValido(nombreDeProceso,tipoDeMensaje)){
 								conexion = crear_conexion(IP_GAMECARD,PUERTO_GAMECARD,nombreDeProceso);
 								enviar_mensaje_a_gamecard(tipoDeMensaje,argc,argv);
@@ -52,7 +53,7 @@ int main(int argc,char* argv[]){
 
 //./gameboy SUSCRIPTOR [COLA_DE_MENSAJES] [TIEMPO]
 	case SUSCRIPTOR:
-				printf("Suscriptor omegalul \n");
+				//printf("Suscriptor omegalul \n");
 				if(esUnTipoDeMensajeValido(nombreDeProceso,tipoDeMensaje)){
 								conexion = crear_conexion(IP_BROKER,PUERTO_BROKER,"BROKER");
 								if(conexion != -1){
@@ -75,7 +76,7 @@ int main(int argc,char* argv[]){
 
 				break;
 
-			default: log_error(logger,"Ese proceso no existe macho");
+			default: log_error(logger,"Ese proceso no existe");
 			 break;
 
 	}
@@ -179,7 +180,7 @@ int crear_conexion(char *ip, char* puerto, char* nombreDeProceso)
 	int socket_cliente = socket(server_info->ai_family, server_info->ai_socktype, server_info->ai_protocol);
 
 	if(connect(socket_cliente, server_info->ai_addr, server_info->ai_addrlen) == -1){
-		log_error(loggerObligatorio,"No se pudo conectar al proceso solicitado");
+		log_error(logger,"No se pudo conectar al proceso solicitado");
 		freeaddrinfo(server_info);
 		close(socket_cliente);
 		return -1;
@@ -193,26 +194,26 @@ int crear_conexion(char *ip, char* puerto, char* nombreDeProceso)
 
 void iniciar_logger(void)
 {
-	char* path = "/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/GameBoy/GameBoy.log";
+	char* path = "GameBoyInformal.log";
 	char* nombreArch = "GameBoy";
-	logger = log_create(path,nombreArch,true,LOG_LEVEL_INFO);
+	logger = log_create(path,nombreArch,false,LOG_LEVEL_INFO);
 }
 
 void iniciar_logger_obligatorio(void)
 {
-	char* path = "/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/GameBoy/GameBoyObligatorio.log";
+
 	char* nombreArch = "Log_Gameboy";
-	loggerObligatorio = log_create(path,nombreArch,true,LOG_LEVEL_INFO);
+	loggerObligatorio = log_create(rutaDeLog,nombreArch,true,LOG_LEVEL_INFO);
 }
 
 void leer_config(void){
 	config = config_create("/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/GameBoy/GameBoy.config");
 	if (config == NULL){
-		log_error(logger,"No existe el archivo de configuracion");
+		//log_error(logger,"No existe el archivo de configuracion");
 		}
 
 	cargarConfig(config);
-	log_info(logger,"Configuracion cargada con exito");
+	//log_info(logger,"Configuracion cargada con exito");
 }
 
 void cargarConfig(t_config* configuracion){
@@ -222,7 +223,7 @@ void cargarConfig(t_config* configuracion){
 	PUERTO_TEAM = config_get_string_value(configuracion,"PUERTO_TEAM");
 	IP_GAMECARD = config_get_string_value(configuracion,"IP_GAMECARD");
 	PUERTO_GAMECARD = config_get_string_value(configuracion,"PUERTO_GAMECARD");
-
+	rutaDeLog = config_get_string_value(configuracion,"LOG_FILE");
 }
 
 void recibirACK(int conexion, uint32_t id){
@@ -234,9 +235,9 @@ void recibirACK(int conexion, uint32_t id){
 	uint32_t idDeAck = unpackID(paquete);
 
 	if(id == idDeAck){
-		log_info(logger,"El proceso recibió con éxito el mensaje con ID %d",id);
+		log_info(loggerObligatorio,"El proceso recibió con éxito el mensaje con ID %d",id);
 	}else{
-		log_info(logger,"El proceso no recibió el mensaje con ID %d",id);
+		log_info(loggerObligatorio,"El proceso no recibió el mensaje con ID %d",id);
 	}
 
 	free(paquete);
@@ -256,8 +257,8 @@ void envioDeMensajeNew(char* pokemon, uint32_t posx, uint32_t posy,uint32_t cant
 	void* paqueteNew = pack_New(idmensaje,pokemon,cantidad,posx,posy);
 	uint32_t tamPaquete =  strlen(pokemon) + 5*sizeof(uint32_t);
 	int resultado = packAndSend(conexion,paqueteNew,tamPaquete,t_NEW);
-	if(resultado == -1)log_error(loggerObligatorio,"El envio del mensaje de NEW falló");
-	log_info(loggerObligatorio,"Mensaje de NEW enviado");
+	if(resultado == -1)log_error(logger,"El envio del mensaje de NEW falló");
+	log_info(logger,"Mensaje de NEW enviado");
 	free(paqueteNew);
 }
 
@@ -277,44 +278,44 @@ void *paqueteAppearedTeam(char *pokemon,uint32_t posx,uint32_t posy,uint32_t idM
 void envioDeMensajeAppeared(char* pokemon, uint32_t posx, uint32_t posy, uint32_t idmensaje){
 	void* paqueteAppeared = pack_Appeared(idmensaje,pokemon,posx,posy);
 	uint32_t tamPaquete =  strlen(pokemon) + 4*sizeof(uint32_t);
-	log_error(loggerObligatorio,"El tamaño del paquete es: %i ",tamPaquete);
+	//log_error(loggerObligatorio,"El tamaño del paquete es: %i ",tamPaquete);
 	int resultado = packAndSend(conexion,paqueteAppeared,tamPaquete,t_APPEARED);
   	// packAndSend_Appeared(conexion,-1,pokemon,posx,posy);
-	if(resultado == -1)log_error(loggerObligatorio,"El envio del mensaje de APPEARED falló");
-	log_info(loggerObligatorio,"Mensaje de APPEARED enviado");
+	if(resultado == -1)log_error(logger,"El envio del mensaje de APPEARED falló");
+	log_info(logger,"Mensaje de APPEARED enviado");
 	free(paqueteAppeared);
 }
 
 void envioDeMensajeCatch(char* pokemon, uint32_t posx, uint32_t posy, uint32_t idmensaje){
 	void* paqueteCatch = pack_Catch(idmensaje,pokemon,posx,posy);
 		uint32_t tamPaquete =  strlen(pokemon) + 4*sizeof(uint32_t);
-		log_error(loggerObligatorio,"El tamaño del paquete es: %i ",tamPaquete);
+		//log_error(loggerObligatorio,"El tamaño del paquete es: %i ",tamPaquete);
 		int resultado = packAndSend(conexion,paqueteCatch,tamPaquete,t_CATCH);
 	  	// packAndSend_Appeared(conexion,-1,pokemon,posx,posy);
-		if(resultado == -1)log_error(loggerObligatorio,"El envio del mensaje de CATCH falló");
-		log_info(loggerObligatorio,"Mensaje de CATCH enviado");
+		if(resultado == -1)log_error(logger,"El envio del mensaje de CATCH falló");
+		log_info(logger,"Mensaje de CATCH enviado");
 		free(paqueteCatch);
 }
 
 void envioDeMensajeCaught(uint32_t atrapado, uint32_t idmensaje){
 	void* paqueteCaught = pack_Caught(idmensaje,atrapado);
 		uint32_t tamPaquete =  2*sizeof(uint32_t);
-		log_error(loggerObligatorio,"El tamaño del paquete es: %i ",tamPaquete);
+		//log_error(loggerObligatorio,"El tamaño del paquete es: %i ",tamPaquete);
 		int resultado = packAndSend(conexion,paqueteCaught,tamPaquete,t_CAUGHT);
 	  	// packAndSend_Appeared(conexion,-1,pokemon,posx,posy);
-		if(resultado == -1)log_error(loggerObligatorio,"El envio del mensaje de CAUGHT falló");
-		log_info(loggerObligatorio,"Mensaje de CAUGHT enviado");
+		if(resultado == -1)log_error(logger,"El envio del mensaje de CAUGHT falló");
+		log_info(logger,"Mensaje de CAUGHT enviado");
 		free(paqueteCaught);
 }
 
 void envioDeMensajeGet(char* pokemon,uint32_t idmensaje){
 	void* paqueteGet = pack_Get(idmensaje,pokemon);
 			uint32_t tamPaquete = strlen(pokemon) + 2*sizeof(uint32_t);
-			log_error(loggerObligatorio,"El tamaño del paquete es: %i ",tamPaquete);
+			//log_error(loggerObligatorio,"El tamaño del paquete es: %i ",tamPaquete);
 			int resultado = packAndSend(conexion,paqueteGet,tamPaquete,t_GET);
 		  	// packAndSend_Appeared(conexion,-1,pokemon,posx,posy);
-			if(resultado == -1)log_error(loggerObligatorio,"El envio del mensaje de GET falló");
-			log_info(loggerObligatorio,"Mensaje de GET enviado");
+			if(resultado == -1)log_error(logger,"El envio del mensaje de GET falló");
+			log_info(logger,"Mensaje de GET enviado");
 			free(paqueteGet);
 }
 
@@ -342,7 +343,7 @@ void enviar_mensaje_a_broker(char* tipo_de_mensaje,int cantidad_de_argumentos,ch
 						//printf("PosX: %i \n",posx);
 						//printf("PosY: %i \n",posy);
 						//printf("Cantidad: %i \n",cantidad);
-				}else printf("Faltan argumentos macho \n");
+				}else printf("Faltan argumentos \n");
 			break;
 
 			//./gameboy BROKER APPEARED_POKEMON [POKEMON] [POSX] [POSY] [ID_MENSAJE]
@@ -362,7 +363,7 @@ void enviar_mensaje_a_broker(char* tipo_de_mensaje,int cantidad_de_argumentos,ch
 								//printf("PosX: %i \n",posx);
 								//printf("PosY: %i \n",posy);
 								//printf("id mensaje: %i \n",idmensaje);
-								}else printf("Faltan argumentos macho \n");
+								}else printf("Faltan argumentos \n");
 
 
 			break;
@@ -383,7 +384,7 @@ void enviar_mensaje_a_broker(char* tipo_de_mensaje,int cantidad_de_argumentos,ch
 								//printf("Pokemon: %s \n",pokemon);
 								//printf("PosX: %i \n",posx);
 								//printf("PosY: %i \n",posy);
-								}else printf("Faltan argumentos macho \n");
+								}else printf("Faltan argumentos \n");
 			break;
 
 			//./gameboy BROKER CAUGHT_POKEMON [ID_MENSAJE] [OK/FAIL]
@@ -406,7 +407,7 @@ void enviar_mensaje_a_broker(char* tipo_de_mensaje,int cantidad_de_argumentos,ch
 								//recibirACK(conexion,idmensaje);
 								//printf("Atrapado: %i \n",atrapado);
 								//printf("id mensaje: %i \n",idmensaje);
-								}else printf("Faltan argumentos macho \n");
+								}else printf("Faltan argumentos \n");
 			break;
 
 			//./gameboy BROKER GET_POKEMON [POKEMON]
@@ -420,7 +421,7 @@ void enviar_mensaje_a_broker(char* tipo_de_mensaje,int cantidad_de_argumentos,ch
 								// envio de mensaje
 								//recibirACK(conexion,idmensaje);
 								//printf("pokemon: %s \n",pokemon);
-								}else printf("Faltan argumentos macho \n");
+								}else printf("Faltan argumentos \n");
 			break;
 
 			default:
@@ -443,16 +444,16 @@ void enviar_mensaje_a_team(char* tipo_de_mensaje,int cantidad_de_argumentos,char
 		uint32_t tamPaquete = strlen(pokemon) + 4*sizeof(uint32_t);
 		void *paqueteAEnviar = insertarIDEnPaquete(-1,paquete,tamPaquete);
 
-		log_error(loggerObligatorio,"El tamaño del paquete es: %i ",tamPaquete+sizeof(uint32_t));
+		//log_error(loggerObligatorio,"El tamaño del paquete es: %i ",tamPaquete+sizeof(uint32_t));
 		int resultado = packAndSend(conexion,paqueteAEnviar,tamPaquete+sizeof(uint32_t),t_APPEARED);
-		if(resultado == -1)log_error(loggerObligatorio,"El envio del mensaje de APPEARED falló");
-		log_info(loggerObligatorio,"Mensaje de APPEARED enviado");
+		if(resultado == -1)log_error(logger,"El envio del mensaje de APPEARED falló");
+		log_info(logger,"Mensaje de APPEARED enviado");
 		//recibirACK(conexion,id);
 		//printf("Aca envio el mensaje \n");
 		//printf("Pokemon: %s \n",pokemon);
 		//printf("PosX: %i \n",posx);
 		//printf("PosY: %i \n",posy);
-	}else printf("Faltan argumentos macho \n");
+	}else printf("Faltan argumentos \n");
 }
 
 void enviar_mensaje_a_gamecard(char* tipo_de_mensaje,int cantidad_de_argumentos,char* argumentos[]){
@@ -478,7 +479,7 @@ void enviar_mensaje_a_gamecard(char* tipo_de_mensaje,int cantidad_de_argumentos,
 							//printf("PosY: %i \n",posy);
 							//printf("Cantidad: %i \n",cantidad);
 							//printf("id mensaje: %i \n",idmensaje);
-					}else printf("Faltan argumentos macho \n");
+					}else printf("Faltan argumentos \n");
 				break;
 				// ./gameboy GAMECARD CATCH_POKEMON [POKEMON] [POSX] [POSY] [ID_MENSAJE]
 				case CATCH:
@@ -497,7 +498,7 @@ void enviar_mensaje_a_gamecard(char* tipo_de_mensaje,int cantidad_de_argumentos,
 									//printf("PosX: %i \n",posx);
 									//printf("PosY: %i \n",posy);
 									//printf("id mensaje: %i \n",idmensaje);
-									}else printf("Faltan argumentos macho \n");
+									}else printf("Faltan argumentos \n");
 				break;
 
 				// ./gameboy GAMECARD GET_POKEMON [POKEMON]
@@ -512,7 +513,7 @@ void enviar_mensaje_a_gamecard(char* tipo_de_mensaje,int cantidad_de_argumentos,
 									// Envio del mensaje
 									//recibirACK(conexion,id);
 									//printf("pokemon: %s \n",pokemon);
-									}else printf("Faltan argumentos macho \n");
+									}else printf("Faltan argumentos\n");
 				break;
 				default:
 				break;
@@ -568,7 +569,7 @@ void envioDelACK(uint32_t id, t_operacion operacion){
 
 void recepcionDeMensaje(){
 	pthread_t hiloRecepcion;
-	log_info(logger,"Esperando mensajes.");
+	//log_info(logger,"Esperando mensajes.");
 	while(tiempoRestante != 0){
 	Header headerRecibido;
 	headerRecibido = receiveHeader(conexion);
@@ -580,7 +581,7 @@ void recepcionDeMensaje(){
 		 pthread_detach(hiloRecepcion);
 
 	 }else{
-		printf("Se cayó el broker \n");
+		log_error(logger,"Se cayó el broker");
 		estadoDeConexion = -1;
 		pthread_exit(NULL);
 	 }
@@ -602,7 +603,7 @@ void discriminarMensaje(t_infoPackGB *infoPack){
 							char* pokemonGet = unpackPokemonGet(paquete);
 							//uint32_t tamanioPokemonGet = strlen(pokemonGet);
 
-							log_info(logger,"Pokemon: %s id: %d",pokemonGet,id);
+							log_info(loggerObligatorio,"La cola GET recibió Pokemon: %s id: %d",pokemonGet,id);
 							free(pokemonGet);
 							break;
 
@@ -614,7 +615,7 @@ void discriminarMensaje(t_infoPackGB *infoPack){
 							uint32_t posXCatch = unpackCoordenadaX_Catch(paquete, tamanioPokemoCatch);
 							uint32_t posYCatch = unpackCoordenadaY_Catch(paquete, tamanioPokemoCatch);
 
-							log_info(logger,"Pokemon: %s posX: %d posY: %d id: %d",pokemonCatch,posXCatch,posYCatch,id);
+							log_info(loggerObligatorio,"La cola CATCH recibió Pokemon: %s posX: %d posY: %d id: %d",pokemonCatch,posXCatch,posYCatch,id);
 							free(pokemonCatch);
 							break;
 						case t_NEW:;
@@ -626,7 +627,7 @@ void discriminarMensaje(t_infoPackGB *infoPack){
 							uint32_t posYNew = unpackCoordenadaY_New(paquete, tamanioPokemonNew);
 							uint32_t cantPokemonNew = unpackCantidadPokemons_New(paquete, tamanioPokemonNew);
 
-							log_info(logger,"Pokemon: %s posX: %d posY: %d cantidad: %d id: %d",pokemonNew,posXNew,posYNew,cantPokemonNew,id);
+							log_info(loggerObligatorio,"La cola NEW recibió Pokemon: %s posX: %d posY: %d cantidad: %d id: %d",pokemonNew,posXNew,posYNew,cantPokemonNew,id);
 							free(pokemonNew);
 							break;
 						case t_APPEARED:;
@@ -637,7 +638,7 @@ void discriminarMensaje(t_infoPackGB *infoPack){
 							uint32_t posXAppeared = unpackCoordenadaX_Appeared(paquete, tamanioPokemonAppeared);
 							uint32_t posYAppeared = unpackCoordenadaY_Appeared(paquete, tamanioPokemonAppeared);
 
-							log_info(logger,"Pokemon: %s posX: %d posY: %d id: %d",pokemonAppeared,posXAppeared,posYAppeared, id);
+							log_info(loggerObligatorio,"La cola APPEARED recibió Pokemon: %s posX: %d posY: %d id: %d",pokemonAppeared,posXAppeared,posYAppeared, id);
 							free(pokemonAppeared);
 							break;
 
@@ -646,7 +647,7 @@ void discriminarMensaje(t_infoPackGB *infoPack){
 
 							int resultado = unpackResultado_Caught(paquete);
 
-							log_info(logger,"Resultado Caught: %d id: %d",resultado, id);
+							log_info(loggerObligatorio,"La cola CAUGHT recibió Resultado: %d id: %d",resultado, id);
 
 							break;
 
@@ -656,7 +657,7 @@ void discriminarMensaje(t_infoPackGB *infoPack){
 							char* pokemonLocalized = unpackPokemonLocalized(paquete);
 							// EN FASE DE PRUEBA
 
-							log_info(logger,"Pokemon: %s resultado Caught: %d id: %d",pokemonLocalized,id);
+							log_info(loggerObligatorio,"La cola LOCALIZED recibió Pokemon: %s resultado Caught: %d id: %d",pokemonLocalized,id);
 							free(pokemonLocalized);
 							break;
 
@@ -689,7 +690,7 @@ void recepcionDeMensajes(int tiempo){
 	tiempoRestante = tiempo;
 	pthread_create(&hiloTemporizador,NULL,(void*)crearTimer,&tiempo);
 
-	log_info(logger,"Tiempo restante: %d",tiempoRestante);
+	//log_info(logger,"Tiempo restante: %d",tiempoRestante);
 
 	if(pthread_create(&thread,NULL,(void*)recepcionDeMensaje,NULL) == 0){
 	pthread_detach(thread);
@@ -732,8 +733,8 @@ void conectarmeACola(int socket,int tiempo,char* colaDeMensaje){
 	// SUSCRIPCION A FUTURO.
 	int resultado = enviarSuscripcion(conexion,"GameBoy",tipoDeMensaje);
 
-	if(resultado == -1)log_error(loggerObligatorio,"La suscripcion a %s falló",colaDeMensaje);
-	log_info(loggerObligatorio,"Suscripcion a %s enviada",colaDeMensaje);
+	if(resultado == -1)log_error(logger,"La suscripcion a %s falló",colaDeMensaje);
+	//log_info(loggerObligatorio,"Suscripcion a %s enviada",colaDeMensaje);
 
 
 	// RECIBIENDO ACK
@@ -751,6 +752,6 @@ void conectarmeACola(int socket,int tiempo,char* colaDeMensaje){
 
 	free(paqueteDeRespuesta);
 	recepcionDeMensajes(tiempo);
-	}else log_error(loggerObligatorio,"No se pudo concretar la suscripción a %s",colaDeMensaje);
+	}else log_error(logger,"No se pudo concretar la suscripción a %s",colaDeMensaje);
 }
 

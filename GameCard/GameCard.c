@@ -10,9 +10,10 @@ int main(int argc,char* argv[]){
 	sem_init(&conexionRecuperadaDeCatch,0,0);
 	sem_init(&conexionRecuperadaDeGet,0,0);
 
-	crearLoggerObligatorio();
 
 	leerArchivoDeConfiguracion();
+
+	crearLoggerObligatorio();
 
 	socket_servidor = iniciar_servidor(ip_gc,puerto_gc,loggerObligatorio);
 	//Servidor iniciado
@@ -420,9 +421,8 @@ void envioDeACK(uint32_t id, t_operacion operacion){
 }
 
 void crearLoggerObligatorio(){
-	char *path = "GameCardServerObligatorio.log";
 	char *nombrePrograma = "Log_Gamecard";
-	loggerObligatorio = log_create(path,nombrePrograma,true, LOG_LEVEL_INFO);
+	loggerObligatorio = log_create(ruta_de_log,nombrePrograma,true, LOG_LEVEL_INFO);
 }
 
 
@@ -625,7 +625,7 @@ void leerArchivoDeConfiguracion(void){
 	char* path = "GameCard.config";
 	archivoConfig = config_create(path);
 	if (archivoConfig == NULL){
-		log_error(loggerObligatorio,"Archivo de configuracion no encontrado");
+		//log_error(loggerObligatorio,"Archivo de configuracion no encontrado");
 	}
 	setearValoresDeGame(archivoConfig);
 	//log_info(loggerObligatorio,"La configuracion fue cargada exitosamente");
@@ -641,6 +641,7 @@ void setearValoresDeGame(t_config *config){
 	tiempo_de_reintento_operacion = config_get_int_value(config,"TIEMPO_DE_REINTENTO_OPERACION");
 	tiempo_de_retardo = config_get_int_value(config,"TIEMPO_RETARDO_OPERACION");
 	identificadorProcesoGC = config_get_string_value(config,"ID");
+	ruta_de_log = config_get_string_value(config,"LOG_FILE");
 }
 
 int envioDeMensajeCaught(uint32_t atrapado, uint32_t idmensaje){
@@ -2137,6 +2138,7 @@ int procedimientoGET(uint32_t idMensaje,char* pokemon){
 		free(arrayDeArchivo);
 		free(bloques);
 		list_destroy_and_destroy_elements(coordenadasSeparadas,(void *) destruirCoordenadas);
+
 
 		limpiarPunteroAPuntero(posicionesConCantidad);
 

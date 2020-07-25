@@ -36,6 +36,7 @@ char* PUERTO_GAMECARD;
 int tiempoRestante;
 int estadoDeConexion = 0;
 char* identificador;
+char* rutaDeLog;
 t_log* logger;
 t_log* loggerObligatorio;
 t_config* config;

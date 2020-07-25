@@ -37,6 +37,7 @@ char* ip_gc;
 char* puerto_gc;
 char* ip_broker;
 char* puerto_broker;
+char* ruta_de_log;
 int tiempo_de_reconexion;
 int tiempo_de_reintento_operacion;
 int tiempo_de_retardo;
