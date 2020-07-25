@@ -125,7 +125,7 @@ pthread_mutex_t semaforoIDGameCard;
 pthread_mutex_t semaforoMensajes;
 pthread_mutex_t semaforoProcesamientoSolicitud[8];
 
-t_log *crearLogger(char *);
+t_log *crearLogger(char *,bool);
 t_config *crearConfig();
 int iniciar_servidor(char *, char *);
 int esperar_cliente(int);

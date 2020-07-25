@@ -6,8 +6,8 @@ int main(void) {
 
     config = crearConfig();
     setearValoresConfig();
-    logObligatorio = crearLogger(log_path_broker);
-    logExtra = crearLogger("/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/Broker/logExtraBroker.log");
+    logObligatorio = crearLogger(log_path_broker,1);
+    logExtra = crearLogger("/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/Broker/logExtraBroker.log",0);
     inicializarColas();
     inicializarListasSuscriptores();
     inicializarSemaforos();
@@ -33,8 +33,8 @@ int main(void) {
 	return 0;
 }
 
-t_log *crearLogger(char *path){
-	return log_create(path,"Broker",1,LOG_LEVEL_INFO);
+t_log *crearLogger(char *path,bool is_active_console){
+	return log_create(path,"Broker",is_active_console,LOG_LEVEL_INFO);
 }
 
 t_config *crearConfig(){
