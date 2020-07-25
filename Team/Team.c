@@ -182,27 +182,32 @@ void gestionMensajesLocalized(){
 	}
 }
 
+//TODO Agregar free.
 void procedimientoMensajeID(int socket){
 	Header headerRecibido;
 	headerRecibido = receiveHeader(socket);
 	uint32_t tamanio = headerRecibido.tamanioMensaje;
+	//uint32_t idAAgregar;
 
 	void* paqueteID = receiveAndUnpack(socket, tamanio);
 	uint32_t id = unpackID(paqueteID);
 	log_error(logger,"Llego un ID [%d]",id);
+	int *idAAgregar = malloc(sizeof(uint32_t));
+	*idAAgregar = id;
+
 	t_operacion operacionAsociada = unpackOperacionID(paqueteID);
 	switch (operacionAsociada) {
 
 			case t_GET:;
-				list_add(mensajesGET, &id);
+				list_add(mensajesGET,idAAgregar);
 				free(paqueteID);
 				break;
 
 			case t_CATCH:;
-				list_add(mensajesCATCH, &id);
+				list_add(mensajesCATCH,idAAgregar);
 				free(paqueteID);
 				sem_post(&semaforoRespuestaCatch);
-				llegoRespuesta = 1;
+				llegoRespuesta = true;
 				break;
 
 			default:
@@ -355,24 +360,28 @@ void procedimientoMensajeAppeared(t_infoPaquete *infoAppeared){
     			}
 
     			destruirInfoPaquete(infoAppeared);
+
+    		    pthread_mutex_unlock(&mutexPokemonesEnMapa);
+    		    pthread_mutex_unlock(&mutexEntrenadoresReady);
+    		    hayPokemones = true;
     }
     else{
     	        if(esSocketBroker(socket)){
     	        	enviarACK(ID_APPEARED,t_APPEARED);
     	        }
     	        destruirInfoPaquete(infoAppeared);
+    	        pthread_mutex_unlock(&mutexPokemonesEnMapa);
     			log_info(logger,"El mensaje de appeared del pokemon %s ya fue recibido o no necesita atraparse, queda descartado",pokemonAppeared);
     }
 
-    pthread_mutex_unlock(&mutexPokemonesEnMapa);
-    pthread_mutex_unlock(&mutexEntrenadoresReady);
-    hayPokemones = true;
 }
 
 void procedimientoMensajeLocalized(t_infoPaquete *infoLocalized){
+	pthread_mutex_lock(&mutexPokemonesEnMapa);
 	void *paqueteLocalized = infoLocalized->paquete;
 	char* pokemonLocalized = unpackPokemonLocalized(paqueteLocalized);
 	uint32_t IDCorrelativo = unpackIDCorrelativo(paqueteLocalized);
+	log_info(logger,"ID CORRELATIVO LOCALIZED: %d",IDCorrelativo);
 	uint32_t ID = unpackID(paqueteLocalized);
 	uint32_t tamanioPokemon = strlen(pokemonLocalized);
 	uint32_t cantidadPokemones =unpackCantidadParesCoordenadas_Localized(paqueteLocalized,tamanioPokemon);
@@ -381,9 +390,13 @@ void procedimientoMensajeLocalized(t_infoPaquete *infoLocalized){
 		enviarACK(ID, t_LOCALIZED);
 		log_info(logger,"El mensaje de localized/appeared del pokemon %s no contiene pokemones, queda descartado",pokemonLocalized);
 		destruirInfoPaquete(infoLocalized);
+		pthread_mutex_unlock(&mutexPokemonesEnMapa);
 	}
 	//SI VERIFICA LAS MISMAS CONDICIONES QUE APPEARED Y ENCIMA ES DE UN ID CREADO POR UN MENSAJE GET ENTRA
-	else if (!estaEnElMapa(pokemonLocalized)&& estaEnElObjetivo(pokemonLocalized) && !yaFueAtrapado(pokemonLocalized) && correspondeAUnIDDe(mensajesGET, IDCorrelativo)) {
+	else if (estaEnElObjetivo(pokemonLocalized) && !yaFueAtrapado(pokemonLocalized) && correspondeAUnIDDe(mensajesGET, IDCorrelativo)) {
+		int index = list_get_index(mensajesGET,&IDCorrelativo,intComparator);
+		uint32_t *IDABorrar = list_remove(mensajesGET,index);
+		free(IDABorrar);
 		//uint32_t tamanioPokemon = strlen(pokemonLocalized);
 		//uint32_t cantidadPokemones =unpackCantidadParesCoordenadas_Localized(paqueteLocalized,tamanioPokemon);
 		uint32_t desplazamiento = tamanioPokemon + 4*sizeof(uint32_t);
@@ -398,6 +411,9 @@ void procedimientoMensajeLocalized(t_infoPaquete *infoLocalized){
 			desplazamiento += sizeof(uint32_t);
 			log_info(loggerObligatorio,"Pokemon agregado: %s, ubicado en X:%d  Y:%d",pokemonLocalized, coordenadaX, coordenadaY);
 			list_add(pokemonesEnMapa, pokemonAAtrapar);
+			pthread_mutex_unlock(&mutexPokemonesEnMapa);
+			pthread_mutex_unlock(&mutexEntrenadoresReady);
+			hayPokemones = true;
 		}
 		enviarACK(ID, t_LOCALIZED);
 		destruirInfoPaquete(infoLocalized);
@@ -406,6 +422,7 @@ void procedimientoMensajeLocalized(t_infoPaquete *infoLocalized){
 	enviarACK(ID, t_LOCALIZED);
 	log_info(logger,"El mensaje de localized/appeared del pokemon %s ya fue recibido o no necesita atraparse, queda descartado",pokemonLocalized);
 	destruirInfoPaquete(infoLocalized);
+	pthread_mutex_unlock(&mutexPokemonesEnMapa);
 	}
 }
 
@@ -414,12 +431,29 @@ void procedimientoMensajeCaught(t_infoPaquete *infoCaught){
 	uint32_t IDCorrelativo = unpackIDCorrelativo(paqueteCaught);
 	uint32_t ID = unpackID(paqueteCaught);
 	bool resultadoCaught = unpackResultado_Caught(paqueteCaught);
+
+	log_info(logger,"BROKER ID %d y CORRELATIVE ID :%d",ID,IDCorrelativo);
+	mostrarContenidoLista(mensajesCATCH,imprimirNumero);
+
+
+	uint32_t *obtenerIDCatch(t_entrenador *entrenador){
+		return &(entrenador->IdCatch);
+	}
+
 	if (correspondeAUnIDDe(mensajesCATCH, IDCorrelativo)) {
 		 enviarACK(ID,t_CAUGHT); //CONFIRMO LA LLEGADA DEL MENSAJE
 		 //SI CORRESPONDE LE ASIGNO EL POKEMON AL ENTRENADOR Y LO DESBLOQUEO (PASA A READY)
-		 int index = list_get_index(entrenadores,&IDCorrelativo,(void*)comparadorIdCatch);
+		 log_info(logger," :DDD");
+		 //Hallar posicion elemento en la lista
+		 t_list *idsCatchEntrenadores = list_map(entrenadores,(void *)obtenerIDCatch);
+		 int index = list_get_index(idsCatchEntrenadores,&IDCorrelativo,intComparator);
+
+		 //int index = list_get_index(entrenadores,&IDCorrelativo,(void*)comparadorIdCatch);
 		 t_entrenador* entrenadorQueAtrapa = list_get(entrenadores,index);
+		 log_info(logger,"entrenadorQueAtrapa %d",entrenadorQueAtrapa->idEntrenador);
+		 log_info(logger,":D!");
 		 completarCatch(entrenadorQueAtrapa,resultadoCaught);
+		 log_info(logger,":D");
 		 destruirInfoPaquete(infoCaught);
 	}
 	else{
@@ -784,10 +818,44 @@ bool charContains(char *cadena,char caracter){
     return resultado;
 }
 
+
+
+void quitarPokemonesInnecesarios(t_list *pokemones){
+
+	for(int i = 0; i < list_size(entrenadores);i++){
+		t_entrenador *entrenador = list_get(entrenadores,i);
+		for(int j = 0; j < list_size(entrenador->pokemones);j++){
+			char *pokemon = list_get(entrenador->pokemones,j);
+			if(existeID(pokemon,pokemones,stringComparator)){
+				int index = list_get_index(pokemones,pokemon,stringComparator);
+				list_remove(pokemones,index);
+			}
+		}
+	}
+
+	for(int i = 0; i < list_size(pokemones);i++){
+		char *pokemon = list_get(pokemones,i);
+		int cantOcurr = cantOcurrencias(pokemon,pokemones);
+
+		if(cantOcurr > 1){
+			for(int j = 0; j < cantOcurr-1;j++){
+				int index = list_get_index(pokemones,pokemon,stringComparator);
+				list_remove(pokemones,index);
+			}
+		}
+
+	}
+
+}
+
 void enviarPokemonesAlBroker(){
 	//ESTO HACE UN CONNECT AL BROKER Y POR CADA TIPO DE POKEMON QUE ESTE EN EL OBJETIVO GLOBAL SE ENVIA UN GET Y SE CIERRA LA CONEXION
-		t_list* pokemonsAPedir = list_create();
-		pokemonsAPedir = objetivoTeam;
+		t_list* pokemonsAPedir = list_duplicate(objetivoTeam);
+		quitarPokemonesInnecesarios(pokemonsAPedir);
+
+		log_error(logger,"POKES A PEDIR");
+		mostrarContenidoLista(pokemonsAPedir,imprimirString);
+
 		int cantPokemones = list_size(pokemonsAPedir);
 		for(int i=0; i<cantPokemones; i++){
 			char* pokemonAPedir = list_get(pokemonsAPedir, i);
@@ -816,6 +884,7 @@ void enviarCATCH(char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY){
 	uint32_t tamPaquete = sizeof(uint32_t)*4 + strlen(pokemon);
 	packAndSend(socket, paquete, tamPaquete, t_CATCH);
 	log_info(logger, "El envio del CATCH se realizo con exito");
+	procedimientoMensajeID(socket);
 	close(socket);
 }
 
@@ -906,6 +975,7 @@ void capturaPokemonFIFO(t_entrenador *entrenadorAEjecutar){
 	//EJECUTAR SIN QUANTUM
 			//pokemonAAtrapar = pokemonMasCercanoA(entrenadorAEjecutar);
 			if(entrenadorAEjecutar->pokemonAAtrapar == NULL){
+				log_info(logger,"CANT POKEMONES ANTE DE HALLAR EL POKE MAS CERCANO %d",list_size(pokemonesEnMapa));
 				pokemonAAtrapar = pokemonMasCercanoA(entrenadorAEjecutar);
 				entrenadorAEjecutar->pokemonAAtrapar = pokemonAAtrapar;
 			}
@@ -929,7 +999,7 @@ void capturaPokemonFIFO(t_entrenador *entrenadorAEjecutar){
 					if(llegoRespuesta){
 						//CUANDO LLEGA LA RESPUESTA HABILITO LA EJECUCION
 						sem_wait(&semaforoRespuestaCatch);
-						llegoRespuesta = 0;
+						llegoRespuesta = false;
 						//ME TRAIGO EL ULTIMO ELEMENTO DE LA LISTA DE MENSAJES CATCH, ADD AGREGA AL FINAL DE LA LISTA
 						int sizeMensajesCatch = list_size(mensajesCATCH);
 						int index = sizeMensajesCatch-1;
@@ -942,9 +1012,10 @@ void capturaPokemonFIFO(t_entrenador *entrenadorAEjecutar){
 						//CUANDO SALGO DE EXEC HAGO EL POST
 						sem_post(&semaforoPlanificacionExec);
 						cambiosDeContexto++;
-						break;
 						}
+					break;
 				}
+			log_info(logger,"sali del while .......");
 			}
 			else{
 				//SI NO ESTA CONECTADO AL BROKER, ASUMO QUE FUE ATRAPADO
@@ -1251,7 +1322,8 @@ void planificarEntrenadoresBis(){
 				pthread_create(&hiloEntrenador,NULL,(void*)ejecutarEntrenador,entrenadorAEjecutar);
 				pthread_detach(hiloEntrenador);
 			}
-			else if(!list_is_empty(colaReady) && list_is_empty(colaExec) && !planificacionCompleta && hayPokemonesParaAtrapar()){
+			//else if(!list_is_empty(colaReady) && list_is_empty(colaExec) && !planificacionCompleta && hayPokemonesParaAtrapar())
+			else if(!list_is_empty(colaReady) && list_is_empty(colaExec) && !planificacionCompleta && !list_is_empty(pokemonesEnMapa)){
 				//En este caso es para las capturas
 				planificador->planificar();
 				t_entrenador *entrenadorAEjecutar = list_get(colaExec,0);
@@ -1447,7 +1519,6 @@ void darUnPaso(t_entrenador *entrenador,t_pokemon *pokemon){
 
 void moverEntrenadorConDesalojo(t_entrenador* entrenadorAEjecutar, t_pokemon* pokemonAAtrapar){
 
-	log_info(logger,"XD");
 	log_info(logger,"distancia :%d",pokemonAAtrapar->distanciaAEntrenador);
 	darUnPaso(entrenadorAEjecutar,pokemonAAtrapar);
 	sleep(retardo_ciclo_cpu);
@@ -1621,26 +1692,10 @@ void completarCatchSinBroker(t_entrenador* unEntrenador){
 		unEntrenador->blockeado = false;
 		unEntrenador->ocupado = false;
 		unEntrenador->pokemonAAtrapar = NULL;
-		/*
-		if(!planificacionInicialReady){
-			sem_wait(&semaforoAccesoExecReady);
-			list_add(colaReady,unEntrenador);
-			sem_post(&semaforoAccesoNewReady);
-		}else{
-			list_add(colaReady,unEntrenador);
-		}
-		*/
-		//sem_wait(&semaforoAccesoExecReady);
-		//sem_wait(&semaforoExec)
-		//sem_post(&semaforoMensajesAppeared);
-		log_info(logger,":d");
-		//pthread_mutex_lock(&mutexEntrenadoresReady);
-		log_info(logger,":d");
 		list_add(colaReady,unEntrenador);
-		//sem_post(&semaforoMensajesAppeared);
 		log_info(loggerObligatorio, "Se cambió al entrenador %d de EXEC a READY, Razon: Termino de atrapar un pokemon con la rutina por default", unEntrenador->idEntrenador);
 		//CUANDO SALGO DE EXEC HAGO EL POST
-		//sem_post(&semaforoPlanificacionExec);
+
 	}
 	else{
 		//SI NO LE QUEDAN POR ATRAPAR MAS VERIFICO SI CUMPLIÓ EL OBJETIVO O NO, SI CUMPLE MANDO A EXIT, SINO A BLOCKED
@@ -1803,6 +1858,8 @@ void sacarPokemonDelMapa(t_pokemon* unPokemon){
 	//log_error(logger,"EL POKEMON QUE VOY A BORRAR %s SE ENCUENTRA EN LA POS: %d",unPokemon->nombrePokemon,index);
 	//pthread_mutex_lock(&mutexPokemonesEnMapa);
 	list_remove(pokemonesEnMapa, index);
+	mostrarContenidoLista(list_map(pokemonesEnMapa,(void *)obtenerPokemon),imprimirString);
+
 	//sem_post(&semaforoMensajesAppeared);
 	//pthread_mutex_unlock(&mutexPokemonesEnMapa);
 }
@@ -2058,6 +2115,7 @@ t_entrenador *entrenadorQueVaAReady(t_list *entrenadoresLibres,int contadorPokem
 	//TODO contador
 	t_list* pokemones = list_duplicate(pokemonesEnMapa);
 	t_pokemon* unPokemon = list_remove(pokemones,list_size(pokemonesEnMapa)-1);
+	//t_pokemon* unPokemon = list_remove(pokemones,list_size(pokemonesEnMapa)-1);
 	//t_pokemon* unPokemon = list_remove(pokemones,contadorPokemones);
 
 	log_info(logger,"POKEMON QUE SAQUE DEL REMOVE: %s",unPokemon->nombrePokemon);

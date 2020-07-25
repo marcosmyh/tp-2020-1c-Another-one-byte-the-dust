@@ -303,5 +303,6 @@ void intercambioPokemonRR(t_entrenador *);
 void planificarEntrenadoresBis();
 void calcularDistanciaEntrenadorA(t_entrenador *entrenador,t_pokemon *pokemon);
 void moverEntrenadorConDesalojo(t_entrenador *,t_pokemon *);
+void quitarPokemonesInnecesarios(t_list *pokemones);
 
 #endif
