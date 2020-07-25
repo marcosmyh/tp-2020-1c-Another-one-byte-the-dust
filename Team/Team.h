@@ -163,6 +163,7 @@ char* puerto_broker;
 char* ip_team;
 char* puerto_team;
 char* team_log_file;
+char* team_log_obligatorio_file;
 int socket_servidor;
 int socket_cliente;
 int socket_appeared;
