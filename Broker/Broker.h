@@ -93,6 +93,7 @@ t_esquemaMemoria *singletonMemoria;
 t_log *logObligatorio;
 t_log *logExtra;
 t_config *config;
+void *memoria;
 char *log_path_broker;
 char *ip;
 char *puerto;
