@@ -531,7 +531,7 @@ void crearLoggerObligatorio(){
 }
 
 void leerArchivoDeConfiguracion(){
-	char* configPath = "/home/utnso/workspace/tp-2020-1c-Another-one-byte-the-dust/Team/Team.config";
+	char* configPath = "Team.config";
 	archivoConfig = config_create(configPath);
 	if (archivoConfig == NULL){
 		//log_error(logger,"Archivo de configuracion no encontrado");
@@ -928,15 +928,22 @@ bool yaFueAtrapado(char* pokemon){
 	//NO PUEDO ATRAPAR MAS POKEMONES DE UN TIPO QUE DE LOS QUE TENGO EN EL OBJETIVO DEL TEAM
 
 	int ocurrenciasGlobales = cantOcurrencias(pokemon, objetivoTeam);
-	int ocurrenciasEnMapa = cantOcurrencias(pokemon,pokemonesEnMapa);
-	int ocurrenciasEntrenadores;
+	t_list *nombrePokemonesEnMapa = list_map(pokemonesEnMapa,(void *)obtenerPokemon);
+	int ocurrenciasEnMapa = cantOcurrencias(pokemon,nombrePokemonesEnMapa);
+	int ocurrenciasEntrenadores = 0;
 	int i;
+
 	int cantEntrenadores = list_size(entrenadores);
 	for (i=0; i<cantEntrenadores; i++){
 		t_entrenador* unEntrenador = list_get(entrenadores,i);
 		int ocurrenciasEntrenador = cantOcurrencias(pokemon, unEntrenador->pokemones);
 		ocurrenciasEntrenadores += ocurrenciasEntrenador;
 	}
+
+	//todo todo Liberar lista
+
+	printf("\n\n\n\n\nCantidad de ocurrencias: Globales %d EnMapa %d Entrenadores %d\n\n\n\n",ocurrenciasGlobales,ocurrenciasEnMapa,ocurrenciasEntrenadores);
+
 	if(ocurrenciasGlobales == (ocurrenciasEnMapa + ocurrenciasEntrenadores)){
 		return true;
 	}
@@ -1574,7 +1581,9 @@ void completarCatch(t_entrenador* unEntrenador, bool resultadoCaught){
 		if(unEntrenador->operacionEntrenador == 0){
 			//sacarPokemonDelMapa(pokemonAtrapado);
 			//semaforo que de el ok
+			printf("Voy a sacar al pokemon: %s\n",pokemonAtrapado->nombrePokemon);
 			sacarPokemonDelMapa(pokemonAtrapado);
+			printf("Los pokemones en mapa son :%d despues del remove \n",list_size(pokemonesEnMapa));
 			list_add(pokemonesAtrapados,nombrePokemon);
 			log_info(logger,"CANT POK ATRAPADOS: %d",list_size(pokemonesAtrapados));
 			list_add(unEntrenador->pokemones, nombrePokemon);
@@ -2308,20 +2317,32 @@ void modificarContadorDeadlocks(int cantDeadlocks){
 	deadlocksProducidos+=cantDeadlocks;
 }
 
-void quienesEstanEnDeadlock(t_list *entrenadoresSinObjetivo,t_list*entrenadoresDL,int num){
+void quienesEstanEnDeadlock(t_list *entrenadoresSinObjetivo,t_list*entrenadoresDL,int posDeLista,int cantidadDeIteraciones){
 
-	if(num >= list_size(entrenadoresSinObjetivo)){
-		return;
-	}else{
-	t_entrenador *entrenador = list_get(entrenadoresSinObjetivo,num);
+
+	printf("\n\n\n -----------------EMPIEZO DL \n\n\n ");
+	if(list_size(entrenadoresSinObjetivo) <= 1) return;
+	if(cantidadDeIteraciones >= list_size(entrenadoresSinObjetivo)) return;
+
+	t_entrenador *entrenador = list_get(entrenadoresSinObjetivo,posDeLista);
 	char *pokemon = list_get(entrenador->pokemonesQueFaltan,0);
+
 	t_entrenador *entrenadorQueTieneMiPokemon = obtenerEntrenadorQueTieneMiPokemon(entrenador,pokemon);
 
+	printf("Busco al que tiene mi pokemon\n");
 	if(!list_is_empty(entrenadoresDL)){
 		t_entrenador *primerIDdeb = list_get(entrenadoresDL,0);
 		//si el id del primero de b es el que voy a agregar ahora
 			if(entrenador->idEntrenador == primerIDdeb->idEntrenador){
+				printf("Hay una espera circular\n");
 				return;
+			}
+
+			if(list_size(entrenadoresDL) > list_size(entrenadoresSinObjetivo) && entrenador->idEntrenador != primerIDdeb->idEntrenador){
+				printf("No se complio la espera circular, se procede a ver el próximo de la lista\n");
+				list_clean(entrenadoresDL);
+				cantidadDeIteraciones++;
+				return quienesEstanEnDeadlock(entrenadoresSinObjetivo,entrenadoresDL,cantidadDeIteraciones,cantidadDeIteraciones);
 			}
 	}
 
@@ -2331,13 +2352,18 @@ void quienesEstanEnDeadlock(t_list *entrenadoresSinObjetivo,t_list*entrenadoresD
 	if(entrenadorQueTieneMiPokemon != NULL){
 		log_info(logger,"AL ENTRENADOR %d LE FALTA AL POKEMON %s QUE LO TIENE %d",entrenador->idEntrenador,pokemon,entrenadorQueTieneMiPokemon->idEntrenador);
 		list_add(entrenadoresDL,&(entrenador->idEntrenador));
-		//quienesEstanEnDeadlock(entrenadoresSinObjetivo,entrenadoresDL,num);
+
+		posDeLista = list_get_index(entrenadoresSinObjetivo,entrenadorQueTieneMiPokemon,(void *)comparadorDeEntrenadores);
+		log_info(logger,"Paso la posicion del entrenador que tiene mi pokemon %d",posDeLista);
+	}else{
+		posDeLista++;
+		cantidadDeIteraciones++;
+		list_clean(entrenadoresDL);
+		log_info(logger,"No hay entrenador que posea mi pokemon, paso al siguiente de la lista: %d",posDeLista);
 	}
 
-	num++;
-	log_info(logger,"NUM: %d",num);
-	quienesEstanEnDeadlock(entrenadoresSinObjetivo,entrenadoresDL,num);
-	}
+	return quienesEstanEnDeadlock(entrenadoresSinObjetivo,entrenadoresDL,posDeLista,cantidadDeIteraciones);
+
 }
 
 bool estanEnDeadlock(t_entrenador *unEntrenador,t_entrenador *otroEntrenador){
@@ -2368,12 +2394,12 @@ void detectarDeadlocks(){
 		//TODO solucionar leak
 		t_list *entrenadoresEnDeadlockBis = list_create();
 
-		quienesEstanEnDeadlock(entrenadoresQueNoCumplieronObjetivo,entrenadoresEnDeadlockBis,0);
+		quienesEstanEnDeadlock(entrenadoresQueNoCumplieronObjetivo,entrenadoresEnDeadlockBis,0,0);
 
-		//mostrar entrenadores que no cumplieron y los que están en deadock
+		//mostrar entrenadores que no cumplieron y los que están en deadock todo
 
 		log_error(logger,"ENTRENADORES QUE NO CUMPLIERON EL OBJETIVO");
-		mostrarContenidoLista(list_map(colaBlocked,(void *)obtenerIDEntrenador),imprimirNumero);
+		mostrarContenidoLista(list_map(entrenadoresQueNoCumplieronObjetivo,(void *)obtenerIDEntrenador),imprimirNumero);
 
 		log_error(logger,"ENTRENADORES EN DL");
 		mostrarContenidoLista(entrenadoresEnDeadlockBis,imprimirNumero);
@@ -2408,7 +2434,10 @@ void detectarDeadlocks(){
 t_entrenador* obtenerEntrenadorQueTieneMiPokemon(t_entrenador* unEntrenador, char* unPokemon){
 	//ME INFORMA QUE ENTRENADOR TIENE EL POKEMON QUE NECESITO
 	t_list* aux = list_filter(entrenadores, (void*)noCumplioObjetivo);
+	log_error(loggerObligatorio,"List size: %d",list_size(aux));
 	int indexEntrenador = list_get_index(aux, unEntrenador, (void*)comparadorDeEntrenadores);
+	log_error(loggerObligatorio,"IndexEntrenador: %d",indexEntrenador);
+
 	list_remove(aux,indexEntrenador);
 	int cantEntrenadores = list_size(aux);
 	int i;
