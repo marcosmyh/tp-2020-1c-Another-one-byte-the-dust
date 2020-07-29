@@ -131,6 +131,9 @@ int cambiosDeContexto = 0;
 int deadlocksProducidos = 0;
 int deadlocksResueltos = 0;
 
+
+bool comenzoDeteccionDeadlock = 0;
+int contadorCaught = 0;
 bool hayQueDesalojar = 0;
 bool planificacionInicialReady = 0;
 bool conexionAppeared = 0;

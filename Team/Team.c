@@ -461,6 +461,8 @@ void procedimientoMensajeCaught(t_infoPaquete *infoCaught){
 		 if(entrenadorQueAtrapa->operacionEntrenador == 0){
 			 completarCatch(entrenadorQueAtrapa,resultadoCaught);
 		 }else{
+
+			 contadorCaught++;
 			 completarCatch(entrenadorQueAtrapa,1);
 		 }
 
@@ -1310,11 +1312,17 @@ void planificarEntrenadoresBis(){
 				sem_post(&semaforoPlanificacionExec);
 			}
 		}
+
+		if(list_size(entrenadores) == list_size(colaExit)){
+			break;
+		}
 		//sleep(3);
 		//log_info(logger,":DDDDDDD");
 		//TODO VEr como solucionar esto con un flag en DEADLOCK. VEr como reutilizar el flag planificacionCompleta.
 		//sem_post(&semaforoPlanificacionExec);
 	}
+	printf("ME mato\n");
+	pthread_exit(NULL);
 }
 
 void ejecutarEntrenador(t_entrenador* entrenadorAEjecutar){
@@ -1721,8 +1729,9 @@ void completarIntercambioNormal(t_entrenador* unEntrenador){
 		log_info(logger, "El entrenador %d atrapo el pokemon, no puede atrapar mas y no cumplio el objetivo, esperara al algoritmo de Deadlock", unEntrenador->idEntrenador);
 	}
 
-	if(!estaEnBlocked(unEntrenador)){
+	if(contadorCaught == 2 && comenzoDeteccionDeadlock){
 		log_error(logger,"ANTES DEL MUTEXDEADLOCK UNLOCK");
+		contadorCaught = 0;
 		pthread_mutex_unlock(&mutexDeadlock);
 	}
 }
@@ -2169,6 +2178,7 @@ void revisionDeadlocks(){
 				generarPokemonesFaltantes();
 
 				//ME PONGO A BUSCAR DEADLOCKS
+				comenzoDeteccionDeadlock = 1;
 				log_error(logger,"XD");
 				detectarDeadlocks();
 				break;
@@ -2324,19 +2334,29 @@ void quienesEstanEnDeadlock(t_list *entrenadoresSinObjetivo,t_list*entrenadoresD
 	if(list_size(entrenadoresSinObjetivo) <= 1) return;
 	if(cantidadDeIteraciones >= list_size(entrenadoresSinObjetivo)) return;
 
+	//Obtenemos al primer entrenador y su primer pokemon que le falta
+
 	t_entrenador *entrenador = list_get(entrenadoresSinObjetivo,posDeLista);
 	char *pokemon = list_get(entrenador->pokemonesQueFaltan,0);
 
+	// Obtenemos al entrenador2 que posee el pokemon que le falta al entrenador1
 	t_entrenador *entrenadorQueTieneMiPokemon = obtenerEntrenadorQueTieneMiPokemon(entrenador,pokemon);
 
 	printf("Busco al que tiene mi pokemon\n");
+
+
+	//Pregunto si hay elementos en la lista entrenadores en deadlock
 	if(!list_is_empty(entrenadoresDL)){
+		// Obtengo al primer entrenador de la lista de DL
 		t_entrenador *primerIDdeb = list_get(entrenadoresDL,0);
-		//si el id del primero de b es el que voy a agregar ahora
+		// Consulto si al que intento agregar coincide con el primero en la lista deadlock, si es así hay un ciclo
 			if(entrenador->idEntrenador == primerIDdeb->idEntrenador){
 				printf("Hay una espera circular\n");
 				return;
 			}
+
+			// SI la lista de DL es mayor que la de entrenadores sin objetivo y el entrenador que quiero agregar no coincide con el primero de la lista
+			// por lo tanto no hay ciclo y reinicio la lista y paso al siguiente de la lista entrenadoresSinObjetivo utilizando la cantidad de iteraciones
 
 			if(list_size(entrenadoresDL) > list_size(entrenadoresSinObjetivo) && entrenador->idEntrenador != primerIDdeb->idEntrenador){
 				printf("No se complio la espera circular, se procede a ver el próximo de la lista\n");
@@ -2345,9 +2365,6 @@ void quienesEstanEnDeadlock(t_list *entrenadoresSinObjetivo,t_list*entrenadoresD
 				return quienesEstanEnDeadlock(entrenadoresSinObjetivo,entrenadoresDL,cantidadDeIteraciones,cantidadDeIteraciones);
 			}
 	}
-
-
-	//entrenador = obtenerEntrenadorQueTieneMiPokemon(entrenadorQueTieneMiPokemon,pokemon);
 
 	if(entrenadorQueTieneMiPokemon != NULL){
 		log_info(logger,"AL ENTRENADOR %d LE FALTA AL POKEMON %s QUE LO TIENE %d",entrenador->idEntrenador,pokemon,entrenadorQueTieneMiPokemon->idEntrenador);
@@ -2498,16 +2515,31 @@ void agregarPokemonesQueFaltan(t_entrenador* unEntrenador){
 	}
 }
 
+void masacreDeHilos(){
+	pthread_cancel(hiloSuscripcionBroker);
+	pthread_cancel(hiloAtencionAppeared);
+	pthread_cancel(hiloAtencionCaught);
+	pthread_cancel(hiloAtencionLocalized);
+	pthread_cancel(hiloAtencionGameBoy);
+	pthread_cancel(hiloMensajes);
+
+	//pthread_cancel(hiloPlanificacionEntrenadores);
+	pthread_cancel(hiloRevisionDeadlocks);
+}
+
 void imprimirMetricas(){
 
 	sem_wait(&semaforoMetricas);
 	while(1){
 		if(list_size(entrenadores) == list_size(colaExit)){
+			masacreDeHilos();
 			metricas();
 			break;
 		}
 	}
 
+	printf("saliii\n");
+	pthread_exit(NULL);
 }
 
 void metricas(){
