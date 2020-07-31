@@ -545,7 +545,7 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 			tamanioPokemon = strlen(pokemon) + 1;
 			id = unpackID(paqueteGet);
 
-			//envioDeACKGB(cliente_fd,id, t_GET);
+			envioDeACKGB(cliente_fd,id, t_GET);
 			//log_info(loggerObligatorio,"Pokemon: %s id: %d",pokemon,id);
 
 
@@ -565,7 +565,7 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 			id = unpackID(paqueteCatch);
 			posX = unpackCoordenadaX_Catch(paqueteCatch, tamanioPokemon);
 			posY = unpackCoordenadaY_Catch(paqueteCatch, tamanioPokemon);
-			//envioDeACKGB(cliente_fd,id, t_CATCH);
+			envioDeACKGB(cliente_fd,id, t_CATCH);
 
 			int resultadoCatch = procedimientoCATCH(pokemon,posX,posY);
 			//log_info(loggerObligatorio,"Pokemon: %s posX: %d posY: %d id: %d",pokemon,posX,posY,id);
@@ -598,7 +598,7 @@ void procesar_solicitud(Header headerRecibido, int cliente_fd) {
 			posX = unpackCoordenadaX_New(paqueteNew, tamanioPokemon);
 			posY = unpackCoordenadaY_New(paqueteNew, tamanioPokemon);
 			uint32_t cantPokemon = unpackCantidadPokemons_New(paqueteNew, tamanioPokemon);
-			//envioDeACKGB(cliente_fd,id, t_NEW);
+			envioDeACKGB(cliente_fd,id, t_NEW);
 
 			int resultadoNew = procedimientoNEW(pokemon,posX,posY,cantPokemon);
 			//log_info(loggerObligatorio,"Pokemon: %s posX: %d posY: %d cantidad: %d id: %d",pokemon,posX,posY,cantPokemon, id);
