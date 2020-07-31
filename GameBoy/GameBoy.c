@@ -228,19 +228,27 @@ void cargarConfig(t_config* configuracion){
 
 void recibirACK(int conexion, uint32_t id){
 
+	while(1){
+
 	Header headerRecibido = receiveHeader(conexion);
 	uint32_t tamanio = headerRecibido.tamanioMensaje;
-
 	void *paquete = receiveAndUnpack(conexion,tamanio);
+
+
+    if(headerRecibido.operacion == t_ACK){
+
 	uint32_t idDeAck = unpackID(paquete);
 
 	if(id == idDeAck){
-		log_info(loggerObligatorio,"El proceso recibió con éxito el mensaje con ID %d",id);
-	}else{
-		log_info(loggerObligatorio,"El proceso no recibió el mensaje con ID %d",id);
+		log_info(loggerObligatorio,"El proceso recibió con éxito el mensaje");
+		free(paquete);
+		break;
 	}
+    }else{
 
-	free(paquete);
+    free(paquete);
+	}
+	}
 }
 
 void terminar_programa()
@@ -337,7 +345,9 @@ void enviar_mensaje_a_broker(char* tipo_de_mensaje,int cantidad_de_argumentos,ch
 						//Envio del mensaje
 						envioDeMensajeNew(pokemon,posx,posy,cantidad,-1);
 						//Envio del mensaje
-						//recibirACK(conexion,-1);
+						recibirACK(conexion,-1);
+						//recibirACK(conexion,idmensaje);
+
 						//printf("Aca envio el mensaje \n");
 						//printf("Pokemon: %s \n",pokemon);
 						//printf("PosX: %i \n",posx);
@@ -357,7 +367,7 @@ void enviar_mensaje_a_broker(char* tipo_de_mensaje,int cantidad_de_argumentos,ch
 								// Envio del mensaje
 								envioDeMensajeAppeared(pokemon,posx,posy,idmensaje);
 								// envio del mensaje
-								//recibirACK(conexion,idmensaje);
+								recibirACK(conexion,idmensaje);
 								//printf("Aca envio el mensaje \n");
 								//printf("Pokemon: %s \n",pokemon);
 								//printf("PosX: %i \n",posx);
@@ -379,7 +389,7 @@ void enviar_mensaje_a_broker(char* tipo_de_mensaje,int cantidad_de_argumentos,ch
 								// envio de mensaje
 								envioDeMensajeCatch(pokemon,posx,posy,idmensaje);
 								// envio de mensaje
-								//recibirACK(conexion,idmensaje);
+								recibirACK(conexion,idmensaje);
 								//printf("Aca envio el mensaje \n");
 								//printf("Pokemon: %s \n",pokemon);
 								//printf("PosX: %i \n",posx);
@@ -404,7 +414,7 @@ void enviar_mensaje_a_broker(char* tipo_de_mensaje,int cantidad_de_argumentos,ch
 								// envio de mensaje
 								envioDeMensajeCaught(atrapado,idmensaje);
 								// envio de mensaje
-								//recibirACK(conexion,idmensaje);
+								recibirACK(conexion,idmensaje);
 								//printf("Atrapado: %i \n",atrapado);
 								//printf("id mensaje: %i \n",idmensaje);
 								}else printf("Faltan argumentos \n");
@@ -419,7 +429,7 @@ void enviar_mensaje_a_broker(char* tipo_de_mensaje,int cantidad_de_argumentos,ch
 								// envio de mensaje
 								envioDeMensajeGet(pokemon,idmensaje);
 								// envio de mensaje
-								//recibirACK(conexion,idmensaje);
+								recibirACK(conexion,idmensaje);
 								//printf("pokemon: %s \n",pokemon);
 								}else printf("Faltan argumentos \n");
 			break;
@@ -472,7 +482,7 @@ void enviar_mensaje_a_gamecard(char* tipo_de_mensaje,int cantidad_de_argumentos,
 					    	// Envio del mensaje
 							envioDeMensajeNew(pokemon,posx,posy,cantidad,idmensaje);
 							// Envio del mensaje
-							//recibirACK(conexion,idmensaje);
+							recibirACK(conexion,idmensaje);
 							//printf("Aca envio el mensaje \n");
 							//printf("Pokemon: %s \n",pokemon);
 							//printf("PosX: %i \n",posx);
@@ -492,7 +502,7 @@ void enviar_mensaje_a_gamecard(char* tipo_de_mensaje,int cantidad_de_argumentos,
 							    	// Envio del mensaje
 									envioDeMensajeCatch(pokemon,posx,posy,idmensaje);
 									// Envio del mensaje
-									//recibirACK(conexion,idmensaje);
+									recibirACK(conexion,idmensaje);
 									//printf("Aca envio el mensaje \n");
 									//printf("Pokemon: %s \n",pokemon);
 									//printf("PosX: %i \n",posx);
@@ -511,7 +521,7 @@ void enviar_mensaje_a_gamecard(char* tipo_de_mensaje,int cantidad_de_argumentos,
 							    	// Envio del mensaje
 									envioDeMensajeGet(pokemon,id);
 									// Envio del mensaje
-									//recibirACK(conexion,id);
+									recibirACK(conexion,id);
 									//printf("pokemon: %s \n",pokemon);
 									}else printf("Faltan argumentos\n");
 				break;
