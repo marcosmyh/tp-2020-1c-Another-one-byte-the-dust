@@ -91,6 +91,16 @@ void atender_cliente(int *socket){
     procesar_solicitud(header,cliente_fd);
 }
 
+
+void enviarACK(int socket,uint32_t ID,t_operacion operacion){
+	void *paquete = pack_Ack(ID, operacion,"Broker");
+	uint32_t tamPaquete = 3*sizeof(uint32_t) + strlen("Broker") + 1;
+	packAndSend(socket, paquete, tamPaquete, t_ACK);
+	log_info(logExtra, "El envio del ACK del mensaje con ID se realizo con exito");
+	free(paquete);
+}
+
+
 void procesar_solicitud(Header header,int cliente_fd){
      uint32_t sizePaquete = header.tamanioMensaje;
      int codigo_operacion = header.operacion;
@@ -98,15 +108,13 @@ void procesar_solicitud(Header header,int cliente_fd){
      void *paquete;
 
      void enviarMensajeA(t_suscriptor *suscriptor){
-    	 int socket = suscriptor->socket_suscriptor;
     	 char *identificadorProceso = suscriptor->identificadorProceso;
-    	 packAndSend(socket,paquete,sizePaquete,codigo_operacion);
+    	 packAndSend(suscriptor->socket_suscriptor,paquete,sizePaquete,codigo_operacion);
     	 char *idAAgregar = string_duplicate(identificadorProceso);
     	 list_add(mensaje->suscriptoresALosQueMandeMensaje,idAAgregar);
-    	 t_particion *particionQueContieneElMensaje = obtenerParticion(mensaje->ID_mensaje,BROKER_ID);
 
     	 printf("\033[1;31m");
-    	 log_info(logObligatorio,"Le mandé a %s el mensaje con BROKER ID [%d] de la cola %s",idAAgregar,mensaje->ID_mensaje,particionQueContieneElMensaje->colaDeMensaje);
+    	 log_info(logObligatorio,"Le mandé a %s el mensaje con BROKER ID [%d] de la cola %s",idAAgregar,mensaje->ID_mensaje,mensaje->colaALaQuePertenece);
     	 printf("\033[0m");
      }
 
@@ -135,9 +143,9 @@ void procesar_solicitud(Header header,int cliente_fd){
     				packAndSend(cliente_fd,paquete,sizePaquete,t_HANDSHAKE);
      			}
 
-     			pthread_mutex_lock(&semaforoProcesamientoSolicitud[0]);
+     			pthread_mutex_lock(&semaforoMensajes);
      			suscribirProceso(identificadorProceso,cliente_fd,operacionDeSuscripcion);
-     			pthread_mutex_unlock(&semaforoProcesamientoSolicitud[0]);
+     			pthread_mutex_unlock(&semaforoMensajes);
 
      			free(paquete);
 
@@ -153,31 +161,41 @@ void procesar_solicitud(Header header,int cliente_fd){
 
                 enviarIDAlProductor(cliente_fd,ID_NEW,t_NEW);
 
+                enviarACK(cliente_fd,-1,t_NEW);
+
                 void *paqueteNEW = insertarIDEnPaquete(ID_NEW,paqueteNewSinID,sizePaquete,0);
 
                 free(paquete);
 
                 paquete = paqueteNEW;
 
-                mensaje = crearMensaje(paqueteNewSinID,ID_NEW,-1,sizePaquete - sizeof(uint32_t));
+                mensaje = crearMensaje(ID_NEW,-1,sizePaquete - sizeof(uint32_t),"NEW_POKEMON");
 
-     			pthread_mutex_lock(&semaforoProcesamientoSolicitud[1]);
-     			agregarMensajeACola(mensaje,NEW_POKEMON,"NEW_POKEMON");
+     			pthread_mutex_lock(&semaforoMensajes);
+
+     			singletonMemoria->paqueteACachear = paqueteNewSinID;
+
+     			agregarMensajeACola(mensaje,NEW_POKEMON);
+
+     			cachearMensaje(mensaje);
 
      			enviarMensajeRecibidoASuscriptores(suscriptores_NEW_POKEMON,enviarMensajeA);
-     			pthread_mutex_unlock(&semaforoProcesamientoSolicitud[1]);
+
+     			pthread_mutex_unlock(&semaforoMensajes);
 
      			free(paqueteNEW);
 
      			break;
 
      		case t_LOCALIZED:;
+
      		    paquete = receiveAndUnpack(cliente_fd,sizePaquete);
 
      		    uint32_t ID_LOCALIZED_Correlativo = unpackID(paquete);
 
      		    if(existeRespuestaEnCola(ID_LOCALIZED_Correlativo,LOCALIZED_POKEMON)){
      		    	log_error(logExtra,"El mensaje con ID Correlativo [%d] ya existe en la cola LOCALIZED_POKEMON",ID_LOCALIZED_Correlativo);
+     		    	enviarACK(cliente_fd,ID_LOCALIZED_Correlativo,t_LOCALIZED);
      		    	free(paquete);
      		    }
      		    else{
@@ -187,21 +205,29 @@ void procesar_solicitud(Header header,int cliente_fd){
 
 					enviarIDAlProductor(cliente_fd,ID_LOCALIZED_Generado,t_LOCALIZED);
 
+					enviarACK(cliente_fd,ID_LOCALIZED_Correlativo,t_LOCALIZED);
+
      		    	void *paqueteLocalized = insertarIDEnPaquete(ID_LOCALIZED_Generado,paquete,sizePaquete,DOUBLE_ID);
 
      		    	free(paquete);
 
      		    	paquete = paqueteLocalized;
 
-     		    	mensaje = crearMensaje(paqueteLocalizedSinID,ID_LOCALIZED_Generado,ID_LOCALIZED_Correlativo,sizePaquete - sizeof(uint32_t));
+     		    	mensaje = crearMensaje(ID_LOCALIZED_Generado,ID_LOCALIZED_Correlativo,sizePaquete - sizeof(uint32_t),"LOCALIZED_POKEMON");
 
-     	 			pthread_mutex_lock(&semaforoProcesamientoSolicitud[2]);
-     		    	agregarMensajeACola(mensaje,LOCALIZED_POKEMON,"LOCALIZED_POKEMON");
+     	 			pthread_mutex_lock(&semaforoMensajes);
+
+     	 			singletonMemoria->paqueteACachear = paqueteLocalizedSinID;
+
+     		    	agregarMensajeACola(mensaje,LOCALIZED_POKEMON);
+
+     		    	cachearMensaje(mensaje);
 
      		    	sizePaquete = sizePaquete + sizeof(uint32_t);
 
      		    	enviarMensajeRecibidoASuscriptores(suscriptores_LOCALIZED_POKEMON,enviarMensajeA);
-     	 			pthread_mutex_unlock(&semaforoProcesamientoSolicitud[2]);
+
+     		    	pthread_mutex_unlock(&semaforoMensajes);
 
      		    	free(paqueteLocalized);
      		    }
@@ -218,19 +244,27 @@ void procesar_solicitud(Header header,int cliente_fd){
 
      		    enviarIDAlProductor(cliente_fd,ID_GET,t_GET);
 
+     		    enviarACK(cliente_fd,-1,t_GET);
+
      		    void *paqueteGET = insertarIDEnPaquete(ID_GET,paqueteGetSinID,sizePaquete,0);
 
       	        free(paquete);
 
      		    paquete = paqueteGET;
 
-     		    mensaje = crearMensaje(paqueteGetSinID,ID_GET,-1,sizePaquete - sizeof(uint32_t));
+     		    mensaje = crearMensaje(ID_GET,-1,sizePaquete - sizeof(uint32_t),"GET_POKEMON");
 
-     			pthread_mutex_lock(&semaforoProcesamientoSolicitud[3]);
-     		    agregarMensajeACola(mensaje,GET_POKEMON,"GET_POKEMON");
+ 	 			pthread_mutex_lock(&semaforoMensajes);
+
+     			singletonMemoria->paqueteACachear = paqueteGetSinID;
+
+     		    agregarMensajeACola(mensaje,GET_POKEMON);
+
+     		    cachearMensaje(mensaje);
 
      		    enviarMensajeRecibidoASuscriptores(suscriptores_GET_POKEMON,enviarMensajeA);
-     			pthread_mutex_unlock(&semaforoProcesamientoSolicitud[3]);
+
+ 		    	pthread_mutex_unlock(&semaforoMensajes);
 
      		    free(paqueteGET);
 
@@ -244,6 +278,7 @@ void procesar_solicitud(Header header,int cliente_fd){
 
      		    if(existeRespuestaEnCola(ID_APPEARED_Correlativo,APPEARED_POKEMON)){
      		    	log_error(logExtra,"El mensaje con ID Correlativo [%d] ya existe en la cola APPEARED POKEMON",ID_APPEARED_Correlativo);
+     		    	enviarACK(cliente_fd,ID_APPEARED_Correlativo,t_APPEARED);
      		    	free(paquete);
      		    }
      		    else{
@@ -254,22 +289,29 @@ void procesar_solicitud(Header header,int cliente_fd){
 
      		    enviarIDAlProductor(cliente_fd,ID_APPEARED_Generado,t_APPEARED);
 
+     		    enviarACK(cliente_fd,ID_APPEARED_Correlativo,t_APPEARED);
+
                 void *paqueteAppeared = insertarIDEnPaquete(ID_APPEARED_Generado,paquete,sizePaquete,DOUBLE_ID);
 
                 free(paquete);
 
                 paquete = paqueteAppeared;
 
-                mensaje = crearMensaje(paqueteAppearedSinID,ID_APPEARED_Generado,ID_APPEARED_Correlativo,sizePaquete - sizeof(uint32_t));
+                mensaje = crearMensaje(ID_APPEARED_Generado,ID_APPEARED_Correlativo,sizePaquete - sizeof(uint32_t),"APPEARED_POKEMON");
 
-     			pthread_mutex_lock(&semaforoProcesamientoSolicitud[4]);
-                agregarMensajeACola(mensaje,APPEARED_POKEMON,"APPEARED_POKEMON");
+     			pthread_mutex_lock(&semaforoMensajes);
 
-                //Ahora el paquete tiene otro ID!
+     			singletonMemoria->paqueteACachear = paqueteAppearedSinID;
+
+                agregarMensajeACola(mensaje,APPEARED_POKEMON);
+
+                cachearMensaje(mensaje);
+
                 sizePaquete = sizePaquete + sizeof(uint32_t);
 
             	enviarMensajeRecibidoASuscriptores(suscriptores_APPEARED_POKEMON,enviarMensajeA);
-     			pthread_mutex_unlock(&semaforoProcesamientoSolicitud[4]);
+
+            	pthread_mutex_unlock(&semaforoMensajes);
 
             	free(paqueteAppeared);
 
@@ -287,20 +329,27 @@ void procesar_solicitud(Header header,int cliente_fd){
 
  		        enviarIDAlProductor(cliente_fd,ID_CATCH,t_CATCH);
 
+ 		        enviarACK(cliente_fd,-1,t_CATCH);
+
  		        void *paqueteCATCH = insertarIDEnPaquete(ID_CATCH,paqueteCatchSinID,sizePaquete,0);
 
  		        free(paquete);
 
  		        paquete = paqueteCATCH;
 
- 		        mensaje = crearMensaje(paqueteCatchSinID,ID_CATCH,-1,sizePaquete - sizeof(uint32_t));
+ 		        mensaje = crearMensaje(ID_CATCH,-1,sizePaquete - sizeof(uint32_t),"CATCH_POKEMON");
 
- 		        pthread_mutex_lock(&semaforoProcesamientoSolicitud[5]);
+ 		        pthread_mutex_lock(&semaforoMensajes);
 
- 		        agregarMensajeACola(mensaje,CATCH_POKEMON,"CATCH_POKEMON");
+ 		        singletonMemoria->paqueteACachear = paqueteCatchSinID;
+
+ 		        agregarMensajeACola(mensaje,CATCH_POKEMON);
+
+ 		        cachearMensaje(mensaje);
 
      		    enviarMensajeRecibidoASuscriptores(suscriptores_CATCH_POKEMON,enviarMensajeA);
- 		        pthread_mutex_unlock(&semaforoProcesamientoSolicitud[5]);
+
+     		    pthread_mutex_unlock(&semaforoMensajes);
 
  		        free(paqueteCATCH);
 
@@ -314,6 +363,7 @@ void procesar_solicitud(Header header,int cliente_fd){
 
      			if(existeRespuestaEnCola(ID_CAUGHT_Correlativo,CAUGHT_POKEMON)){
      				log_error(logExtra,"El mensaje con ID_Correlativo [%d] ya existe en la cola CAUGHT POKEMON",ID_CAUGHT_Correlativo);
+     				enviarACK(cliente_fd,ID_CAUGHT_Correlativo,t_CAUGHT);
      				free(paquete);
      			}
      			else{
@@ -324,21 +374,29 @@ void procesar_solicitud(Header header,int cliente_fd){
 
 					enviarIDAlProductor(cliente_fd,ID_CAUGHT_Generado,t_CAUGHT);
 
+					enviarACK(cliente_fd,ID_CAUGHT_Correlativo,t_CAUGHT);
+
 					void *paqueteCaught = insertarIDEnPaquete(ID_CAUGHT_Generado,paquete,sizePaquete,DOUBLE_ID);
 
 					free(paquete);
 
 					paquete = paqueteCaught;
 
-					mensaje = crearMensaje(paqueteCaughtSinID,ID_CAUGHT_Generado,ID_CAUGHT_Correlativo,sizePaquete - sizeof(uint32_t));
+					mensaje = crearMensaje(ID_CAUGHT_Generado,ID_CAUGHT_Correlativo,sizePaquete - sizeof(uint32_t),"CAUGHT_POKEMON");
 
-		 			pthread_mutex_lock(&semaforoProcesamientoSolicitud[6]);
-					agregarMensajeACola(mensaje,CAUGHT_POKEMON,"CAUGHT_POKEMON");
+		 			pthread_mutex_lock(&semaforoMensajes);
+
+		 			singletonMemoria->paqueteACachear = paqueteCaughtSinID;
+
+					agregarMensajeACola(mensaje,CAUGHT_POKEMON);
+
+					cachearMensaje(mensaje);
 
 			        sizePaquete = sizePaquete + sizeof(uint32_t);
 
 					enviarMensajeRecibidoASuscriptores(suscriptores_CAUGHT_POKEMON,enviarMensajeA);
-		 			pthread_mutex_unlock(&semaforoProcesamientoSolicitud[6]);
+
+					pthread_mutex_unlock(&semaforoMensajes);
 
 					free(paqueteCaught);
      			}
@@ -351,9 +409,9 @@ void procesar_solicitud(Header header,int cliente_fd){
      			t_operacion nombreCola = unpackOperacionACK(paquete);
      			char *ID_proceso = unpackIdentificadorProcesoACK(paquete);
 
-     			pthread_mutex_lock(&semaforoProcesamientoSolicitud[7]);
+     			pthread_mutex_lock(&semaforoMensajes);
      			validarRecepcionMensaje(ID_mensaje,nombreCola,ID_proceso);
-     			pthread_mutex_unlock(&semaforoProcesamientoSolicitud[7]);
+     			pthread_mutex_unlock(&semaforoMensajes);
 
      			free(paquete);
 
@@ -400,20 +458,17 @@ void ordenarParticionesLibres(bool(*comparator)(void *,void*)){
 void ordenarParticionesLibresSegun(t_FLAG flag){
 
 	if(flag == SIZE_PARTITION){
-		ordenarParticionesLibres(tieneMenorTamanio);
+		ordenarParticionesLibres((void *) tieneMenorTamanio);
 	}
 
 	if(flag == OFFSET){
-		ordenarParticionesLibres(tieneMenorOffset);
+		ordenarParticionesLibres((void *) tieneMenorOffset);
 	}
 
 }
 
-bool tieneMenorTamanio(void *unaParticion,void *otraParticion){
-	t_particion *particion1 = unaParticion;
-	t_particion *particion2 = otraParticion;
-
-	return particion1->tamanioParticion < particion2->tamanioParticion;
+bool tieneMenorTamanio(t_particion *unaParticion,t_particion *otraParticion){
+	return unaParticion->tamanioParticion < otraParticion->tamanioParticion;
 }
 
 t_particion *obtenerParticionLibre(uint32_t tamPaquete){
@@ -441,14 +496,14 @@ t_particion *firstFit(uint32_t tamPaquete){
     return particion;
 }
 
-char *getHorario(){
-	return temporal_get_string_time();
+//Actualmente, la precisión para el timestamp es del orden de los microsegundos.
+uint64_t getHorario(){
+    struct timeval time;
+    gettimeofday(&time,NULL);
+    return time.tv_sec*(uint64_t)1000000+time.tv_usec;
 }
 
-bool tieneMenorIDMensaje(void *particion1,void *particion2){
-	t_particion *unaParticion = particion1;
-	t_particion *otraParticion = particion2;
-
+bool tieneMenorIDMensaje(t_particion *unaParticion,t_particion *otraParticion){
 	return unaParticion->ID_mensaje < otraParticion->ID_mensaje;
 }
 
@@ -461,7 +516,7 @@ void recorrerParticionesYLiberar(t_list *particionesOrdenadas,char *funcionCorre
 			log_info(logObligatorio,"%s: Se procederá a eliminar la partición que tiene por offset %d",funcionCorrespondencia,particion->offset);
 			printf("\033[0m");
 			eliminarMensaje(particion->ID_mensaje,obtenerColaMensaje(particion->colaDeMensaje),particion->colaDeMensaje,REPLACEMENT_ALGORITHM);
-			singletonMemoria->liberadorDeParticiones(particion);
+			singletonMemoria->liberarParticion(particion);
 
 			return;
 		}
@@ -497,7 +552,7 @@ t_list *obtenerColaMensaje(char *nombreCola){
 
 void FIFO(){
 
-	t_list *particionesOrdenadas = list_sorted(particiones,tieneMenorIDMensaje);
+	t_list *particionesOrdenadas = list_sorted(particiones,(void *) tieneMenorIDMensaje);
 
 	recorrerParticionesYLiberar(particionesOrdenadas,"FIFO");
 
@@ -507,7 +562,7 @@ void FIFO(){
 
 void LRU(){
 
-	t_list *particionesOrdenadas = list_sorted(particiones,seUsoMenosRecientemente);
+	t_list *particionesOrdenadas = list_sorted(particiones,(void *)seUsoMenosRecientemente);
 
 	recorrerParticionesYLiberar(particionesOrdenadas,"LRU");
 
@@ -547,7 +602,7 @@ void liberarParticionParticionesDinamicas(t_particion *particion){
 
 	list_add(particionesLibres,&(particion->ID_Particion));
 
-    list_sort(particiones,tieneMenorOffset);
+    list_sort(particiones,(void *) tieneMenorOffset);
 
     consolidarParticion(particion);
 
@@ -653,7 +708,7 @@ void mostrarEstadoDeMemoria(){
 	fprintf(dump,"Dump: %d/%d/%d %d:%d:%d\n",tiempo->tm_mday,tiempo->tm_mon+1,tiempo->tm_year+1900,tiempo->tm_hour,tiempo->tm_min,tiempo->tm_sec);
 
 
-	list_sort(particiones,tieneMenorOffset);
+	list_sort(particiones,(void *) tieneMenorOffset);
 	for(i = 0 ;  i < list_size(particiones); i++){
 		t_particion *particion = list_get(particiones,i);
 		if(estaLibre(particion)){
@@ -661,7 +716,7 @@ void mostrarEstadoDeMemoria(){
 			fprintf(dump,"Partición %d: 0x%08X-0x%08X [L] Size:%dB\n",(i+1),particion->offset,(particion->offset + particion->tamanioParticion - 1),particion->tamanioParticion);
 		}else{
 
-			fprintf(dump,"Partición %d: 0x%08X-0x%08X [X] Size:%dB LRU:%s Cola:%s ID:%d\n",(i+1),particion->offset,(particion->offset + particion->tamanioParticion - 1),particion->tamanioParticion,particion->ultimoAcceso,particion->colaDeMensaje,particion->ID_mensaje);
+			fprintf(dump,"Partición %d: 0x%08X-0x%08X [X] Size:%dB LRU:%lld Cola:%s ID:%d\n",(i+1),particion->offset,(particion->offset + particion->tamanioParticion - 1),particion->tamanioParticion,particion->ultimoAcceso,particion->colaDeMensaje,particion->ID_mensaje);
 		}
 	}
 	fprintf(dump,"------------------------------------------------------------------------------------------------------------------------------------------------------------------\n");
@@ -919,9 +974,7 @@ uint32_t dividirYObtenerIDParticionExacta(t_nodo *unNodo, uint32_t tamanioSolici
 }
 
 
-void buddySystem(t_mensaje *mensaje,char *nombreCola,void (*algoritmoReemplazo)(),t_particion *(*funcionCorrespondencia)(uint32_t),uint32_t frecuenciaLocal){
-
-	void *paqueteACachear = mensaje->paquete;
+void buddySystem(t_mensaje *mensaje,uint32_t frecuenciaLocal){
 
 	uint32_t tamPaquete = mensaje->tamanioPaquete;
 
@@ -935,13 +988,12 @@ void buddySystem(t_mensaje *mensaje,char *nombreCola,void (*algoritmoReemplazo)(
 
 	if(!existeParticionLibreParaCachearMensaje(tamPaqueteAuxiliar)){
 
-		algoritmoReemplazo();
+		singletonMemoria->ejecutarAlgoritmoDeReemplazo();
 
-		buddySystem(mensaje,nombreCola,algoritmoReemplazo,funcionCorrespondencia,frecuenciaLocal);
-
+		buddySystem(mensaje,frecuenciaLocal);
 
 	}else{
-		t_particion *particionLibre = funcionCorrespondencia(tamPaqueteAuxiliar);
+		t_particion *particionLibre = singletonMemoria->obtenerParticionLibre(tamPaqueteAuxiliar);
 
 		uint32_t posicionParticionLibre = obtenerPosicionIDParticion(particionLibre->ID_Particion);
 
@@ -951,11 +1003,11 @@ void buddySystem(t_mensaje *mensaje,char *nombreCola,void (*algoritmoReemplazo)(
 
 		if(tamanioRestante == 0){
 
-			modificarParticion(particionLibre,IDMensaje,nombreCola);
+			modificarParticion(particionLibre,IDMensaje,mensaje->colaALaQuePertenece);
 
-			escribirEnMemoria(paqueteACachear,tamPaqueteAuxiliar,offsetParticionLibre);
+			escribirEnMemoria(singletonMemoria->paqueteACachear,tamPaqueteAuxiliar,offsetParticionLibre);
 
-			free(paqueteACachear);
+			free(singletonMemoria->paqueteACachear);
 
 			printf("\033[1;32m");
 		    log_info(logObligatorio,"Se cacheó correctamente el mensaje con BROKER ID [%d]. La posición de inicio de la particion es %d",mensaje->ID_mensaje,offsetParticionLibre);
@@ -979,11 +1031,11 @@ void buddySystem(t_mensaje *mensaje,char *nombreCola,void (*algoritmoReemplazo)(
 
 			t_particion *particionNuevaAEscribir = obtenerParticion(idParticionLibre,PARTITION_ID);
 
-			modificarParticion(particionNuevaAEscribir,IDMensaje,nombreCola);
+			modificarParticion(particionNuevaAEscribir,IDMensaje,mensaje->colaALaQuePertenece);
 
-			escribirEnMemoria(paqueteACachear,tamPaqueteAuxiliar,offsetParticionLibre);
+			escribirEnMemoria(singletonMemoria->paqueteACachear,tamPaqueteAuxiliar,offsetParticionLibre);
 
-			free(paqueteACachear);
+			free(singletonMemoria->paqueteACachear);
 
 			printf("\033[1;32m");
 		    log_info(logObligatorio,"Se cacheó correctamente el mensaje con BROKER ID [%d]. La posición de inicio de la particion es %d",mensaje->ID_mensaje,offsetParticionLibre);
@@ -1010,43 +1062,11 @@ void buddySystem(t_mensaje *mensaje,char *nombreCola,void (*algoritmoReemplazo)(
 
 
 void setearHorarioAcceso(t_particion *particion){
-	free(particion->ultimoAcceso);
 	particion->ultimoAcceso = getHorario();
 }
 
-bool seUsoMenosRecientemente(void *particion1,void *particion2){
-
-	void limpiarPunteroAPuntero(char** puntero){
-		int i = 0;
-
-		while(puntero[i] != NULL){
-			free(puntero[i]);
-			i++;
-		}
-		free(puntero);
-	}
-
-	t_particion *unaParticion = particion1;
-	t_particion *otraParticion = particion2;
-
-	char *horario1 = unaParticion->ultimoAcceso;
-	char *horario2 = otraParticion->ultimoAcceso;
-
-	char **horario1Spliteado = string_split(horario1,":");
-	char **horario2Spliteado = string_split(horario2,":");
-
-	char *horario1Unificado = string_from_format("%s%s%s%s",horario1Spliteado[0],horario1Spliteado[1],horario1Spliteado[2],horario1Spliteado[3]);
-	char *horario2Unificado = string_from_format("%s%s%s%s",horario2Spliteado[0],horario2Spliteado[1],horario2Spliteado[2],horario2Spliteado[3]);
-
-	uint32_t valorHorario1 = atoi(horario1Unificado);
-	uint32_t valorHorario2 = atoi(horario2Unificado);
-
-	limpiarPunteroAPuntero(horario1Spliteado);
-	limpiarPunteroAPuntero(horario2Spliteado);
-	free(horario1Unificado);
-	free(horario2Unificado);
-
-	return valorHorario1 < valorHorario2;
+bool seUsoMenosRecientemente(t_particion *unaParticion,t_particion *otraParticion){
+	return unaParticion->ultimoAcceso < otraParticion->ultimoAcceso;
 }
 
 void liberarParticionBuddySystem(t_particion *particion){
@@ -1061,7 +1081,7 @@ void liberarParticionBuddySystem(t_particion *particion){
 
 	escribirEnMemoria(paqueteVacio,tamanioParticion,offset);
 
-    list_sort(particiones,tieneMenorOffset);
+    list_sort(particiones,(void *) tieneMenorOffset);
 
     t_nodo *nodoALiberar = buscarNodo(nodoRaiz,particion);
 
@@ -1069,14 +1089,12 @@ void liberarParticionBuddySystem(t_particion *particion){
 
     consolidarBuddy(nodoALiberar);
 
-    list_sort(particiones,tieneMenorOffset);
+    list_sort(particiones,(void *) tieneMenorOffset);
 
     free(paqueteVacio);
 }
 
-void particionesDinamicas(t_mensaje *mensaje,char *nombreCola,void (*algoritmoReemplazo)(),t_particion *(*funcionCorrespondencia)(uint32_t),uint32_t frecuenciaLocal){
-
-	void *paqueteACachear = mensaje->paquete;
+void particionesDinamicas(t_mensaje *mensaje,uint32_t frecuenciaLocal){
 
 	uint32_t tamPaquete = mensaje->tamanioPaquete;
 
@@ -1090,7 +1108,8 @@ void particionesDinamicas(t_mensaje *mensaje,char *nombreCola,void (*algoritmoRe
 
 	if(!existeParticionLibreParaCachearMensaje(tamPaqueteAuxiliar)){
 
-		algoritmoReemplazo();
+		singletonMemoria->ejecutarAlgoritmoDeReemplazo();
+
 		if(frecuenciaLocal > 0){
 			frecuenciaLocal--;
 		}
@@ -1106,15 +1125,15 @@ void particionesDinamicas(t_mensaje *mensaje,char *nombreCola,void (*algoritmoRe
 			frecuenciaLocal = frecuencia_compactacion;
 		}
 
-		particionesDinamicas(mensaje,nombreCola,algoritmoReemplazo,funcionCorrespondencia,frecuenciaLocal);
+		particionesDinamicas(mensaje,frecuenciaLocal);
 
 	}
 	else{
-		t_particion *particionLibre = funcionCorrespondencia(tamPaqueteAuxiliar);
+		t_particion *particionLibre = singletonMemoria->obtenerParticionLibre(tamPaqueteAuxiliar);
 
 		uint32_t posicionParticionLibre = obtenerPosicionIDParticion(particionLibre->ID_Particion);
 
-		modificarParticion(particionLibre,IDMensaje,nombreCola);
+		modificarParticion(particionLibre,IDMensaje,mensaje->colaALaQuePertenece);
 
 		uint32_t offsetParticionLibre = particionLibre->offset;
 
@@ -1122,9 +1141,9 @@ void particionesDinamicas(t_mensaje *mensaje,char *nombreCola,void (*algoritmoRe
 
 		if(tamanioRestante == 0){
 
-			escribirEnMemoria(paqueteACachear,tamPaqueteAuxiliar,offsetParticionLibre);
+			escribirEnMemoria(singletonMemoria->paqueteACachear,tamPaqueteAuxiliar,offsetParticionLibre);
 
-			free(paqueteACachear);
+			free(singletonMemoria->paqueteACachear);
 
 			printf("\033[1;32m");
 		    log_info(logObligatorio,"Se cacheó correctamente el mensaje con BROKER ID [%d]. La posición de inicio de la particion es %d",mensaje->ID_mensaje,offsetParticionLibre);
@@ -1133,13 +1152,12 @@ void particionesDinamicas(t_mensaje *mensaje,char *nombreCola,void (*algoritmoRe
 		    setearHorarioAcceso(particionLibre);
 
 			list_remove(particionesLibres,posicionParticionLibre);
-
 		}
 		else{
 
-			escribirEnMemoria(paqueteACachear,tamPaqueteAuxiliar,offsetParticionLibre);
+			escribirEnMemoria(singletonMemoria->paqueteACachear,tamPaqueteAuxiliar,offsetParticionLibre);
 
-			free(paqueteACachear);
+			free(singletonMemoria->paqueteACachear);
 
 			printf("\033[1;32m");
 		    log_info(logObligatorio,"Se cacheó correctamente el mensaje con BROKER ID [%d]. La posición de inicio de la particion es %d",mensaje->ID_mensaje,offsetParticionLibre);
@@ -1159,46 +1177,42 @@ void particionesDinamicas(t_mensaje *mensaje,char *nombreCola,void (*algoritmoRe
 	}
 }
 
-void cachearMensaje(t_mensaje *mensaje,char *nombreCola){
-	singletonMemoria->algoritmoMemoria(mensaje,nombreCola,singletonMemoria->algoritmoReemplazo,singletonMemoria->funcionCorrespondencia,frecuencia_compactacion);
+void cachearMensaje(t_mensaje *mensaje){
+	singletonMemoria->cachearMensaje(mensaje,frecuencia_compactacion);
 }
 
 void construirSingletonMemoria(){
 
-	singletonMemoria = malloc(sizeof(t_esquemaMemoria));
+	singletonMemoria = malloc(sizeof(t_singletonMemoria));
 
 	if(stringComparator("PARTICIONES",algoritmo_memoria)){
-		singletonMemoria->algoritmoMemoria = particionesDinamicas;
-		singletonMemoria->liberadorDeParticiones = liberarParticionParticionesDinamicas;
+		singletonMemoria->cachearMensaje = particionesDinamicas;
+		singletonMemoria->liberarParticion = liberarParticionParticionesDinamicas;
 	}else{
-		singletonMemoria->algoritmoMemoria = buddySystem;
-		singletonMemoria->liberadorDeParticiones = liberarParticionBuddySystem;
+		singletonMemoria->cachearMensaje = buddySystem;
+		singletonMemoria->liberarParticion = liberarParticionBuddySystem;
 		crearNodoPadre();
 	}
 
 	if(stringComparator("FF",algoritmo_particion_libre)){
-		singletonMemoria->funcionCorrespondencia = firstFit;
+		singletonMemoria->obtenerParticionLibre = firstFit;
 	}
 	else{
-		singletonMemoria->funcionCorrespondencia = bestFit;
+		singletonMemoria->obtenerParticionLibre = bestFit;
 	}
 
 	if(stringComparator("FIFO",algoritmo_reemplazo)){
-		singletonMemoria->algoritmoReemplazo = FIFO;
+		singletonMemoria->ejecutarAlgoritmoDeReemplazo = FIFO;
 	}
 	else{
-		singletonMemoria->algoritmoReemplazo = LRU;
+		singletonMemoria->ejecutarAlgoritmoDeReemplazo = LRU;
 	}
+
 }
 
-void agregarMensajeACola(t_mensaje *mensaje,t_list *colaDeMensajes,char *nombreCola){
-	pthread_mutex_lock(&semaforoMensajes);
+void agregarMensajeACola(t_mensaje *mensaje,t_list *colaDeMensajes){
 	list_add(colaDeMensajes,mensaje);
-	log_info(logObligatorio,"Un nuevo mensaje fue agregado a la cola %s. Su BROKER ID es [%d]",nombreCola,mensaje->ID_mensaje);
-
-	cachearMensaje(mensaje,nombreCola);
-
-	pthread_mutex_unlock(&semaforoMensajes);
+	log_info(logObligatorio,"Un nuevo mensaje fue agregado a la cola %s. Su BROKER ID es [%d]",mensaje->colaALaQuePertenece,mensaje->ID_mensaje);
 }
 
 
@@ -1230,12 +1244,11 @@ void compactarMemoria(){
 	uint32_t espacioLibre = 0;
 	uint32_t offsetLocalCache = 0;
 
-	t_list *listaAux = list_sorted(particiones,tieneMenorOffset);
+	t_list *listaAux = list_sorted(particiones,(void *) tieneMenorOffset);
 
 	for(int i = 0; i < list_size(listaAux);i++){
 
 		particionActual = list_get(listaAux,i);
-
 
 		if( i+1 >= list_size(listaAux)){
 
@@ -1247,6 +1260,7 @@ void compactarMemoria(){
 		}
 
 		uint32_t tamParticionActual = particionActual->tamanioParticion;
+
 		if(particionSiguiente == NULL){
 			if(estaLibre(particionActual)){
 
@@ -1286,7 +1300,9 @@ void compactarMemoria(){
 			uint32_t posParticionLibre = obtenerPosicionParticion(particionActual->ID_Particion);
 
 			list_remove(particiones,posParticionLibre);
+
 			i++;
+
 			free(particion);
 		}else{
 
@@ -1299,10 +1315,10 @@ void compactarMemoria(){
 			free(particion);
 
 			setearOffset(offsetLocalCache,particionActual);
+
 			offsetLocalCache += tamParticionActual;
 		}
 	}
-
 
 	list_clean(particionesLibres);
 
@@ -1315,6 +1331,7 @@ void compactarMemoria(){
 	setearOffset(offsetLocalCache,nuevaParticion);
 
 	list_add(particiones,nuevaParticion);
+
 	list_add(particionesLibres,&(nuevaParticion->ID_Particion));
 
 	free(paquete);
@@ -1355,10 +1372,8 @@ void eliminarMensaje(uint32_t ID, t_list *colaDeMensajes,char *nombreCola,t_FLAG
 }
 
 void destruirMensaje(t_mensaje *mensaje){
-	//void *paquete = mensaje->paquete;
 	t_list *suscriptoresQueRecibieronMensaje = mensaje->suscriptoresQueRecibieronMensaje;
 	t_list *suscriptoresALosQueMandeMensaje = mensaje->suscriptoresALosQueMandeMensaje;
-	//free(paquete);
 	list_destroy_and_destroy_elements(suscriptoresALosQueMandeMensaje,(void *) destruirIdentificador);
 	list_destroy_and_destroy_elements(suscriptoresQueRecibieronMensaje,(void *) destruirIdentificador);
 	free(mensaje);
@@ -1415,18 +1430,11 @@ t_particion *crearParticion(uint32_t tamanioParticion){
 }
 
 void destruirParticion(t_particion *particion){
-	char* horario = particion->ultimoAcceso;
-	free(horario);
 	free(particion);
 }
 
 void setearOffset(uint32_t offset,t_particion *particion){
 	particion->offset = offset;
-}
-
-uint32_t espacioDisponible(){
-	uint32_t tamanioDisponible = tamanio_memoria - offsetCache;
-	return tamanioDisponible;
 }
 
 uint32_t *obtenerIDParticion(t_particion *particion){
@@ -1466,21 +1474,21 @@ t_particion *obtenerParticion(uint32_t elem,t_FLAG flag){
 	if(flag == BROKER_ID){
 		particion = obtenerParticionDeParticiones(elem,obtenerIDMensajeParticion);
 		if(particion == NULL){
-			log_error(logObligatorio,"No se pudo obtener la particion según BROKER ID [%d]",elem);
+			log_error(logExtra,"No se pudo obtener la particion según BROKER ID [%d]",elem);
 		}
 	}
 
 	if(flag == SIZE_PARTITION){
 		particion = obtenerParticionDeParticiones(elem,obtenerTamanioParticion);
 		if(particion == NULL){
-			log_error(logObligatorio,"No se pudo obtener la particion según el tamanio [%d]",elem);
+			log_error(logExtra,"No se pudo obtener la particion según el tamanio [%d]",elem);
 		}
 	}
 
 	if(flag == PARTITION_ID){
 		particion = obtenerParticionDeParticiones(elem,obtenerIDParticion);
 		if(particion == NULL){
-			log_error(logObligatorio,"No se pudo obtener la particion con ID [%d]",elem);
+			log_error(logExtra,"No se pudo obtener la particion con ID [%d]",elem);
 		}
 	}
 
@@ -1507,13 +1515,11 @@ void *descachearPaquete(t_mensaje *mensaje,char *colaDePokemon){
 		free(paquete);
 		void *paqueteConDosID = insertarIDEnPaquete(IDMensaje,paqueteConUnID,tamPaquete + sizeof(uint32_t),DOUBLE_ID);
 		free(paqueteConUnID);
-
 		return paqueteConDosID;
 	}
 	else{
 		void *paqueteConUnID = insertarIDEnPaquete(IDMensaje,paquete,tamPaquete+sizeof(uint32_t),0);
 		free(paquete);
-
 		return paqueteConUnID;
 	}
 }
@@ -1522,20 +1528,12 @@ bool tienenIDCorrelativoLosMensajes(char *nombreCola){
 	return stringComparator(nombreCola,"APPEARED_POKEMON") || stringComparator(nombreCola,"CAUGHT_POKEMON") || stringComparator(nombreCola,"LOCALIZED_POKEMON");
 }
 
-bool tieneMenorOffset(void *particion1,void *particion2){
-	t_particion *unaParticion = particion1;
-	t_particion *otraParticion = particion2;
-
-	uint32_t offsetUnaParticion = unaParticion->offset;
-	uint32_t offsetOtraParticion = otraParticion->offset;
-
-	return offsetUnaParticion < offsetOtraParticion;
+bool tieneMenorOffset(t_particion *unaParticion,t_particion *otraParticion){
+	return unaParticion->offset < otraParticion->offset;
 }
 
 void enviarMensajeRecibidoASuscriptores(t_list *listaSuscriptores,void(*funcionDeEnvio)(t_suscriptor *)){
-	pthread_mutex_lock(&semaforoMensajes);
 	list_iterate(listaSuscriptores,(void *) funcionDeEnvio);
-	pthread_mutex_unlock(&semaforoMensajes);
 }
 
 void *quitarIDPaquete(void *paquete,uint32_t tamanioPaquete){
@@ -1650,14 +1648,13 @@ bool todosRecibieronElMensaje(t_mensaje *mensaje,t_list *listaSuscriptores){
 	return !resultado;
 }
 
-
+//NO hay que borrar el mensaje una vez que todos los suscriptores lo recibieron.
 void validarRecepcionMensaje(uint32_t ID_mensaje,t_operacion nombreCola,char *ID_proceso){
 	t_mensaje *mensaje;
 
 	char *idAAgregar = string_duplicate(ID_proceso);
 	free(ID_proceso);
 
-	pthread_mutex_lock(&semaforoMensajes);
 	switch (nombreCola) {
 	         	case t_NEW:;
                     mensaje = obtenerMensaje(ID_mensaje,NEW_POKEMON,BROKER_ID);
@@ -1671,10 +1668,12 @@ void validarRecepcionMensaje(uint32_t ID_mensaje,t_operacion nombreCola,char *ID
                     list_add(mensaje->suscriptoresQueRecibieronMensaje,idAAgregar);
                     log_info(logObligatorio,"%s recibió satisfactoriamente el mensaje con ID %d de la cola NEW_POKEMON",idAAgregar,ID_mensaje);
 
+                    /*
                     if(todosRecibieronElMensaje(mensaje,suscriptores_NEW_POKEMON)){
                     	eliminarMensaje(ID_mensaje,NEW_POKEMON,"NEW_POKEMON",ACK);
                     	singletonMemoria->liberadorDeParticiones(obtenerParticion(ID_mensaje,BROKER_ID));
                     }
+                    */
 
 	     			break;
 
@@ -1690,10 +1689,13 @@ void validarRecepcionMensaje(uint32_t ID_mensaje,t_operacion nombreCola,char *ID
                     list_add(mensaje->suscriptoresQueRecibieronMensaje,idAAgregar);
                     log_info(logObligatorio,"%s recibió satisfactoriamente el mensaje con ID %d de la cola LOCALIZED_POKEMON",idAAgregar,ID_mensaje);
 
+
+                    /*
                     if(todosRecibieronElMensaje(mensaje,suscriptores_LOCALIZED_POKEMON)){
                     	eliminarMensaje(ID_mensaje,LOCALIZED_POKEMON,"LOCALIZED_POKEMON",ACK);
                     	singletonMemoria->liberadorDeParticiones(obtenerParticion(ID_mensaje,BROKER_ID));
                     }
+                    */
 
 	     			break;
 
@@ -1710,10 +1712,12 @@ void validarRecepcionMensaje(uint32_t ID_mensaje,t_operacion nombreCola,char *ID
                     list_add(mensaje->suscriptoresQueRecibieronMensaje,idAAgregar);
                     log_info(logObligatorio,"%s recibió satisfactoriamente el mensaje con ID %d de la cola GET_POKEMON",idAAgregar,ID_mensaje);
 
+                    /*
                     if(todosRecibieronElMensaje(mensaje,suscriptores_GET_POKEMON)){
                     	eliminarMensaje(ID_mensaje,GET_POKEMON,"GET_POKEMON",ACK);
                     	singletonMemoria->liberadorDeParticiones(obtenerParticion(ID_mensaje,BROKER_ID));
                     }
+                    */
 
 	     			break;
 
@@ -1730,10 +1734,12 @@ void validarRecepcionMensaje(uint32_t ID_mensaje,t_operacion nombreCola,char *ID
                     list_add(mensaje->suscriptoresQueRecibieronMensaje,idAAgregar);
                     log_info(logObligatorio,"%s recibió satisfactoriamente el mensaje con ID %d de la cola APPEARED_POKEMON",idAAgregar,ID_mensaje);
 
+                    /*
                     if(todosRecibieronElMensaje(mensaje,suscriptores_APPEARED_POKEMON)){
                     	eliminarMensaje(ID_mensaje,APPEARED_POKEMON,"APPEARED_POKEMON",ACK);
                     	singletonMemoria->liberadorDeParticiones(obtenerParticion(ID_mensaje,BROKER_ID));
                     }
+                    */
 
 	     			break;
 
@@ -1749,10 +1755,12 @@ void validarRecepcionMensaje(uint32_t ID_mensaje,t_operacion nombreCola,char *ID
                     list_add(mensaje->suscriptoresQueRecibieronMensaje,idAAgregar);
                     log_info(logObligatorio,"%s recibió satisfactoriamente el mensaje con ID %d de CATCH_POKEMON",idAAgregar,ID_mensaje);
 
+                    /*
                     if(todosRecibieronElMensaje(mensaje,suscriptores_CATCH_POKEMON)){
                     	eliminarMensaje(ID_mensaje,CATCH_POKEMON,"CATCH_POKEMON",ACK);
                     	singletonMemoria->liberadorDeParticiones(obtenerParticion(ID_mensaje,BROKER_ID));
                     }
+                    */
 
 	     			break;
 
@@ -1768,17 +1776,18 @@ void validarRecepcionMensaje(uint32_t ID_mensaje,t_operacion nombreCola,char *ID
                     list_add(mensaje->suscriptoresQueRecibieronMensaje,idAAgregar);
                     log_info(logObligatorio,"%s recibió satisfactoriamente el mensaje con ID %d de CAUGHT_POKEMON",idAAgregar,ID_mensaje);
 
+                    /*
                     if(todosRecibieronElMensaje(mensaje,suscriptores_CAUGHT_POKEMON)){
                     	eliminarMensaje(ID_mensaje,CAUGHT_POKEMON,"CAUGHT_POKEMON",ACK);
                     	singletonMemoria->liberadorDeParticiones(obtenerParticion(ID_mensaje,BROKER_ID));
                     }
+                    */
 
 	     			break;
 
 	     		default:
 	     			break;
 	     		}
-	pthread_mutex_unlock(&semaforoMensajes);
 }
 
 char *asignarIDProceso(char *nombreProceso){
@@ -1788,7 +1797,7 @@ char *asignarIDProceso(char *nombreProceso){
 	char *contadorGameCard;
 
 	if(stringComparator("Team",nombreProceso)){
-		pthread_mutex_lock(&semaforoIDTeam);
+		pthread_mutex_lock(&semaforoIDMensaje);
 		contadorIDTeam++;
 		contadorTeam = string_itoa(contadorIDTeam);
 		contadorMensajes = string_itoa(contadorIDMensaje);
@@ -1798,10 +1807,10 @@ char *asignarIDProceso(char *nombreProceso){
 	    config_set_value(config,"CONTADOR_ID_GAMECARD",contadorGameCard);
 	    config_save(config);
 		ID_generado = string_itoa(contadorIDTeam);
-		pthread_mutex_unlock(&semaforoIDTeam);
+		pthread_mutex_unlock(&semaforoIDMensaje);
 	}
 	else if(stringComparator("GameCard",nombreProceso)){
-		pthread_mutex_lock(&semaforoIDGameCard);
+		pthread_mutex_lock(&semaforoIDMensaje);
 		contadorIDGameCard++;
 		contadorTeam = string_itoa(contadorIDTeam);
 		contadorMensajes = string_itoa(contadorIDMensaje);
@@ -1811,7 +1820,7 @@ char *asignarIDProceso(char *nombreProceso){
 	    config_set_value(config,"CONTADOR_ID_GAMECARD",contadorGameCard);
 	    config_save(config);
 		ID_generado = string_itoa(contadorIDGameCard);
-		pthread_mutex_unlock(&semaforoIDGameCard);
+		pthread_mutex_unlock(&semaforoIDMensaje);
 	}
 
 	char *identificadorProceso = string_from_format("%s-%s",nombreProceso,ID_generado);
@@ -1876,12 +1885,12 @@ uint32_t asignarIDMensaje(){
 }
 
 
-t_mensaje *crearMensaje(void *paquete,uint32_t ID,uint32_t ID_correlativo,uint32_t tamanioPaquete){
+t_mensaje *crearMensaje(uint32_t ID,uint32_t ID_correlativo,uint32_t tamanioPaquete,char *nombreCola){
 	t_mensaje *mensaje = malloc(sizeof(t_mensaje));
-	mensaje->paquete = paquete;
 	mensaje->tamanioPaquete = tamanioPaquete;
 	mensaje->ID_mensaje = ID;
 	mensaje->ID_correlativo = ID_correlativo;
+	mensaje->colaALaQuePertenece = nombreCola;
 	mensaje->suscriptoresQueRecibieronMensaje = list_create();
 	mensaje->suscriptoresALosQueMandeMensaje = list_create();
 
@@ -1912,7 +1921,6 @@ void setearValoresConfig(){
 
 }
 
-//TODO liberarNodos Buddy
 void liberarRecursosAdministracionMemoria(){
 	free(singletonMemoria);
 	list_destroy_and_destroy_elements(particiones,(void * )destruirParticion);
@@ -1947,24 +1955,12 @@ void destruirListasSuscriptores(){
 }
 
 void inicializarSemaforos(){
-    for(int i = 0; i < 7; i++){
-    	pthread_mutex_init(&semaforoProcesamientoSolicitud[i],NULL);
-    }
     pthread_mutex_init(&semaforoIDMensaje,NULL);
-    pthread_mutex_init(&semaforoIDTeam,NULL);
-    pthread_mutex_init(&semaforoIDGameCard,NULL);
     pthread_mutex_init(&semaforoMensajes,NULL);
 }
 
 void destruirSemaforos(){
-
-	for(int i = 0; i < 7; i++){
-		pthread_mutex_destroy(&semaforoProcesamientoSolicitud[i]);
-	}
-
     pthread_mutex_destroy(&semaforoIDMensaje);
-    pthread_mutex_destroy(&semaforoIDTeam);
-    pthread_mutex_destroy(&semaforoIDGameCard);
     pthread_mutex_destroy(&semaforoMensajes);
 }
 
@@ -1975,9 +1971,6 @@ void destruirColas(){
 	list_destroy(CAUGHT_POKEMON);
 	list_destroy(GET_POKEMON);
 	list_destroy(LOCALIZED_POKEMON);
-	//TODO
-	//list_destroy_and_destroy_elements
-	//Desarrollar función destructora de mensajes.
 }
 
 uint32_t obtenerPosicionSuscriptor(char *identificadorProceso,t_list *listaSuscriptores){
@@ -2010,7 +2003,6 @@ char *obtenerIDSuscriptor(t_suscriptor *suscriptor){
 }
 
 void enviarMensajesCacheados(t_suscriptor *suscriptor,t_list *colaMensajes,char *nombreCola,t_operacion operacion,t_FLAG flag){
-	int socketSuscriptor = suscriptor->socket_suscriptor;
 	t_mensaje *mensaje;
 	uint32_t tamPaquete;
 	uint32_t tamID = 0;
@@ -2029,7 +2021,7 @@ void enviarMensajesCacheados(t_suscriptor *suscriptor,t_list *colaMensajes,char 
 				mensaje = list_get(colaMensajes,i);
 				tamPaquete = mensaje->tamanioPaquete;
 				paqueteAEnviar = descachearPaquete(mensaje,nombreCola);
-				packAndSend(socketSuscriptor,paqueteAEnviar,tamPaquete+tamID,operacion);
+				packAndSend(suscriptor->socket_suscriptor,paqueteAEnviar,tamPaquete+tamID,operacion);
 				free(paqueteAEnviar);
 				printf("\033[1;31m");
 				log_info(logObligatorio,"Le mandé a %s el mensaje con BROKER ID [%d] de la cola %s",suscriptor->identificadorProceso,mensaje->ID_mensaje,nombreCola);
@@ -2042,7 +2034,7 @@ void enviarMensajesCacheados(t_suscriptor *suscriptor,t_list *colaMensajes,char 
 				if(!existeACK(suscriptor,acks)){
 					paqueteAEnviar = descachearPaquete(mensaje,nombreCola);
 					tamPaquete = mensaje->tamanioPaquete;
-					packAndSend(socketSuscriptor,paqueteAEnviar,tamPaquete+tamID,operacion);
+					packAndSend(suscriptor->socket_suscriptor,paqueteAEnviar,tamPaquete+tamID,operacion);
 					free(paqueteAEnviar);
 					printf("\033[1;31m");
 					log_info(logObligatorio,"Le mandé a %s el mensaje con BROKER ID [%d] de la cola %s",suscriptor->identificadorProceso,mensaje->ID_mensaje,nombreCola);
@@ -2080,7 +2072,6 @@ void suscribirProceso(char *idProceso,int cliente_fd,t_operacion operacionSuscri
 	free(idProceso);
 	nuevoSuscriptor = crearSuscriptor(identificadorProceso,cliente_fd);
 
-	pthread_mutex_lock(&semaforoMensajes);
 	switch (operacionSuscripcion) {
 	         	case t_NEW:;
 
@@ -2133,5 +2124,4 @@ void suscribirProceso(char *idProceso,int cliente_fd,t_operacion operacionSuscri
 	     		default:
 	     			break;
 	     		}
-	pthread_mutex_unlock(&semaforoMensajes);
 }

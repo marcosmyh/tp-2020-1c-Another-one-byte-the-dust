@@ -14,9 +14,9 @@
 #include <commons/string.h>
 #include <string.h>
 #include <pthread.h>
-#include <commons/temporal.h>
 #include <math.h>
 #include <signal.h>
+#include <sys/time.h>
 
 typedef enum{
 	CORRELATIVE_ID = 1,
@@ -40,8 +40,8 @@ typedef struct
 {
 	uint32_t ID_mensaje;
 	uint32_t ID_correlativo;
-	void *paquete;
 	uint32_t tamanioPaquete;
+	char *colaALaQuePertenece;
 	t_list *suscriptoresALosQueMandeMensaje;
 	t_list *suscriptoresQueRecibieronMensaje;
 } t_mensaje;
@@ -53,23 +53,18 @@ typedef struct
 	uint32_t offset;
 	uint32_t ID_mensaje;
 	char *colaDeMensaje;
-	char *ultimoAcceso;
+	uint64_t ultimoAcceso;
 }t_particion;
 
-typedef void(*AlgoritmoMemoria)(t_mensaje *,char *,void(*)(),t_particion *(*)(uint32_t),uint32_t);
-typedef t_particion *(*FuncionCorrespondencia)(uint32_t);
-typedef void(*AlgoritmoReemplazo)();
-typedef void(*LiberadorDeParticiones)(t_particion *);
 
 typedef struct
 {
-	AlgoritmoMemoria algoritmoMemoria;
-	FuncionCorrespondencia funcionCorrespondencia;
-	AlgoritmoReemplazo algoritmoReemplazo;
-	LiberadorDeParticiones liberadorDeParticiones;
-
-}t_esquemaMemoria;
-
+	void *paqueteACachear;
+	void(*cachearMensaje)(t_mensaje *,uint32_t);
+	t_particion *(*obtenerParticionLibre)(uint32_t);
+	void(*ejecutarAlgoritmoDeReemplazo)();
+	void(*liberarParticion)(t_particion *);
+}t_singletonMemoria;
 
 typedef struct nodo{
 	uint32_t id;
@@ -89,7 +84,7 @@ uint32_t contadorIDGameCard;
 uint32_t contadorParticiones = 0;
 t_nodo* nodoRaiz;
 
-t_esquemaMemoria *singletonMemoria;
+t_singletonMemoria *singletonMemoria;
 t_log *logObligatorio;
 t_log *logExtra;
 t_config *config;
@@ -121,10 +116,7 @@ t_list *LOCALIZED_POKEMON;
 t_list *suscriptores_LOCALIZED_POKEMON;
 pthread_t hiloAtencionCliente;
 pthread_mutex_t semaforoIDMensaje;
-pthread_mutex_t semaforoIDTeam;
-pthread_mutex_t semaforoIDGameCard;
 pthread_mutex_t semaforoMensajes;
-pthread_mutex_t semaforoProcesamientoSolicitud[8];
 
 t_log *crearLogger(char *,bool);
 t_config *crearConfig();
@@ -133,11 +125,11 @@ int esperar_cliente(int);
 void atender_cliente(int *);
 void procesar_solicitud(Header,int);
 void setearValoresConfig();
-void agregarMensajeACola(t_mensaje *,t_list *,char *);
+void agregarMensajeACola(t_mensaje *,t_list *);
 void inicializarColas();
 void destruirColas();
 void suscribirProceso(char *,int ,t_operacion);
-t_mensaje *crearMensaje(void *,uint32_t,uint32_t,uint32_t);
+t_mensaje *crearMensaje(uint32_t,uint32_t,uint32_t,char *);
 uint32_t asignarIDMensaje();
 void inicializarListasSuscriptores();
 void destruirListasSuscriptores();
@@ -163,7 +155,6 @@ uint32_t obtenerPosicionMensaje(t_mensaje *,t_list *);
 void eliminarMensaje(uint32_t, t_list *,char *,t_FLAG);
 void compactarMemoria();
 t_particion *crearParticion(uint32_t);
-uint32_t espacioDisponible();
 void *descachearPaquete(t_mensaje *,char *);
 t_particion *obtenerParticion(uint32_t,t_FLAG);
 void ocuparEspacio(t_particion *);
@@ -177,10 +168,10 @@ void destruirParticion(t_particion *);
 void setearOffset(uint32_t,t_particion *);
 void inicializarSemaforos();
 void destruirSemaforos();
-void particionesDinamicas(t_mensaje *,char *,void (*)(),t_particion *(*)(uint32_t),uint32_t);
-void cachearMensaje(t_mensaje *,char *);
+void particionesDinamicas(t_mensaje *,uint32_t);
+void cachearMensaje(t_mensaje *);
 void liberarRecursosAdministracionMemoria();
-bool tieneMenorOffset(void *,void *);
+bool tieneMenorOffset(t_particion *,t_particion *);
 void consolidarParticion(t_particion *);
 uint32_t obtenerPosicionParticion(uint32_t);
 void modificarParticion(t_particion *,uint32_t,char *);
@@ -189,7 +180,7 @@ void mostrarContenidoLista(t_list*,void(*)(void *));
 void imprimirNumero(void *);
 void imprimirString(void *contenidoAMostrar);
 uint32_t obtenerPosicionIDParticion(uint32_t);
-void buddySystem(t_mensaje *,char *,void (*)(),t_particion *(*)(uint32_t),uint32_t);
+void buddySystem(t_mensaje *,uint32_t);
 void construirSingletonMemoria();
 void liberarParticionParticionesDinamicas(t_particion *);
 void liberarParticionBuddySystem(t_particion *);
@@ -198,23 +189,23 @@ void LRU();
 t_particion *firstFit(uint32_t);
 t_particion *bestFit(uint32_t);
 uint32_t *obtenerOffsetParticion(t_particion *);
-bool tieneMenorIDMensaje(void *,void *);
+bool tieneMenorIDMensaje(t_particion *,t_particion *);
 char *obtenerIDSuscriptor(t_suscriptor *);
 bool existeSuscriptor(char *,t_list *);
 void agregarSuscriptor(t_suscriptor *,t_list *,char *);
 bool todosRecibieronElMensaje(t_mensaje *,t_list *);
 void destruirSuscriptor(t_suscriptor *);
-char *getHorario();
 void setearHorarioAcceso(t_particion *);
-bool seUsoMenosRecientemente(void *,void *);
+bool seUsoMenosRecientemente(t_particion *,t_particion *);
 void ordenarParticionesLibres(bool(*)(void *,void*));
 void ordenarParticionesLibresSegun(t_FLAG);
-bool tieneMenorTamanio(void *,void *);
+bool tieneMenorTamanio(t_particion *,t_particion *);
 void recorrerParticionesYLiberar(t_list *,char *);
 t_list *obtenerColaMensaje(char *);
 void dumpDeCache(int);
 void mostrarEstadoDeMemoria();
 void dumpDeCache(int);
+uint64_t getHorario();
 t_nodo* crearNodo(t_particion *);
 void limpiarNodo(t_nodo *);
 void crearNodoPadre();
@@ -235,6 +226,7 @@ void consolidarBuddy(t_nodo *);
 uint32_t dividirYObtenerIDParticionExacta(t_nodo *, uint32_t);
 bool existeParticionLibreParaCachearMensaje(uint32_t);
 void enviarIDAlProductor(int,uint32_t,int);
+void enviarACK(int,uint32_t,t_operacion);
 
 
 #endif
