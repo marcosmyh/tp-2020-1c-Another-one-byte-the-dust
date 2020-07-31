@@ -117,6 +117,7 @@ sem_t semaforoInicioDeadlock;
 
 sem_t semaforoPlanificacionReady;
 sem_t semaforoPlanificacionExec;
+sem_t semaforoDeteccionDeadlocks;
 
 pthread_mutex_t mutexPokemonesEnMapa;
 pthread_mutex_t mutexPlanificacionReady;
