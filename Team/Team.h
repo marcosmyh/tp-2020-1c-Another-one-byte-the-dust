@@ -114,6 +114,7 @@ sem_t semaforoControlAppeared;
 sem_t semaforoAgregadoPokemones;
 sem_t semaforoExec;
 sem_t semaforoInicioDeadlock;
+sem_t semaforoPlanificacionInicialReady;
 
 sem_t semaforoPlanificacionReady;
 sem_t semaforoPlanificacionExec;

@@ -55,6 +55,7 @@ void inicializarSemaforosTeam(){
 	sem_init(&semaforoPlanificacionReady,0,obtenerCantidadEntrenadores());
 	sem_init(&semaforoPlanificacionExec,0,0);
 	sem_init(&semaforoDeteccionDeadlocks,0,0);
+	sem_init(&semaforoPlanificacionInicialReady,0,0);
 
 	pthread_mutex_init(&mutexPokemonesEnMapa,NULL);
 	pthread_mutex_init(&mutexPlanificacionReady,NULL);
@@ -364,7 +365,11 @@ void procedimientoMensajeAppeared(t_infoPaquete *infoAppeared){
     			destruirInfoPaquete(infoAppeared);
     		    pthread_mutex_unlock(&mutexPokemonesEnMapa);
     		    pthread_mutex_unlock(&mutexEntrenadoresReady);
+
+    		    if(!hayPokemones){
+    		    sem_post(&semaforoPlanificacionInicialReady);
     		    hayPokemones = true;
+    		    }
     }
     else{
     	        if(esSocketBroker(socket)){
@@ -420,7 +425,12 @@ void procedimientoMensajeLocalized(t_infoPaquete *infoLocalized){
 			list_add(pokemonesEnMapa, pokemonAAtrapar);
 			pthread_mutex_unlock(&mutexPokemonesEnMapa);
 			pthread_mutex_unlock(&mutexEntrenadoresReady);
-			hayPokemones = true;
+
+		    if(!hayPokemones){
+		    sem_post(&semaforoPlanificacionInicialReady);
+		    hayPokemones = true;
+		    }
+
 		}
 		enviarACK(ID, t_LOCALIZED);
 		destruirInfoPaquete(infoLocalized);
@@ -1284,6 +1294,7 @@ void planificarEntrenadoresBis(){
 		sem_wait(&semaforoPlanificacionExec);
 
 		if (list_is_empty(pokemonesEnMapa) && !planificacionCompleta && !hayPokemonesParaAtrapar()){
+			printf("4 \n");
 			//ESTO ES PARA CUANDO ME QUEDO SIN POKEMONES EN READY PARA QUE NO SE BLOQUEE
 			sem_post(&semaforoPlanificacionExec);
 		}else{
@@ -1307,13 +1318,16 @@ void planificarEntrenadoresBis(){
 				pthread_detach(hiloEntrenador);
 			}
 			else if(list_is_empty(colaExec) || planificacionCompleta){
+				printf("5 \n");
 				sem_post(&semaforoPlanificacionExec);
 			}
+		//rintf("2 \n");
 		}
 
 		if(list_size(entrenadores) == list_size(colaExit)){
 			break;
 		}
+
 		//sleep(3);
 		//log_info(logger,":DDDDDDD");
 		//sem_post(&semaforoPlanificacionExec);
@@ -2076,8 +2090,9 @@ void planificarEntradaAReady(){
 	//ESTO PLANIFICA DE NEW A READY Y DE BLOCKED A READY
 	log_info(logger, "Se empezará la planificacion a Ready de entrendores");
 
+	//aca iría un wait
+	sem_wait(&semaforoPlanificacionInicialReady);
 	while(1){
-		if(hayPokemones){
 			int valorSemPlanificadorReady;
 			sem_getvalue(&semaforoPlanificacionReady,&valorSemPlanificadorReady);
 			if(valorSemPlanificadorReady >0){
@@ -2109,9 +2124,7 @@ void planificarEntradaAReady(){
 				break;
 			}
 
-		}
-
-
+			printf("1 \n");
 	}
 
 	planificacionInicialReady = true;
