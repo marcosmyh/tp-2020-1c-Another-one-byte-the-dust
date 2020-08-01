@@ -4,6 +4,10 @@ cd /home/utnso/Escritorio
 mkdir tall-grass
 cd /home/utnso/workspace
 git clone https://github.com/sisoputnfrba/delibird-pruebas.git
+git clone https://github.com/sisoputnfrba/so-commons-library.git
+cd so-commons-library
+sudo make install
+cd ..
 cd tp-2020-1c-Another-one-byte-the-dust
 cd Serializacion
 make
