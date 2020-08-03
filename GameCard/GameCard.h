@@ -90,6 +90,12 @@ typedef struct{
 	void *paquete;
 }t_infoPack;
 
+typedef struct{
+	char* pokemon;
+	int size;
+	char* bloques;
+}t_FCB;
+
 ////////////
 // Carga default del FS
 ////////////
@@ -147,17 +153,18 @@ bool contieneEstaPosicion(char* lineas,char* arrayPosicion);
 int escribirBloquePosicionandoPuntero(char* nombreDeBloque,char* stringAEscribir,int desplazamiento);
 void crearDirectorio(char* pathDeDirectorio);
 int verificarYAbrirArchivo(char* pokemon);
-int espacioLibreDeBloque(char* nombreDeBloque);
-int tamanioBloque(char* nombreDeBloque);
 char* obtenerContenidoDeArchivo(char* bloques);
+int solicitarBloquesParaPokemonBis(t_FCB* pokemone,int cantidadDeBloques);
+void liberarBloquesParaPokemon(t_FCB* pokimane, int cantidadDeBloques);
+void escribirEnFinDeArchivoBis(t_FCB* pokemone,char* datos);
 
 // cositar para new
-int agregarNuevaPosicion(char* contenidoAagregar,char* bloques,char* nombrePokemon);
-void actualizacionDeBloques(int desplazamientoDeCambio,char* posiciones,char* pokemon);
-int anadirCantidad(char* posiciones,char* posicionBuscada,int cantidadASumar,char* bloquesString,char* pokemon);
+int agregarNuevaPosicionBis(char* contenidoAagregar,t_FCB* metaPokemon);
+void actualizacionDeBloques(int desplazamientoDeCambio,char* posiciones,t_FCB* pokimane);
+int anadirCantidad(char* posiciones,char* posicionBuscada,int cantidadASumar,t_FCB* pokemone);
 
 //Cosas para Catch
-void disminuirCantidad(char* posiciones,char* posicionBuscada,char* bloquesString,char* pokemon);
+void disminuirCantidad(char* posiciones,char* posicionBuscada,t_FCB *pokimane);
 
 
 // Utilidades para pokemon
@@ -166,11 +173,9 @@ int existePokemon(char* nombrePokemon);
 void crearPokemon(char* nombrePokemon);
 bool archivoAbierto(char* nombrePokemon);
 void abrirArchivo(char* nombrePokemon);
-void cerrarArchivo(char* nombrePokemon);
-void editarTamanioPokemon(char* nombrePokemon,int cantidad);
-void agregarBloqueAPokemon(char* nombrePokemon,int numeroDeBloque);
-char* obtenerBloquesDelPokemon(char* pokemon);
-int obtenerTamanioDePokemon(char* pokemon);
+void cerrarArchivoBis(t_FCB* pokemon);
+void editarTamanioPokemonBis(t_FCB* pokemone,int cantidad);
+void agregarBloqueAPokemonBis(t_FCB* pokemone,int numeroDeBloque);
 
 // PROCEDIMIENTOS
 int procedimientoNEW(char* pokemon,uint32_t posx,uint32_t posy,uint32_t cantidad);
