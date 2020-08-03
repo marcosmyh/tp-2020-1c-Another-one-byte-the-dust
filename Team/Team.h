@@ -38,9 +38,10 @@ typedef struct{
 
 typedef enum{
 	t_NEW_STATE,
-	t_BLOCKED_STATE
+	t_BLOCKED_STATE,
+	t_EXCHANGE_STATE,
+	t_CATCH_STATE
 } t_FLAG;
-
 
 typedef enum{
 	t_atraparPokemon,
@@ -63,8 +64,11 @@ struct t_entrenador{
 	int rafagasEjecutadas;
 	int distancia;
 	int distanciaAPokemon;
+	int distanciaAEntrenador;
 	int cantPokemonesPorAtrapar;
 	int contadorRR;
+	bool llegoMensajeCaught;
+	bool seCalculoEstimacion;
 	uint32_t IdCatch;
 	bool ocupado;
 	bool completoObjetivo;
@@ -86,7 +90,10 @@ t_list* colaReady;
 t_list* colaExec;
 t_list* colaBlocked;
 t_list* colaExit;
-t_list *pokemonesDuranteEjecucion;
+
+//Estas listas se utilizan para descartar pokemones que llegan por localized y no hacen falta
+t_list *pokemonesAppeared;
+t_list *pokemonesLocalized;
 
 //VARIABLES
 t_planificador *planificador;
@@ -133,7 +140,7 @@ int cambiosDeContexto = 0;
 int deadlocksProducidos = 0;
 int deadlocksResueltos = 0;
 
-
+t_FLAG tipoPlanificacion = t_CATCH_STATE;
 bool comenzoDeteccionDeadlock = 0;
 int contadorCaught = 0;
 bool hayQueDesalojar = 0;
@@ -181,7 +188,6 @@ void destruirSemaforosTeam();
 void inicializarHilosTeam();
 void inicializarSemaforosTeam();
 bool hayPokemones = 0;
-bool hayEntrenadores = 0;
 int tamArray (char** puntero);
 bool charContains(char *cadena,char caracter);
 void crearLogger();
@@ -206,7 +212,7 @@ void inicializarColas();
 void enviarPokemonesAlBroker();
 void enviarGET(char* pokemon);
 void enviarCATCH(char* pokemon, uint32_t coordenadaX, uint32_t coordenadaY);
-void enviarACK(uint32_t ID, t_operacion operacion);
+void enviarACKBroker(uint32_t ID, t_operacion operacion);
 void inicializarSemaforosEntrenadores();
 bool estaEnElObjetivo(char* pokemon);
 bool yaFueAtrapado(char* pokemon);
@@ -282,7 +288,8 @@ bool stringComparator(void *unString, void *otroString);
 void transicionAReady(t_entrenador *entrenador,t_FLAG estado);
 void transicionDeBlockedAReady(t_entrenador *entrenador);
 void transicionDeNewAReady(t_entrenador *entrenador);
-t_entrenador *entrenadorQueVaAReady(t_list *,int);
+t_entrenador *entrenadorQueVaAReadyNormal(t_list *);
+t_entrenador *entrenadorQueVaAReadyConDeadlock(t_list *);
 t_list *obtenerEntrenadoresDisponibles();
 void mostrarContenidoLista(t_list* lista,void(*printer)(void *));
 void imprimirString(void *contenidoAMostrar);
@@ -296,7 +303,7 @@ int *obtenerIDEntrenador(t_entrenador *entrenador);
 bool intComparator(void *unNumero,void *otroNumero);
 bool estaRepetidoPokemon(char *pokemon,t_entrenador *entrenador);
 void quitarParejasRepetidas(t_list *parejasEnDeadlock);
-void cambiarOperacionEntrenadores(t_list *,int);
+void cambiarEstadoEntrenadores(t_list *,int);
 void modificarContadorDeadlocks(int);
 bool estaEnBlocked(t_entrenador *entrenador);
 bool hayPokemonesParaAtrapar();
@@ -310,5 +317,10 @@ void planificarEntrenadoresBis();
 void calcularDistanciaEntrenadorA(t_entrenador *entrenador,t_pokemon *pokemon);
 void moverEntrenadorConDesalojo(t_entrenador *,t_pokemon *);
 void quitarPokemonesInnecesarios(t_list *pokemones);
+void envioDeACKGameBoy(int, uint32_t, t_operacion);
+t_entrenador *entrenadorQueVaAReady(t_list *,t_FLAG);
+int cantidadEntrenadoresBloqueadosOcupados();
+bool hayEntrenadoresBloqueadosOcupados();
+bool estaEnLocalizedOAppeared(char *);
 
 #endif
