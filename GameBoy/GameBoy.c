@@ -458,7 +458,7 @@ void enviar_mensaje_a_team(char* tipo_de_mensaje,int cantidad_de_argumentos,char
 		int resultado = packAndSend(conexion,paqueteAEnviar,tamPaquete+sizeof(uint32_t),t_APPEARED);
 		if(resultado == -1)log_error(logger,"El envio del mensaje de APPEARED falló");
 		log_info(logger,"Mensaje de APPEARED enviado");
-		//recibirACK(conexion,id);
+		recibirACK(conexion,id);
 		//printf("Aca envio el mensaje \n");
 		//printf("Pokemon: %s \n",pokemon);
 		//printf("PosX: %i \n",posx);
