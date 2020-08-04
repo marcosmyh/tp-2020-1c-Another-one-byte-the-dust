@@ -102,7 +102,6 @@ pthread_t hiloAtencionAppeared;
 pthread_t hiloAtencionLocalized;
 pthread_t hiloAtencionGameBoy;
 pthread_t hiloSuscripcionBroker;
-
 pthread_t hiloMensajes;
 pthread_t hiloPlanificacionReady;
 pthread_t hiloPlanificacionEntrenadores;
@@ -115,24 +114,13 @@ sem_t conexionRecuperadaDeAppeared;
 sem_t conexionRecuperadaDeCaught;
 sem_t conexionRecuperadaDeLocalized;
 sem_t semaforoMetricas;
-sem_t semaforoReady;
-sem_t semaforoMensajesAppeared;
-sem_t semaforoControlAppeared;
 sem_t semaforoAgregadoPokemones;
-sem_t semaforoExec;
-sem_t semaforoInicioDeadlock;
 sem_t semaforoPlanificacionInicialReady;
-
-sem_t semaforoPlanificacionReady;
 sem_t semaforoPlanificacionExec;
 sem_t semaforoDeteccionDeadlocks;
-
 pthread_mutex_t mutexPokemonesEnMapa;
-pthread_mutex_t mutexPlanificacionReady;
-pthread_mutex_t mutexPlanificacionEntrenadores;
 pthread_mutex_t mutexEntrenadoresReady;
 pthread_mutex_t mutexDeadlock;
-pthread_mutex_t mutexRevisionDeadlock;
 
 //METRICAS
 int ciclosTotales = 0;
@@ -217,7 +205,6 @@ void inicializarSemaforosEntrenadores();
 bool estaEnElObjetivo(char* pokemon);
 bool yaFueAtrapado(char* pokemon);
 char* obtenerPokemon(t_pokemon* unPokemon);
-void planificarEntrenadores();
 void ejecutarEntrenador();
 void capturarPokemon(t_entrenador* entrenadorAEjecutar);
 void atraparPokemon(t_entrenador* entrenadorAEjecutar, t_pokemon* pokemonAAtrapar);
@@ -243,7 +230,7 @@ bool comparadorPokemones(t_pokemon* unPokemon, t_pokemon* otroPokemon);
 int list_get_index(t_list* self, void* elemento, bool (*comparator) (void*,void*));
 bool estaEnElMapa(char* unPokemon);
 bool correspondeAUnIDDe(t_list* colaDeIDS, uint32_t IDCorrelativo); //LE PASAS UNA COLA DE IDS GUARDADOS Y UN ID A BUSCAR Y TE DICE SI ESTA O NO
-void planificarEntradaAReady();
+void planificadorALargoPlazo();
 void administrarSuscripcionesBroker();
 void calcularDistanciaA(t_list* listaEntrenadores, t_pokemon* unPokemon);
 bool comparadorDeDistancia(t_entrenador* unEntrenador, t_entrenador* otroEntrenador);
@@ -296,13 +283,11 @@ void imprimirString(void *contenidoAMostrar);
 void imprimirNumero(void *);
 t_pokemon *crearPokemon(char *,uint32_t,uint32_t);
 char *obtenerPokemonParaIntercambiar(t_entrenador *,t_entrenador *);
-t_list *obtenerParejasEnDeadlock(t_list *);
 t_entrenador *obtenerEntrenadorQueTieneElPokemon(char *pokemon,t_list *entrenadoresEnDeadlock,t_entrenador *entrenador);
 bool existeID(void *ID_a_buscar, t_list *lista,bool(*comparator)(void *,void *));
 int *obtenerIDEntrenador(t_entrenador *entrenador);
 bool intComparator(void *unNumero,void *otroNumero);
 bool estaRepetidoPokemon(char *pokemon,t_entrenador *entrenador);
-void quitarParejasRepetidas(t_list *parejasEnDeadlock);
 void cambiarEstadoEntrenadores(t_list *,int);
 void modificarContadorDeadlocks(int);
 bool estaEnBlocked(t_entrenador *entrenador);
@@ -313,7 +298,7 @@ void capturaPokemonRR(t_entrenador *);
 void capturaPokemonSJFConDesalojo(t_entrenador *);
 void intercambioPokemonSinQuantum(t_entrenador *);
 void intercambioPokemonRR(t_entrenador *);
-void planificarEntrenadoresBis();
+void planificadorACortoPlazo();
 void calcularDistanciaEntrenadorA(t_entrenador *entrenador,t_pokemon *pokemon);
 void moverEntrenadorConDesalojo(t_entrenador *,t_pokemon *);
 void quitarPokemonesInnecesarios(t_list *pokemones);
@@ -322,5 +307,6 @@ t_entrenador *entrenadorQueVaAReady(t_list *,t_FLAG);
 int cantidadEntrenadoresBloqueadosOcupados();
 bool hayEntrenadoresBloqueadosOcupados();
 bool estaEnLocalizedOAppeared(char *);
+void destruirColasTeam();
 
 #endif
