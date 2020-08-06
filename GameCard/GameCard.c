@@ -212,15 +212,16 @@ void gestionMensajesNew(){
 
 void recibirHandshake(int socket,uint32_t tamanioPaquete){
 	void *paqueteBroker = receiveAndUnpack(socket,tamanioPaquete);
-	identificadorProcesoGC = unpackProceso(paqueteBroker);
-	config_set_value(archivoConfig,"ID",identificadorProcesoGC);
-	config_save(archivoConfig);
-	// CAMBIO
-	free(identificadorProcesoGC);
-	identificadorProcesoGC = config_get_string_value(archivoConfig,"ID");
-	//CAMBIO
-	free(paqueteBroker);
-	log_info(loggerObligatorio,"ID RECIBIDO: %s",identificadorProcesoGC);
+
+	if(identificadorProcesoGC == NULL){
+		identificadorProcesoGC = unpackProceso(paqueteBroker);
+		config_set_value(archivoConfig,"ID",identificadorProcesoGC);
+		config_save(archivoConfig);
+		free(paqueteBroker);
+		log_info(loggerObligatorio,"ID RECIBIDO: %s",identificadorProcesoGC);
+	}else{
+		free(paqueteBroker);
+	}
 }
 
 void administrarSuscripcionesBroker(){
