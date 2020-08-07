@@ -1,5 +1,6 @@
 #include "Broker.h"
 
+
 int main(void) {
 
 	signal(SIGUSR1,&dumpDeCache);
@@ -92,7 +93,7 @@ void atender_cliente(int *socket){
 }
 
 
-void enviarACK(int socket,uint32_t ID,t_operacion operacion){
+void enviarACKBroker(int socket,uint32_t ID,t_operacion operacion){
 	void *paquete = pack_Ack(ID, operacion,"Broker");
 	uint32_t tamPaquete = 3*sizeof(uint32_t) + strlen("Broker") + 1;
 	packAndSend(socket, paquete, tamPaquete, t_ACK);
@@ -161,7 +162,7 @@ void procesar_solicitud(Header header,int cliente_fd){
 
                 enviarIDAlProductor(cliente_fd,ID_NEW,t_NEW);
 
-                enviarACK(cliente_fd,-1,t_NEW);
+                enviarACKBroker(cliente_fd,-1,t_NEW);
 
                 void *paqueteNEW = insertarIDEnPaquete(ID_NEW,paqueteNewSinID,sizePaquete,0);
 
@@ -195,7 +196,7 @@ void procesar_solicitud(Header header,int cliente_fd){
 
      		    if(existeRespuestaEnCola(ID_LOCALIZED_Correlativo,LOCALIZED_POKEMON)){
      		    	log_error(logExtra,"El mensaje con ID Correlativo [%d] ya existe en la cola LOCALIZED_POKEMON",ID_LOCALIZED_Correlativo);
-     		    	enviarACK(cliente_fd,ID_LOCALIZED_Correlativo,t_LOCALIZED);
+     		    	enviarACKBroker(cliente_fd,ID_LOCALIZED_Correlativo,t_LOCALIZED);
      		    	free(paquete);
      		    }
      		    else{
@@ -205,7 +206,7 @@ void procesar_solicitud(Header header,int cliente_fd){
 
 					enviarIDAlProductor(cliente_fd,ID_LOCALIZED_Generado,t_LOCALIZED);
 
-					enviarACK(cliente_fd,ID_LOCALIZED_Correlativo,t_LOCALIZED);
+					enviarACKBroker(cliente_fd,ID_LOCALIZED_Correlativo,t_LOCALIZED);
 
      		    	void *paqueteLocalized = insertarIDEnPaquete(ID_LOCALIZED_Generado,paquete,sizePaquete,DOUBLE_ID);
 
@@ -244,7 +245,7 @@ void procesar_solicitud(Header header,int cliente_fd){
 
      		    enviarIDAlProductor(cliente_fd,ID_GET,t_GET);
 
-     		    enviarACK(cliente_fd,-1,t_GET);
+     		    enviarACKBroker(cliente_fd,-1,t_GET);
 
      		    void *paqueteGET = insertarIDEnPaquete(ID_GET,paqueteGetSinID,sizePaquete,0);
 
@@ -278,7 +279,7 @@ void procesar_solicitud(Header header,int cliente_fd){
 
      		    if(existeRespuestaEnCola(ID_APPEARED_Correlativo,APPEARED_POKEMON)){
      		    	log_error(logExtra,"El mensaje con ID Correlativo [%d] ya existe en la cola APPEARED POKEMON",ID_APPEARED_Correlativo);
-     		    	enviarACK(cliente_fd,ID_APPEARED_Correlativo,t_APPEARED);
+     		    	enviarACKBroker(cliente_fd,ID_APPEARED_Correlativo,t_APPEARED);
      		    	free(paquete);
      		    }
      		    else{
@@ -289,7 +290,7 @@ void procesar_solicitud(Header header,int cliente_fd){
 
      		    enviarIDAlProductor(cliente_fd,ID_APPEARED_Generado,t_APPEARED);
 
-     		    enviarACK(cliente_fd,ID_APPEARED_Correlativo,t_APPEARED);
+     		    enviarACKBroker(cliente_fd,ID_APPEARED_Correlativo,t_APPEARED);
 
                 void *paqueteAppeared = insertarIDEnPaquete(ID_APPEARED_Generado,paquete,sizePaquete,DOUBLE_ID);
 
@@ -329,7 +330,7 @@ void procesar_solicitud(Header header,int cliente_fd){
 
  		        enviarIDAlProductor(cliente_fd,ID_CATCH,t_CATCH);
 
- 		        enviarACK(cliente_fd,-1,t_CATCH);
+ 		        enviarACKBroker(cliente_fd,-1,t_CATCH);
 
  		        void *paqueteCATCH = insertarIDEnPaquete(ID_CATCH,paqueteCatchSinID,sizePaquete,0);
 
@@ -363,7 +364,7 @@ void procesar_solicitud(Header header,int cliente_fd){
 
      			if(existeRespuestaEnCola(ID_CAUGHT_Correlativo,CAUGHT_POKEMON)){
      				log_error(logExtra,"El mensaje con ID_Correlativo [%d] ya existe en la cola CAUGHT POKEMON",ID_CAUGHT_Correlativo);
-     				enviarACK(cliente_fd,ID_CAUGHT_Correlativo,t_CAUGHT);
+     				enviarACKBroker(cliente_fd,ID_CAUGHT_Correlativo,t_CAUGHT);
      				free(paquete);
      			}
      			else{
@@ -374,7 +375,7 @@ void procesar_solicitud(Header header,int cliente_fd){
 
 					enviarIDAlProductor(cliente_fd,ID_CAUGHT_Generado,t_CAUGHT);
 
-					enviarACK(cliente_fd,ID_CAUGHT_Correlativo,t_CAUGHT);
+					enviarACKBroker(cliente_fd,ID_CAUGHT_Correlativo,t_CAUGHT);
 
 					void *paqueteCaught = insertarIDEnPaquete(ID_CAUGHT_Generado,paquete,sizePaquete,DOUBLE_ID);
 
@@ -632,6 +633,7 @@ void modificarParticion(t_particion *particion,uint32_t IDMensaje,char *colaDeMe
 	particion->colaDeMensaje = colaDeMensaje;
 }
 
+
 void consolidarParticion(t_particion *particionActual){
 	uint32_t IDParticion = particionActual->ID_Particion;
 	uint32_t offsetActual = particionActual->offset;
@@ -663,6 +665,8 @@ void consolidarParticion(t_particion *particionActual){
 		    	consolidarParticion(particionSiguiente);
 		    }
 
+		    destruirParticion(particionActual);
+
 		}
 	}
 
@@ -673,7 +677,7 @@ void consolidarParticion(t_particion *particionActual){
             uint32_t tamanioTotal = tamanioParticion + tamanioParticionSiguiente;
             t_particion *particionConsolidadaDerecha = crearParticion(tamanioTotal);
 			setearOffset(offsetActual,particionConsolidadaDerecha);
-			list_remove(particiones,posSiguiente);
+			t_particion *particionSiguiente = list_remove(particiones,posSiguiente);
 			list_remove(particionesLibres,obtenerPosicionIDParticion(particionSiguiente->ID_Particion));
 		    list_replace(particiones,posActual,particionConsolidadaDerecha);
 		    list_remove(particionesLibres,obtenerPosicionIDParticion(particionActual->ID_Particion));
@@ -682,6 +686,8 @@ void consolidarParticion(t_particion *particionActual){
 		    if(particionAnterior != NULL && estaLibre(particionAnterior)){
 		    	consolidarParticion(particionAnterior);
 		    }
+
+		    destruirParticion(particionSiguiente);
 		}
 	}
 
@@ -1268,7 +1274,9 @@ void compactarMemoria(){
 
 				uint32_t posParticionLibre = obtenerPosicionParticion(particionActual->ID_Particion);
 
-				list_remove(particiones,posParticionLibre);
+				t_particion *particionAux = list_remove(particiones,posParticionLibre);
+
+				destruirParticion(particionAux);
 
 			}
 			else{
@@ -2055,12 +2063,15 @@ void agregarSuscriptor(t_suscriptor *suscriptor,t_list *listaSuscriptores,char *
 	char *identificadorProceso = suscriptor->identificadorProceso;
 
 	if(existeSuscriptor(identificadorProceso,listaSuscriptores)){
+		log_info(logExtra,"Se reconectó %s. Se procederá a actualizar la información del suscriptor.",identificadorProceso,nombreCola);
 		uint32_t posSuscriptor = obtenerPosicionSuscriptor(identificadorProceso,listaSuscriptores);
 		list_remove_and_destroy_element(listaSuscriptores,posSuscriptor,(void *) destruirSuscriptor);
+		list_add(listaSuscriptores,suscriptor);
 	}
-
-	list_add(listaSuscriptores,suscriptor);
-	log_info(logObligatorio,"Se suscribio al %s a la cola %s",identificadorProceso,nombreCola);
+	else{
+		list_add(listaSuscriptores,suscriptor);
+		log_info(logObligatorio,"Se suscribió al %s a la cola %s",identificadorProceso,nombreCola);
+	}
 }
 
 

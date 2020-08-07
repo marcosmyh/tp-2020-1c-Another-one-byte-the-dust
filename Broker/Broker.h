@@ -226,7 +226,7 @@ void consolidarBuddy(t_nodo *);
 uint32_t dividirYObtenerIDParticionExacta(t_nodo *, uint32_t);
 bool existeParticionLibreParaCachearMensaje(uint32_t);
 void enviarIDAlProductor(int,uint32_t,int);
-void enviarACK(int,uint32_t,t_operacion);
+void enviarACKBroker(int,uint32_t,t_operacion);
 
 
 #endif
