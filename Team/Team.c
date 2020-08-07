@@ -943,7 +943,7 @@ void envioDeACKGameBoy(int conexion, uint32_t id, t_operacion operacion){
 	void* paquete = pack_Ack(id, operacion, "Team");
 	uint32_t tamPaquete = sizeof(id) + sizeof(t_operacion) + strlen("Team") + 1 + sizeof(uint32_t);
 	packAndSend(conexion, paquete, tamPaquete, t_ACK);
-	log_info(loggerObligatorio, "El envio del ACK del mensaje con ID [%d] se realizo con exito",id);
+	log_info(logger, "El envio del ACK del mensaje con ID [%d] se realizo con exito",id);
 
 	free(paquete);
 }
@@ -1001,7 +1001,7 @@ bool yaFueAtrapado(char* pokemon){
 	list_clean(nombrePokemonesEnMapa);
 	list_destroy(nombrePokemonesEnMapa);
 
-	printf("\n\n\n\n\nCantidad de ocurrencias: Globales %d EnMapa %d Entrenadores %d\n\n\n\n",ocurrenciasGlobales,ocurrenciasEnMapa,ocurrenciasEntrenadores);
+	//printf("\n\n\n\n\nCantidad de ocurrencias: Globales %d EnMapa %d Entrenadores %d\n\n\n\n",ocurrenciasGlobales,ocurrenciasEnMapa,ocurrenciasEntrenadores);
 
 	if(ocurrenciasGlobales == (ocurrenciasEnMapa + ocurrenciasEntrenadores)){
 		return true;
@@ -1153,6 +1153,8 @@ void capturaPokemonSJFConDesalojo(t_entrenador *entrenadorAEjecutar){
 		//EJECUTAR SIN QUANTUM
 
 				int distanciaAPokemon = entrenadorAEjecutar->pokemonAAtrapar->distanciaAEntrenador;
+				log_info(loggerObligatorio, "Se movera al entrenador ID:%d de la posicion X:%d  Y:%d a la posicion  X:%d  Y:%d para atrapar a %s", entrenadorAEjecutar->idEntrenador,
+							entrenadorAEjecutar->coordenadaX, entrenadorAEjecutar->coordenadaY, entrenadorAEjecutar->pokemonAAtrapar->coordenadaX, entrenadorAEjecutar->pokemonAAtrapar->coordenadaY, entrenadorAEjecutar->pokemonAAtrapar->nombrePokemon);
 				moverEntrenadorConDesalojo(entrenadorAEjecutar,entrenadorAEjecutar->pokemonAAtrapar);
 				ciclosTotales += distanciaAPokemon;
 				entrenadorAEjecutar->ciclosEjecutados += distanciaAPokemon;
@@ -1677,9 +1679,9 @@ void completarCatch(t_entrenador* unEntrenador, bool resultadoCaught){
 		if(unEntrenador->operacionEntrenador == 0){
 			//sacarPokemonDelMapa(pokemonAtrapado);
 			//semaforo que de el ok
-			printf("Voy a sacar al pokemon: %s\n",pokemonAtrapado->nombrePokemon);
+			//printf("Voy a sacar al pokemon: %s\n",pokemonAtrapado->nombrePokemon);
 			sacarPokemonDelMapa(pokemonAtrapado);
-			printf("Los pokemones en mapa son :%d despues del remove \n",list_size(pokemonesEnMapa));
+			//printf("Los pokemones en mapa son :%d despues del remove \n",list_size(pokemonesEnMapa));
 			list_add(pokemonesAtrapados,nombrePokemon);
 			log_info(logger,"CANT POK ATRAPADOS: %d",list_size(pokemonesAtrapados));
 			list_add(unEntrenador->pokemones, nombrePokemon);
@@ -1804,7 +1806,7 @@ void completarCatchSinBroker(t_entrenador* unEntrenador){
 			unEntrenador->ocupado = true;
 			unEntrenador->blockeado = true;
 			list_add(colaBlocked, unEntrenador);
-			log_info(logger, "El entrenador %d atrapo el pokemon, no puede atrapar mas y no cumplio el objetivo se cambio de EXEC a BLOCKED donde esperara al algoritmo de Deadlock", unEntrenador->idEntrenador);
+			log_info(loggerObligatorio, "El entrenador %d atrapo el pokemon, no puede atrapar mas y no cumplio el objetivo se cambio de EXEC a BLOCKED donde esperara al algoritmo de Deadlock", unEntrenador->idEntrenador);
 			}
 	}
 	//ESTO ME HABILITA LA DETECCION DE DL
@@ -1859,7 +1861,7 @@ void completarIntercambioSinBroker(t_entrenador* unEntrenador){
 			int index = list_get_index(colaBlocked,unEntrenador,(void*)comparadorDeEntrenadores);
 			list_remove(colaBlocked,index);
 			list_add(colaExit,unEntrenador);
-			log_info(logger, "Se cambió el entrenador %d de BLOCKED a EXIT, Razón: Termino de atrapar un pokemon con la rutina por default y cumplio con su objetivo", unEntrenador->idEntrenador);
+			log_info(loggerObligatorio, "Se cambió el entrenador %d de BLOCKED a EXIT, Razón: Termino de atrapar un pokemon con la rutina por default y cumplio con su objetivo", unEntrenador->idEntrenador);
 		}
 	}
 	else{
@@ -1869,7 +1871,7 @@ void completarIntercambioSinBroker(t_entrenador* unEntrenador){
 			unEntrenador->blockeado = true;
 			unEntrenador->ocupado = true;
 			list_add(colaBlocked, unEntrenador);
-			log_info(logger, "El entrenador %d atrapo el pokemon, no puede atrapar mas y no cumplio el objetivo, se cambio de EXEC a BLOCKED donde esperara al algoritmo de Deadlock", unEntrenador->idEntrenador);
+			log_info(loggerObligatorio, "El entrenador %d atrapo el pokemon, no puede atrapar mas y no cumplio el objetivo, se cambio de EXEC a BLOCKED donde esperara al algoritmo de Deadlock", unEntrenador->idEntrenador);
 			//sem_post(&semaforoPlanificacionExec);  //PORQUE ACA PASO DE EXEC A BLOQUEADO
 			//pthread_mutex_unlock(&mutexEntrenadoresReady);
 		}else{
@@ -1893,7 +1895,7 @@ void mostrarContenidoLista(t_list* lista,void(*printer)(void *)){
 }
 
 void imprimirString(void *contenidoAMostrar){
-	printf("ULTIMO ACCESO: %s \n",(char *) contenidoAMostrar);
+	//printf("ULTIMO ACCESO: %s \n",(char *) contenidoAMostrar);
 }
 
 bool cumplioObjetivo(t_entrenador* unEntrenador){
@@ -1997,7 +1999,7 @@ void aplicarSJF(){
 		}
 
 		void imprimirFloat(void *numero){
-			printf("RAFAGA: %f \n",*(float*)numero);
+			//printf("RAFAGA: %f \n",*(float*)numero);
 		}
 
 
@@ -2102,7 +2104,7 @@ t_list *obtenerEntrenadoresDisponibles(){
 }
 
 void imprimirNumero(void *contenidoAMostrar){
-    printf("ID: %d \n",*(uint32_t *) contenidoAMostrar);
+    //printf("ID: %d \n",*(uint32_t *) contenidoAMostrar);
 }
 
 void transicionAReady(t_entrenador *entrenador,t_FLAG estado){
@@ -2437,7 +2439,7 @@ void modificarContadorDeadlocks(int cantDeadlocks){
 void quienesEstanEnDeadlock(t_list *entrenadoresSinObjetivo,t_list*entrenadoresDL,int posDeLista,int cantidadDeIteraciones){
 
 
-	printf("\n\n\n -----------------EMPIEZO DL \n\n\n ");
+	//printf("\n\n\n -----------------EMPIEZO DL \n\n\n ");
 	if(list_size(entrenadoresSinObjetivo) <= 1) return;
 	if(cantidadDeIteraciones >= list_size(entrenadoresSinObjetivo)) return;
 
@@ -2449,7 +2451,7 @@ void quienesEstanEnDeadlock(t_list *entrenadoresSinObjetivo,t_list*entrenadoresD
 	// Obtenemos al entrenador2 que posee el pokemon que le falta al entrenador1
 	t_entrenador *entrenadorQueTieneMiPokemon = obtenerEntrenadorQueTieneMiPokemon(entrenador,pokemon);
 
-	printf("Busco al que tiene mi pokemon\n");
+	//printf("Busco al que tiene mi pokemon\n");
 
 
 	//Pregunto si hay elementos en la lista entrenadores en deadlock
@@ -2458,7 +2460,7 @@ void quienesEstanEnDeadlock(t_list *entrenadoresSinObjetivo,t_list*entrenadoresD
 		t_entrenador *primerIDdeb = list_get(entrenadoresDL,0);
 		// Consulto si al que intento agregar coincide con el primero en la lista deadlock, si es así hay un ciclo
 			if(entrenador->idEntrenador == primerIDdeb->idEntrenador){
-				printf("Hay una espera circular\n");
+				//printf("Hay una espera circular\n");
 				return;
 			}
 
@@ -2466,7 +2468,7 @@ void quienesEstanEnDeadlock(t_list *entrenadoresSinObjetivo,t_list*entrenadoresD
 			// por lo tanto no hay ciclo y reinicio la lista y paso al siguiente de la lista entrenadoresSinObjetivo utilizando la cantidad de iteraciones
 
 			if(list_size(entrenadoresDL) > list_size(entrenadoresSinObjetivo) && entrenador->idEntrenador != primerIDdeb->idEntrenador){
-				printf("No se complio la espera circular, se procede a ver el próximo de la lista\n");
+				//printf("No se complio la espera circular, se procede a ver el próximo de la lista\n");
 				list_clean(entrenadoresDL);
 				cantidadDeIteraciones++;
 				return quienesEstanEnDeadlock(entrenadoresSinObjetivo,entrenadoresDL,cantidadDeIteraciones,cantidadDeIteraciones);
@@ -2540,9 +2542,9 @@ void detectarDeadlocks(){
 t_entrenador* obtenerEntrenadorQueTieneMiPokemon(t_entrenador* unEntrenador, char* unPokemon){
 	//ME INFORMA QUE ENTRENADOR TIENE EL POKEMON QUE NECESITO
 	t_list* aux = list_filter(entrenadores, (void*)noCumplioObjetivo);
-	log_error(loggerObligatorio,"List size: %d",list_size(aux));
+	log_error(logger,"List size: %d",list_size(aux));
 	int indexEntrenador = list_get_index(aux, unEntrenador, (void*)comparadorDeEntrenadores);
-	log_error(loggerObligatorio,"IndexEntrenador: %d",indexEntrenador);
+	log_error(logger,"IndexEntrenador: %d",indexEntrenador);
 
 	list_remove(aux,indexEntrenador);
 	int cantEntrenadores = list_size(aux);
