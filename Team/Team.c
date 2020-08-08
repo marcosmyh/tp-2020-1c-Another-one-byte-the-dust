@@ -1957,11 +1957,11 @@ void aplicarSJFConDesalojo(){
 
 		t_entrenador* entrenadorEnExec = list_get(colaExec,0);
 		calcularEstimacion(entrenadorEnExec);
-		log_info(logger, "LA ESTIMACION DEL ENTRENADOR %d EJECUTANDO ES: %f",entrenadorEnExec->idEntrenador, entrenadorEnExec->rafagasEstimadas);
+		log_info(loggerObligatorio, "LA ESTIMACION DEL ENTRENADOR %d EJECUTANDO ES: %f",entrenadorEnExec->idEntrenador, entrenadorEnExec->rafagasEstimadas);
 		t_list* aux = list_map(colaReady, (void*)calcularEstimacion);
 		list_sort(aux, (void*)comparadorDeRafagas);
 		t_entrenador* entrenadorEnReady = (t_entrenador*) list_remove(aux,0);
-		log_info(logger, "LA MENOR ESTIMACION DE READY ES DEL ENTRENADOR %d, QUE ES: %f", entrenadorEnReady->idEntrenador, entrenadorEnReady->rafagasEstimadas);
+		log_info(loggerObligatorio, "LA MENOR ESTIMACION DE READY ES DEL ENTRENADOR %d, QUE ES: %f", entrenadorEnReady->idEntrenador, entrenadorEnReady->rafagasEstimadas);
 
 		if(entrenadorEnReady->rafagasEstimadas < entrenadorEnExec->rafagasEstimadas){
 			//SACO AL QUE EJECUTA
@@ -1999,7 +1999,7 @@ void aplicarSJF(){
 		}
 
 		void imprimirFloat(void *numero){
-			//printf("RAFAGA: %f \n",*(float*)numero);
+			log_info(loggerObligatorio,"RAFAGA: %f \n",*(float*)numero);
 		}
 
 
@@ -2104,7 +2104,7 @@ t_list *obtenerEntrenadoresDisponibles(){
 }
 
 void imprimirNumero(void *contenidoAMostrar){
-    //printf("ID: %d \n",*(uint32_t *) contenidoAMostrar);
+    log_info(loggerObligatorio,"ID: %d \n",*(uint32_t *) contenidoAMostrar);
 }
 
 void transicionAReady(t_entrenador *entrenador,t_FLAG estado){
@@ -2507,10 +2507,10 @@ void detectarDeadlocks(){
 		//mostrar entrenadores que no cumplieron y los que están en deadock t0do
 
 		log_error(logger,"ENTRENADORES QUE NO CUMPLIERON EL OBJETIVO!");
-		mostrarContenidoLista(list_map(entrenadoresQueNoCumplieronObjetivo,(void *)obtenerIDEntrenador),imprimirNumero);
+		//mostrarContenidoLista(list_map(entrenadoresQueNoCumplieronObjetivo,(void *)obtenerIDEntrenador),imprimirNumero);
 
 		log_error(logger,"ENTRENADORES EN DLs");
-		mostrarContenidoLista(entrenadoresEnDeadlockBis,imprimirNumero);
+		//mostrarContenidoLista(entrenadoresEnDeadlockBis,imprimirNumero);
 
 		cambiarEstadoEntrenadores(entrenadoresQueNoCumplieronObjetivo,t_intercambiarPokemon);
 
