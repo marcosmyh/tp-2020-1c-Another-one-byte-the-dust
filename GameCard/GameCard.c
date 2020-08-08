@@ -237,7 +237,6 @@ void administrarSuscripcionesBroker(){
 		reconexionColaNew();
 		suscripcionColaCatch();
 		suscripcionColaGet();
-		printf("Suscrito a todo bro\n");
 
 	}
 }
