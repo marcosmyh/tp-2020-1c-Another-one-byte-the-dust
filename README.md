@@ -1,7 +1,7 @@
 # tp-2020-1c-Another-one-byte-the-dust
 
 <p align="center">
-  <img src="https://user-images.githubusercontent.com/38147472/89950130-5bb5b580-dbff-11ea-8666-c59fa3603976.png" />
+  <img src="https://user-images.githubusercontent.com/38147472/105395480-8750b900-5bfd-11eb-8564-8db82e262b3e.png" />
 </p>
 
 ### Enunciado
